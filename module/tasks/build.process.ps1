@@ -15,7 +15,7 @@ task PostInit
 task Init -If {!$SkipInit} PreInit,InitCore,PostInit
 
 task PreVersion
-task VersionCore
+task VersionCore GitVersion,SetBuildServerBuildNumber
 task PostVersion
 task Version -If {!$SkipVersion} Init,PreVersion,VersionCore,PostVersion
 

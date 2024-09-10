@@ -13,6 +13,3 @@ Export-ModuleMember -Function ( $functions |
                                         Where-Object { -not $_.StartsWith("_") }
                             ) `
                     -Alias endjin-devops.tasks
-
-# Define globals/constants
-$InvokeBuildModuleVersion = "5.10.3"
