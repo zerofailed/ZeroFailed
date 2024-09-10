@@ -2,14 +2,11 @@
 # TBC: What should constitute a core task?
 # NOTE: These are currently overridden when importing the original 'Endjin.RecommendedPractices.Build'
 #       module as an extension.
-$taskGroups = @(
-    # "common"
-    # "cicd-server"
-)
+$taskGroups = @()
 $taskGroups | ForEach-Object {
     $taskFilename = "$_.tasks.ps1"
     $taskFilePath = Resolve-Path ([IO.Path]::Combine($PSScriptRoot, "tasks", $taskFilename))
-    Write-Information "Import '$taskFilePath'"
+    Write-Verbose "Importing core task: $taskFilename"
     . $taskFilePath
 }
 
@@ -26,6 +23,7 @@ $devopsExtensionsRepository ??= !$env:ENDJIN_DEVOPS_EXTENSIONS_PS_REPO ? "PSGall
 
 # Process the extensions configuration, obtaining them where necessary and
 # filling-out the addtional metadata required by subsequent steps to load them.
+Write-Host "*** Registering Extensions..." -f Green
 $devopsExtensions = Register-Extensions -Extensions $devopsExtensions `
                                         -DefaultRepository $devopsExtensionsRepository
 
@@ -44,20 +42,22 @@ $processFromExtension = $devopsExtensions |
                             Select-Object -First 1
 if ($processFromExtension) {
     $processPath = Join-Path $processFromExtension.Path $processFromExtension.Process
-    Write-Host "Importing process from extension '$($processFromExtension.Name)' : $processPath"
+    Write-Host "Using process from extension '$($processFromExtension.Name)'" -f Green
 }
 else {
     $processPath = Join-Path $PSScriptRoot "tasks" "build.process.ps1"
-    Write-Host "Importing core process from '$processPath'"
+    Write-Host "Using default process" -f Green
 }
+# Dot-source the file that defines the tasks representing the top-level process
 . $processPath
 
 #
 # Load tasks & functions from extensions
 #
-foreach ($extension in $devopsExtensions){
+Write-Host "Loading functions & tasks from extensions..." -f Green
+foreach ($extension in $devopsExtensions) {
+    Write-Host $extension.Name -f Cyan
     $extensionName = $extension.Name
-    Write-Host "Importing functions & tasks from extension: $extensionName" -f Green
     if (!$extension.Enabled) {
         Write-Warning "Skipping disabled extension '$extensionName'"
         continue
@@ -85,4 +85,6 @@ foreach ($extension in $devopsExtensions){
         Write-Verbose "Importing function '$($_.FullName)'"
         . $_
     }
+
+    Write-Host "*** Extensions registration complete`n" -f Green
 }

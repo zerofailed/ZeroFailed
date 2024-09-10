@@ -1,36 +1,68 @@
 function Get-ExtensionFromRepository {
     param(
         [Parameter(Mandatory=$true)]
-        [string] $ExtensionName,
+        [string] $Name,
 
         [Parameter(Mandatory=$true)]
-        [string] $Repository
+        [string] $Repository,
+
+        [Parameter()]
+        [string] $Version,
+
+        [Parameter()]
+        [switch] $PreRelease
     )
 
+    # Setup some objects we'll use for splatting
     $extension = @{
-        Name = $ExtensionName
+        Name = $Name
         Repository = $Repository
-        Enabled = $false
+        Enabled = $true
+    }
+    $psResourceArgs = @{
+        Name = $Name
+        PreRelease = $PreRelease
+    }
+    if ($Version) {
+        $extension.Add("Version", $Version)
+        $psResourceArgs.Add("Version", $Version)
     }
 
-    # TODO: Check whether module is already installed, or can we rely on 'Install-PSResource' to handle this?
+    # Check whether module is already installed
+    $existingExtensionPath,$existingExtensionVersion = Get-InstalledExtensionDetails @psResourceArgs
 
     # Handle getting the module from the repository
-    if (Find-Module $ExtensionName -ErrorAction Ignore) {
-        Write-Host "  Installing extension '$ExtensionName' from $Repository"
-        $installArgs = $extension.Clone()
-        $installArgs += @{
-            Scope = "CurrentUser"
-            PassThru = $true
+    if (!$existingExtensionPath) {
+        Write-Verbose "Extension '$Name' not found locally, checking repository"
+        if (Find-PSResource @psResourceArgs -ErrorAction Ignore) {
+            Write-Host "Installing extension $Name from $Repository" -f Cyan
+            $installArgs = $extension.Clone()
+            $installArgs.Remove("Enabled") | Out-Null
+            $installArgs += @{
+                Scope = "CurrentUser"
+            }
+            Install-PSResource @installArgs -TrustRepository | Out-Null
+
+            $existingExtensionPath = Get-InstalledExtensionDetails @psResourceArgs
+            if (!$existingExtensionPath) {
+                throw "Failed to install extension $Name (v$Version) from $Repository"
+            }
+            Write-Host "INSTALLED: $Name (v$Version)" -f Cyan
         }
-        $extensionModule = Install-PSResource @installArgs
-        $extension.Add("Path", $extensionModule.InstalledLocation)
-        $extension.Add("Enabled", $true)
-        Write-Host "  Extension installed: $ExtensionName to $($extension.Path)"
+        else {
+            Write-Warning "SKIPPED: Extension $Name not found in $Repository" -f Cyan
+            $extension.Enabled = $false
+        }
     }
     else {
-        Write-Warning "Extension '$ExtensionName' not found on $Repository - it has been disabled."
+        Write-Host "FOUND: $Name (v$existingExtensionVersion)" -f Cyan
     }
 
-    return $extension
+    $extension.Add("Path", $existingExtensionPath)
+
+    # Return the additional extension metadata that this function has populated
+    return @{
+        Path = $existingExtensionPath
+        Enabled = $extension.Enabled
+    }
 }
