@@ -47,7 +47,7 @@ function Get-ExtensionFromRepository {
             if (!$existingExtensionPath) {
                 throw "Failed to install extension $Name (v$Version) from $Repository"
             }
-            Write-Host "INSTALLED: $Name (v$Version)" -f Cyan
+            Write-Host "INSTALLED: $Name (v$existingExtensionVersion)" -f Cyan
         }
         else {
             Write-Warning "SKIPPED: Extension $Name not found in $Repository" -f Cyan
