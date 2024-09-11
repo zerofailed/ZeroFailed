@@ -52,4 +52,4 @@ if ($MyInvocation.ScriptName -notlike '*Invoke-Build.ps1') {
 Import-Module "$here/module/endjin-devops.psd1" -Force
 
 # Load the build configuration
-. $here/.endjin-devops/config.ps1
+. $here/.devops/config.ps1

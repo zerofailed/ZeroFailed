@@ -37,6 +37,8 @@ $PowerShellModulesToPublish = @(
         AliasesToExport = @("endjin-devops.tasks")
     }
 )
+$CreateGitHubRelease = $true
+$GitHubReleaseArtefacts = @()
 
 # Customise the build process
 task . FullBuild
