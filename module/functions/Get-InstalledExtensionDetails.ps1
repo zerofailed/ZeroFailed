@@ -11,7 +11,7 @@ function Get-InstalledExtensionDetails {
         [switch] $PreRelease
     )
 
-    # NOTE: For some reason using   with 'Get-PSResource' does not behave as expected,
+    # NOTE: For some reason using PSBoundParameters with 'Get-PSResource' does not behave as expected,
     # so we have to create a specific splat object rather then just using PSBoundParameters
     # after having removed the 'PreRelease' parameter that Get-PSResource does not use.
     $splat = @{
