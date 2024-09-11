@@ -41,6 +41,12 @@ function Get-ExtensionFromRepository {
             $installArgs += @{
                 Scope = "CurrentUser"
             }
+            # When installing pre-release versions we must use -Force to ensure that an existing pre-release
+            # version is updated. This is because PowerShell does not let multiple pre-releases of a given
+            # version to be installed side-by-side.
+            if ($psResourceArgs.ContainsKey("PreRelease")) {
+                $psResourceArgs.Add("Force", $true)
+            }
             Install-PSResource @installArgs -TrustRepository | Out-Null
 
             $existingExtensionPath,$existingExtensionVersion = Get-InstalledExtensionDetails @psResourceArgs
