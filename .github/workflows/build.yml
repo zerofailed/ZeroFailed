@@ -10,12 +10,12 @@ on:
       - main
   workflow_dispatch:
     inputs:
-      force_publish:
+      forcePublish:
         description: When true, the PowerShell module will be published to specified PowerShell Repository irrespective of its version
         required: true
         default: false
         type: boolean
-      ps_repository:
+      psRepository:
         description: The PowerShell repository used when publishing the module
         required: true
         default: github
