@@ -42,9 +42,16 @@ function Get-InstalledExtensionDetails {
 
     if ($existing) {
         # Derive the path to the module from the installed module metadata
-        $moduleBasePath = Join-Path -Resolve $existing.InstalledLocation $existing.Name $existing.Version
+        # NOTE: The available 'InstalledLocation' property is different depending on
+        #       whether the module has just been installed or was already installed.
+        if ($existing.InstalledLocation.EndsWith("Modules")) {
+            $modulePath = Join-Path -Resolve $existing.InstalledLocation $existing.Name $existing.Version
+        }
+        else {
+            $modulePath = $existing.InstalledLocation
+        }
         $existingVersion = $existing.Prerelease ? "$($existing.Version)-$($existing.Prerelease)" : $existing.Version
-        return $moduleBasePath,$existingVersion
+        return $modulePath,$existingVersion
     }
     else {
         return $null

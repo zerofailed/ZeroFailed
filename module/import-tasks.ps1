@@ -50,9 +50,9 @@ else {
 }
 # Dot-source the file that defines the tasks representing the top-level process
 if (!(Test-Path $processPath)) {
-    Get-ChildItem -Path (Split-Path -Parent $processPath) | Out-String | Write-Host
     throw "Process definition not found: $processPath"
 }
+Write-Verbose "Importing process definition: $processPath"
 . $processPath
 
 #

@@ -15,7 +15,7 @@ function Register-Extensions {
         # Prepare the parameters needed for extension registration
         $splat = $extension.Clone()
         $splat.Remove("Process") | Out-Null
-        $splat.Repository = $extension.ContainsKey("Repository") ? $extension.Repository : $DefaultRepository
+        $splat.Add("Repository", $extension.ContainsKey("Repository") ? $extension.Repository : $DefaultRepository)
         
         # Decide how the extension is being provided
         if (!$extension.ContainsKey("Path")) {

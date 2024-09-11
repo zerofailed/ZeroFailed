@@ -43,7 +43,7 @@ function Get-ExtensionFromRepository {
             }
             Install-PSResource @installArgs -TrustRepository | Out-Null
 
-            $existingExtensionPath = Get-InstalledExtensionDetails @psResourceArgs
+            $existingExtensionPath,$existingExtensionVersion = Get-InstalledExtensionDetails @psResourceArgs
             if (!$existingExtensionPath) {
                 throw "Failed to install extension $Name (v$Version) from $Repository"
             }
@@ -58,11 +58,15 @@ function Get-ExtensionFromRepository {
         Write-Host "FOUND: $Name (v$existingExtensionVersion)" -f Cyan
     }
 
-    $extension.Add("Path", $existingExtensionPath)
-
     # Return the additional extension metadata that this function has populated
-    return @{
+    $additionalMetadata = @{
         Path = $existingExtensionPath
         Enabled = $extension.Enabled
     }
+
+    if (!$extension.ContainsKey("Version")) {
+        $additionalMetadata += @{ Version = $existingExtensionVersion }
+    }
+
+    return $additionalMetadata
 }
