@@ -6,7 +6,13 @@ function New-ExtensionMetadataItem {
     )
 
     if ($Value -is [string]) {
-        if ($Value -imatch [io.path]::DirectorySeparatorChar) {
+        $extension = @{}
+        # Check if the value is a path by looking for directory separators
+        # NOTE: On Windows we can use either the backslash or forward slash as a directory separator, so 
+        #       we need to account for both.
+        $regex = "{0}|{1}" -f [System.Text.RegularExpressions.Regex]::Escape([IO.Path]::DirectorySeparatorChar),
+                              [IO.Path]::AltDirectorySeparatorChar
+        if ($Value -imatch $regex) {
             # Simple syntax referencing a file path to the module
             $extension.Add("Path", $Value)
             # Assume standard directory convention to derive the extension name

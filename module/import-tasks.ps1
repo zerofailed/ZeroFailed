@@ -15,7 +15,7 @@ $taskGroups | ForEach-Object {
 # of extensions can be specified in 2 ways:
 #  1) Defining the '$devopsExtensions' variable early in the calling script (i.e. before calling 'endjin-devops.tasks')
 #  2) Via the 'ENDJIN_DEVOPS_EXTENSIONS' environment variables, however note that the former method will take precedence over the environment variable
-[hashtable[]]$devopsExtensions ??= $env:ENDJIN_DEVOPS_EXTENSIONS ? ($env:ENDJIN_DEVOPS_EXTENSIONS -split ";" | % {@{"$_" = @{}}}) : @{}
+[string[]]$devopsExtensions ??= $env:ENDJIN_DEVOPS_EXTENSIONS ? ($env:ENDJIN_DEVOPS_EXTENSIONS -split ";" | ForEach-Object { $_ }) : @()
 
 # By default, extensions are loaded from the PowerShell Gallery, but this can be overridden
 # in a similar fashion to the 'ENDJIN_DEVOPS_EXTENSIONS' property.
@@ -23,9 +23,15 @@ $devopsExtensionsRepository ??= !$env:ENDJIN_DEVOPS_EXTENSIONS_PS_REPO ? "PSGall
 
 # Process the extensions configuration, obtaining them where necessary and
 # filling-out the addtional metadata required by subsequent steps to load them.
-Write-Host "*** Registering Extensions..." -f Green
-$devopsExtensions = Register-Extensions -Extensions $devopsExtensions `
-                                        -DefaultRepository $devopsExtensionsRepository
+if ($devopsExtensions.Count -gt 0) {
+    Write-Host "*** Registering Extensions..." -f Green
+    $registeredExtensions = Register-Extensions -Extensions $devopsExtensions `
+                                            -DefaultRepository $devopsExtensionsRepository `
+                                            -Verbose:$VerbosePreference
+}
+else {
+    Write-Warning "No extensions specified"
+}
 
 #
 # Load the process definition
@@ -37,7 +43,7 @@ $devopsExtensions = Register-Extensions -Extensions $devopsExtensions `
 # 1) Check whether an extension has been declared as providing it via the 'Process' property
 #    NOTE: For the moment, the first one found wins
 # 2) If not, fallback to using the core process defined in this module
-$processFromExtension = $devopsExtensions |
+$processFromExtension = $registeredExtensions |
                             Where-Object { $_.ContainsKey("Process") } |
                             Select-Object -First 1
 if ($processFromExtension) {
@@ -59,7 +65,7 @@ Write-Verbose "Importing process definition: $processPath"
 # Load tasks & functions from extensions
 #
 Write-Host "Loading functions & tasks from extensions..." -f Green
-foreach ($extension in $devopsExtensions) {
+foreach ($extension in $registeredExtensions) {
     Write-Host $extension.Name -f Cyan
     $extensionName = $extension.Name
     if (!$extension.Enabled) {

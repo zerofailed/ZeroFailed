@@ -8,6 +8,8 @@ function Register-Extensions {
         [string] $DefaultRepository
     )
     
+    [hashtable[]]$processedExtensionConfig = @()
+
     for ($i=0; $i -lt $ExtensionsConfig.Length; $i++) {
         # Parse the extension configuration item into its canonical form
         $extension = New-ExtensionMetadataItem -Value $ExtensionsConfig[$i] -Verbose:$VerbosePreference
@@ -35,8 +37,8 @@ function Register-Extensions {
         }
 
         # Persist the fully-populated extension metadata
-        $ExtensionsConfig[$i] = $extension
+        $processedExtensionConfig += $extension
     }
 
-    return $ExtensionsConfig
+    return $processedExtensionConfig
 }

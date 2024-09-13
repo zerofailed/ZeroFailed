@@ -52,12 +52,12 @@ function Get-ExtensionFromRepository {
 
             $existingExtensionPath,$existingExtensionVersion = Get-InstalledExtensionDetails @psResourceArgs
             if (!$existingExtensionPath) {
-                throw "Failed to install extension $Name (v$Version) from $Repository"
+                throw "Failed to install extension $Name (v$Version) from $Repository repository"
             }
             Write-Host "INSTALLED MODULE: $Name (v$existingExtensionVersion)" -f Cyan
         }
         else {
-            Write-Warning "SKIPPED: Extension $Name not found in $Repository" -f Cyan
+            Write-Warning "SKIPPED: Extension $Name not found in $Repository repository"
             $extension.Enabled = $false
         }
     }
