@@ -54,7 +54,7 @@ function Get-ExtensionFromRepository {
             if (!$existingExtensionPath) {
                 throw "Failed to install extension $Name (v$Version) from $Repository"
             }
-            Write-Host "INSTALLED: $Name (v$existingExtensionVersion)" -f Cyan
+            Write-Host "INSTALLED MODULE: $Name (v$existingExtensionVersion)" -f Cyan
         }
         else {
             Write-Warning "SKIPPED: Extension $Name not found in $Repository" -f Cyan
@@ -62,7 +62,7 @@ function Get-ExtensionFromRepository {
         }
     }
     else {
-        Write-Host "FOUND: $Name (v$existingExtensionVersion)" -f Cyan
+        Write-Host "FOUND MODULE: $Name (v$existingExtensionVersion)" -f Cyan
     }
 
     # Return the additional extension metadata that this function has populated

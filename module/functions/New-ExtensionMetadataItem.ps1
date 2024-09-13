@@ -9,7 +9,8 @@ function New-ExtensionMetadataItem {
         if ($Value -imatch [io.path]::DirectorySeparatorChar) {
             # Simple syntax referencing a file path to the module
             $extension.Add("Path", $Value)
-            $extension.Add("Name", (Split-Path -Leaf $Value))
+            # Assume standard directory convention to derive the extension name
+            $extension.Add("Name", (Split-Path -Leaf (Split-Path -Parent $Value)))
         }   
         else {
             # Simple syntax referencing a module name
@@ -24,5 +25,6 @@ function New-ExtensionMetadataItem {
         throw "Invalid extension configuration syntax. Expected a string or hashtable, but found $($Value.GetType().Name)"
     }
 
+    Write-Verbose "Extension metadata: $($extension | ConvertTo-Json)"
     return $extension
 }
