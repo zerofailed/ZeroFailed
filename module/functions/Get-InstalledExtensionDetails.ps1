@@ -1,4 +1,35 @@
+# <copyright file="Get-InstalledExtensionDetails.ps1" company="Endjin Limited">
+# Copyright (c) Endjin Limited. All rights reserved.
+# </copyright>
 function Get-InstalledExtensionDetails {
+    <#
+        .SYNOPSIS
+        Retrieves the details of an installed extension.
+
+        .DESCRIPTION
+        Searches the local system for an installed version of the PowerShell module representing the specified extension, and returns
+        the path to the module and the version that was found.
+
+        .PARAMETER Name
+        The name of the extension, which is also the name of the PowerShell module.
+
+        .PARAMETER Version
+        The version of the extension, if not specified the latest version available, if any, will be returned.
+
+        .PARAMETER PreRelease
+        Indicates whether to include pre-release versions in the search.
+
+        .INPUTS
+        None. You can't pipe objects to Get-InstalledExtensionDetails.
+
+        .OUTPUTS
+        When the extension is found, returns two string values representing the path to the installed extension and the version of the
+        extension; otherwise returns $null if the extension is not available.
+
+        .EXAMPLE
+        PS:> $path,$version = Get-InstalledExtensionDetails -Name "MyExtension" -Version "1.0.0"
+    #>
+
     [CmdletBinding()]
     param (
         [Parameter(Mandatory=$true)]

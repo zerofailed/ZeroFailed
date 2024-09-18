@@ -1,3 +1,6 @@
+# <copyright file="endjin-devops.psd1" company="Endjin Limited">
+# Copyright (c) Endjin Limited. All rights reserved.
+# </copyright>
 @{
 
 # Script module or binary module file associated with this manifest.

@@ -1,3 +1,7 @@
+# <copyright file="import-tasks.ps1" company="Endjin Limited">
+# Copyright (c) Endjin Limited. All rights reserved.
+# </copyright>
+
 # Load core task definitions
 # TBC: What should constitute a core task?
 # NOTE: These are currently overridden when importing the original 'Endjin.RecommendedPractices.Build'
@@ -15,7 +19,9 @@ $taskGroups | ForEach-Object {
 # of extensions can be specified in 2 ways:
 #  1) Defining the '$devopsExtensions' variable early in the calling script (i.e. before calling 'endjin-devops.tasks')
 #  2) Via the 'ENDJIN_DEVOPS_EXTENSIONS' environment variables, however note that the former method will take precedence over the environment variable
-[string[]]$devopsExtensions ??= $env:ENDJIN_DEVOPS_EXTENSIONS ? ($env:ENDJIN_DEVOPS_EXTENSIONS -split ";" | ForEach-Object { $_ }) : @()
+if ($null -eq $devopsExtensions) {
+    [string[]]$devopsExtensions = $env:ENDJIN_DEVOPS_EXTENSIONS ? ($env:ENDJIN_DEVOPS_EXTENSIONS -split ";" | ForEach-Object { $_ }) : @()
+}
 
 # By default, extensions are loaded from the PowerShell Gallery, but this can be overridden
 # in a similar fashion to the 'ENDJIN_DEVOPS_EXTENSIONS' property.
@@ -26,12 +32,26 @@ $devopsExtensionsRepository ??= !$env:ENDJIN_DEVOPS_EXTENSIONS_PS_REPO ? "PSGall
 if ($devopsExtensions.Count -gt 0) {
     Write-Host "*** Registering Extensions..." -f Green
     $registeredExtensions = Register-Extensions -Extensions $devopsExtensions `
-                                            -DefaultRepository $devopsExtensionsRepository `
-                                            -Verbose:$VerbosePreference
+                                                -DefaultRepository $devopsExtensionsRepository `
+                                                -Verbose:$VerbosePreference
 }
 else {
     Write-Warning "No extensions specified"
 }
+
+# Valiate whether extension dependencies are non-conflicting
+# For the moment we'll just log a warning and remove duplicate references, with no regard for versioning - first one wins
+($registeredExtensions | Group-Object -Property Name) |
+    Where-Object { $_.Count -gt 1 } |
+    ForEach-Object {
+        Write-Warning "Multiple versions of extension '$($_.Name)' have been resolved - removing duplicates, will use the first one found: $($_.Group[0] | Select-Object Name,Version,Path | ConvertTo-Json)"
+    }
+$registeredExtensions = $registeredExtensions |
+                            Group-Object -Property Name |
+                                ForEach-Object {
+                                    $_.Group |
+                                    Select-Object -First 1
+                                }
 
 #
 # Load the process definition
@@ -43,9 +63,13 @@ else {
 # 1) Check whether an extension has been declared as providing it via the 'Process' property
 #    NOTE: For the moment, the first one found wins
 # 2) If not, fallback to using the core process defined in this module
-$processFromExtension = $registeredExtensions |
-                            Where-Object { $_.ContainsKey("Process") } |
-                            Select-Object -First 1
+[array]$processesFromExtension = $registeredExtensions |
+                            Where-Object { $_.ContainsKey("Process") }
+if ($processesFromExtension.Count -gt 1) {
+    Write-Warning "Multiple extensions have declared a process definition, will use the first one found: $($processesFromExtension[0] | Select-Object Name,Version,Path,Process | ConvertTo-Json)"
+}
+
+$processFromExtension = $processesFromExtension | Select-Object -First 1
 if ($processFromExtension) {
     $processPath = Join-Path $processFromExtension.Path $processFromExtension.Process
     Write-Host "Using process from extension '$($processFromExtension.Name)'" -f Green
@@ -74,9 +98,9 @@ foreach ($extension in $registeredExtensions) {
     }
 
     # Import tasks
-    Write-Host "Importing tasks"
+    Write-Host "- Importing tasks"
     $tasksDir = Join-Path $extension.Path "tasks"
-    $tasksToImport = Import-TasksFromExtension -TasksPath $tasksDir
+    $tasksToImport = Get-TasksFileListFromExtension -TasksPath $tasksDir
     if (!($tasksToImport)) {
         Write-Warning "No tasks found in '$extensionName'"
     }
@@ -88,13 +112,13 @@ foreach ($extension in $registeredExtensions) {
     }
 
     # Import functions
-    Write-Host "Importing functions"
+    Write-Host "- Importing functions"
     $functionsDir = Join-Path $extension.Path "functions"
-    $functionsToImport = Import-FunctionsFromExtension -FunctionsPath $functionsDir
+    $functionsToImport = Get-FunctionsFileListFromExtension -FunctionsPath $functionsDir
     $functionsToImport | ForEach-Object {
         Write-Verbose "Importing function '$($_.FullName)'"
         . $_
     }
 
-    Write-Host "*** Extensions registration complete`n" -f Green
 }
+Write-Host "*** Extensions registration complete`n" -f Green

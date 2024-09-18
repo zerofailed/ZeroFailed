@@ -1,3 +1,7 @@
+# <copyright file="defaultBuild.process.ps1" company="Endjin Limited">
+# Copyright (c) Endjin Limited. All rights reserved.
+# </copyright>
+
 # Top-level build process control flags
 $SkipInit = $false
 $SkipVersion = $false

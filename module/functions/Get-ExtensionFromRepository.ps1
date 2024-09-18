@@ -1,4 +1,44 @@
+# <copyright file="Get-ExtensionFromRepository.ps1" company="Endjin Limited">
+# Copyright (c) Endjin Limited. All rights reserved.
+# </copyright>
 function Get-ExtensionFromRepository {
+    <#
+        .SYNOPSIS
+        Retrieves an extension from a PowerShell module repository.
+        
+        .DESCRIPTION
+        If not already available as a locally-installed module, this function installs the extension (as PowerShell module) from a specified repository.
+        It also derives the additional metadata about the extension required by the tooling.
+        
+        .PARAMETER Name
+        Specifies the module name of the extension to retrieve.
+        
+        .PARAMETER Repository
+        Specifies the PowerShell module repository from which to retrieve the extension.
+        
+        .PARAMETER Version
+        Specifies the version of the extension to retrieve. If not specified, the latest version will be retrieved.
+        
+        .PARAMETER PreRelease
+        Indicates whether to consider pre-release versions of the module when checking for existing and installing new versions.
+        
+        .INPUTS
+        None. You can't pipe objects to Get-ExtensionFromRepository.
+
+        .OUTPUTS
+        Hashtable.
+        
+        Returns a hashtable containing completed set of metadata for the extension. This consists of the originally supplied metadata
+        plus these additional propeties:
+        - Path: The path to the installed extension.
+        - Enabled: Indicates whether the extension is enabled.
+        
+        .EXAMPLE
+        PS:> Get-ExtensionFromRepository -Name "MyExtension" -Version "1.0.0"`
+        Retrieves version 1.0 of the "MyExtension" extension from the default repository (e.g. PSGallery).
+    #>
+    
+    [CmdletBinding()]
     param(
         [Parameter(Mandatory=$true)]
         [string] $Name,
@@ -22,6 +62,7 @@ function Get-ExtensionFromRepository {
     $psResourceArgs = @{
         Name = $Name
         PreRelease = $PreRelease
+        Verbose = $false
     }
     if ($Version) {
         $extension.Add("Version", $Version)

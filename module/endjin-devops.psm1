@@ -1,3 +1,6 @@
+# <copyright file="endjin-devops.psm1" company="Endjin Limited">
+# Copyright (c) Endjin Limited. All rights reserved.
+# </copyright>
 Set-Alias endjin-devops.tasks $PSScriptRoot/import-tasks.ps1
 
 # find all the functions that make-up this module

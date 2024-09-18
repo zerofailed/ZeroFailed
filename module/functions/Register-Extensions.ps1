@@ -1,4 +1,62 @@
+# <copyright file="Register-Extensions.ps1" company="Endjin Limited">
+# Copyright (c) Endjin Limited. All rights reserved.
+# </copyright>
 function Register-Extensions {
+    <#
+        .SYNOPSIS
+        Validates and registers a set of extensions and their dependencies.
+        
+        .DESCRIPTION
+        This function validates, installs (if necessary) and registers the specfied set of extensions and any dependencies they declare,
+        returning a fully-populated set of metadata for all extensions.
+
+        If an extension is considered valid and available, then it will be marked as enabled; otherwise it will be marked as disabled.
+        
+        .PARAMETER ExtensionsConfig
+        An array of extension configuration objects.
+        
+        .PARAMETER DefaultRepository
+        The default repository to use for extensions that do not specify a repository.
+        
+        .INPUTS
+        None. You can't pipe objects to Register-Extensions.
+
+        .OUTPUTS
+        hashtable[]
+        
+        Returns an array of fully-populated extension metadata.
+        
+        .EXAMPLE
+        PS:> $extensionsConfig = @(
+            @{
+                Name = "MyExtension"    # Extension available via PS Gallery
+            }
+            @{
+                Path = "/home/<user>/code/myLocalExtension"     # Extension being developed locally
+            }
+            @{
+                Path = "/home/<user>/code/myNonExistantExtension"     # Incorrect path to a local extension
+            }
+        )
+        PS:> Register-Extensions -ExtensionsConfig $extensionsConfig
+        @(
+            @{
+                Name = "MyExtension"
+                Path = "/home/<user>/.local/share/powershell/Modules"
+                Version = "<installed-version>"
+                Enabled = $true
+            }
+            @{
+                Name = "myLocalExtension"
+                Path = "/home/<user>/code/myLocalExtension"
+                Enabled = $true
+            }
+            @{
+                Path = "/home/<user>/code/myNonExistantExtension"
+                Enabled = $false
+            }
+        )
+    #>
     [CmdletBinding()]
     param (
         [Parameter(Mandatory=$true)]
@@ -11,33 +69,11 @@ function Register-Extensions {
     [hashtable[]]$processedExtensionConfig = @()
 
     for ($i=0; $i -lt $ExtensionsConfig.Length; $i++) {
-        # Parse the extension configuration item into its canonical form
-        $extension = New-ExtensionMetadataItem -Value $ExtensionsConfig[$i] -Verbose:$VerbosePreference
 
-        # Prepare the parameters needed for extension registration
-        $splat = $extension.Clone()
-        $splat.Remove("Process") | Out-Null
-        $splat.Add("Repository", $extension.ContainsKey("Repository") ? $extension.Repository : $DefaultRepository)
+        $registeredExtensions = Register-ExtensionAndDependencies -ExtensionConfig $ExtensionsConfig[$i]
         
-        # Decide how the extension is being provided
-        if (!$extension.ContainsKey("Path")) {
-            # Call the helper that will install the extension if it's not already installed and
-            # provide the resulting additional metadata that we need to use the extension
-            $extension += Get-ExtensionFromRepository @splat
-        }
-        elseif ((Test-Path $extension.Path)) {
-            $extension.Add("Enabled", $true)
-            Write-Host "USING PATH: $($extension.Name) ($($extension.Path))" -f Cyan
-            continue
-        }
-        else {
-            Write-Warning "Extension '$($extension.Name)' not found at $($extension.Path) - it has been disabled."
-            $extension.Add("Enabled", $false)
-            continue
-        }
-
         # Persist the fully-populated extension metadata
-        $processedExtensionConfig += $extension
+        $processedExtensionConfig += $registeredExtensions
     }
 
     return $processedExtensionConfig
