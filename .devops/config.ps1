@@ -1,18 +1,18 @@
 # Extensions setup
 #
 # Override default extension repository (defaults to PSGallery)
-# $devopsExtensionsRepository = ""
+# $zerofailedExtensionsRepository = ""
 
 # Declare required extensions
 
 # Simple syntax where version constraints and/or custom process definition is not required
-# $devopsExtensions = @(
+# $zerofailedExtensions = @(
 #     "Endjin.RecommendedPractices.Build"
 #     "<path-to-local-copy>"
 # )
 
 # Full syntax
-$devopsExtensions = @(
+$zerofailedExtensions = @(
     @{
         # Use latest stable version of exisiting scripted build module
         Name = "Endjin.RecommendedPractices.Build"
@@ -26,7 +26,7 @@ $devopsExtensions = @(
 )
 
 # Load the tasks and process
-. endjin-devops.tasks
+. ZeroFailed.tasks
 
 # Set the required build options
 $PesterTestsDir = "$here/module"
@@ -34,10 +34,10 @@ $PesterVersion = "5.5.0"
 
 $PowerShellModulesToPublish = @(
     @{
-        ModulePath = "$here/module/endjin-devops.psd1"
+        ModulePath = "$here/module/ZeroFailed.psd1"
         FunctionsToExport = @("*")
         CmdletsToExport = @()
-        AliasesToExport = @("endjin-devops.tasks")
+        AliasesToExport = @("ZeroFailed.tasks")
     }
 )
 $CreateGitHubRelease = $true

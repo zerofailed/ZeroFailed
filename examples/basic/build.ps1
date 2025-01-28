@@ -3,11 +3,11 @@
 .SYNOPSIS
     Runs a .NET flavoured build process.
 .DESCRIPTION
-    This script was scaffolded using a template from the Endjin.RecommendedPractices.Build PowerShell module.
-    It uses the InvokeBuild module to orchestrate an opinonated software build process for .NET solutions.
+    This script was scaffolded using a template from the ZeroFailed project.
+    It uses the InvokeBuild module to orchestrate an opinionated software build process for .NET solutions.
 .EXAMPLE
     PS C:\> ./build.ps1
-    Downloads any missing module dependencies (Endjin.RecommendedPractices.Build & InvokeBuild) and executes
+    Downloads any missing module dependencies (ZeroFailed & InvokeBuild) and executes
     the build process.
 .PARAMETER Tasks
     Optionally override the default task executed as the entry-point of the build.
@@ -28,13 +28,11 @@
 .PARAMETER Clean
     When true, the .NET solution will be cleaned and all output/intermediate folders deleted.
 .PARAMETER BuildModulePath
-    The path to import the Endjin.RecommendedPractices.Build module from. This is useful when
-    testing pre-release versions of the Endjin.RecommendedPractices.Build that are not yet
-    available in the PowerShell Gallery.
+    The path to import the ZeroFailed module from. This is useful when testing pre-release
+    versions of ZeroFailed that are not yet available in the PowerShell Gallery.
 .PARAMETER BuildModuleVersion
-    The version of the Endjin.RecommendedPractices.Build module to import. This is useful when
-    testing pre-release versions of the Endjin.RecommendedPractices.Build that are not yet
-    available in the PowerShell Gallery.
+    The version of the ZeroFailed module to import. This is useful when testing pre-release
+    versions of ZeroFailed that are not yet available in the PowerShell Gallery.
 .PARAMETER InvokeBuildModuleVersion
     The version of the InvokeBuild module to be used.
 #>
@@ -72,7 +70,7 @@ param (
     [string] $BuildModuleVersion = "1.0.0",
 
     [Parameter()]
-    [version] $InvokeBuildModuleVersion = "5.11.3"
+    [version] $InvokeBuildModuleVersion = "5.12.1"
 )
 $ErrorActionPreference = 'Stop'
 $here = Split-Path -Parent $PSCommandPath
@@ -97,12 +95,12 @@ if ($MyInvocation.ScriptName -notlike '*Invoke-Build.ps1') {
 
 #region Initialise build framework
 $splat = @{ Force = $true; Verbose = $false}
-Install-PSResource endjin-devops -Version $BuildModuleVersion -Scope CurrentUser -TrustRepository -Reinstall:$($BuildModuleVersion -match '-') | Out-Null
-$BuildModulePath = "endjin-devops"
+Install-PSResource ZeroFailed -Version $BuildModuleVersion -Scope CurrentUser -TrustRepository -Reinstall:$($BuildModuleVersion -match '-') | Out-Null
+$BuildModulePath = "ZeroFailed"
 $splat.Add("RequiredVersion", ($BuildModuleVersion -split '-')[0])
 $splat.Add("Name", $BuildModulePath)
 Import-Module @splat
-Write-Host "Using Build module version: $((Get-Module endjin-devops | Select-Object -ExpandProperty Version).ToString())"
+Write-Host "Using Build module version: $((Get-Module ZeroFailed | Select-Object -ExpandProperty Version).ToString())"
 #endregion
 
 # Load the build configuration

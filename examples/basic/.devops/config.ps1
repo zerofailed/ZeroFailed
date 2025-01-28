@@ -1,9 +1,9 @@
 <#
-This example demonstrates how to use the 'endjin-devops' module to configure a build
+This example demonstrates how to use the 'ZeroFailed' module to configure a build
 process that consumes the Endjin.RecommendedPractices.Build module as an extension.
 #>
 
-$devopsExtensions = @(
+$zerofailedExtensions = @(
     @{
         # Use latest stable version of existing scripted build module
         Name = "Endjin.RecommendedPractices.Build"
@@ -16,7 +16,7 @@ $devopsExtensions = @(
 )
 
 # Load the tasks and process
-. endjin-devops.tasks
+. ZeroFailed.tasks
 
 #
 # Build process configuration

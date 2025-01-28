@@ -17,22 +17,22 @@ $taskGroups | ForEach-Object {
 # Functionality is provided by extensions, for convenience we can provide 1 or more common
 # scenarios (e.g. .NET Build, Python Build, Azure Deployment etc.), but a customised set
 # of extensions can be specified in 2 ways:
-#  1) Defining the '$devopsExtensions' variable early in the calling script (i.e. before calling 'endjin-devops.tasks')
-#  2) Via the 'ENDJIN_DEVOPS_EXTENSIONS' environment variables, however note that the former method will take precedence over the environment variable
-if ($null -eq $devopsExtensions) {
-    [string[]]$devopsExtensions = $env:ENDJIN_DEVOPS_EXTENSIONS ? ($env:ENDJIN_DEVOPS_EXTENSIONS -split ";" | ForEach-Object { $_ }) : @()
+#  1) Defining the '$zerofailedExtensions' variable early in the calling script (i.e. before calling 'ZeroFailed.tasks')
+#  2) Via the 'ZF_EXTENSIONS' environment variables, however note that the former method will take precedence over the environment variable
+if ($null -eq $zerofailedExtensions) {
+    [string[]]$zerofailedExtensions = $env:ZF_EXTENSIONS ? ($env:ZF_EXTENSIONS -split ";" | ForEach-Object { $_ }) : @()
 }
 
 # By default, extensions are loaded from the PowerShell Gallery, but this can be overridden
-# in a similar fashion to the 'ENDJIN_DEVOPS_EXTENSIONS' property.
-$devopsExtensionsRepository ??= !$env:ENDJIN_DEVOPS_EXTENSIONS_PS_REPO ? "PSGallery" : $env:ENDJIN_DEVOPS_EXTENSIONS_PS_REPO
+# in a similar fashion to the 'ZF_EXTENSIONS' property.
+$zerofailedExtensionsRepository ??= !$env:ZF_EXTENSIONS_PS_REPO ? "PSGallery" : $env:ZF_EXTENSIONS_PS_REPO
 
 # Process the extensions configuration, obtaining them where necessary and
 # filling-out the addtional metadata required by subsequent steps to load them.
-if ($devopsExtensions.Count -gt 0) {
+if ($zerofailedExtensions.Count -gt 0) {
     Write-Host "*** Registering Extensions..." -f Green
-    $registeredExtensions = Register-Extensions -Extensions $devopsExtensions `
-                                                -DefaultRepository $devopsExtensionsRepository `
+    $registeredExtensions = Register-Extensions -Extensions $zerofailedExtensions `
+                                                -DefaultRepository $zerofailedExtensionsRepository `
                                                 -Verbose:$VerbosePreference
 }
 else {

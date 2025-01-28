@@ -1,24 +1,24 @@
-# <copyright file="endjin-devops.module.tests.ps1" company="Endjin Limited">
+# <copyright file="ZeroFailed.module.tests.ps1" company="Endjin Limited">
 # Copyright (c) Endjin Limited. All rights reserved.
 # </copyright>
-Describe "'endjin-devops' Module Tests" {
+Describe "'ZeroFailed' Module Tests" {
 
     Context 'Module Setup' {
-        It "has the root module endjin-devops.psm1" {
-            "$PSScriptRoot/endjin-devops.psm1" | Should -Exist
+        It "has the root module ZeroFailed.psm1" {
+            "$PSScriptRoot/ZeroFailed.psm1" | Should -Exist
         }
 
-        It "has the a manifest file of endjin-devops.psd1" {
-            "$PSScriptRoot/endjin-devops.psd1" | Should -Exist
-            "$PSScriptRoot/endjin-devops.psd1" | Should -FileContentMatch "endjin-devops.psm1"
+        It "has the a manifest file of ZeroFailed.psd1" {
+            "$PSScriptRoot/ZeroFailed.psd1" | Should -Exist
+            "$PSScriptRoot/ZeroFailed.psd1" | Should -FileContentMatch "ZeroFailed.psm1"
         }
     
-        It "endjin-devops folder has functions folder" {
+        It "ZeroFailed folder has functions folder" {
             "$PSScriptRoot/functions" | Should -Exist
         }
 
-        It "endjin-devops is valid PowerShell code" {
-            $psFile = Get-Content -Path "$PSScriptRoot/endjin-devops.psm1" -ErrorAction Stop
+        It "ZeroFailed is valid PowerShell code" {
+            $psFile = Get-Content -Path "$PSScriptRoot/ZeroFailed.psm1" -ErrorAction Stop
             $errors = $null
             $null = [System.Management.Automation.PSParser]::Tokenize($psFile, [ref]$errors)
             $errors.Count | Should -Be 0

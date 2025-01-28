@@ -1,10 +1,10 @@
-# <copyright file="endjin-devops.psd1" company="Endjin Limited">
+# <copyright file="ZeroFailed.psd1" company="Endjin Limited">
 # Copyright (c) Endjin Limited. All rights reserved.
 # </copyright>
 @{
 
 # Script module or binary module file associated with this manifest.
-RootModule = 'endjin-devops.psm1'
+RootModule = 'ZeroFailed.psm1'
 
 # Version number of this module.
 ModuleVersion = '0.0.1'
@@ -93,10 +93,10 @@ PrivateData = @{
         # Tags = @()
 
         # A URL to the license for this module.
-        LicenseUri = 'https://github.com/endjin/endjin-devops/blob/main/LICENSE'
+        LicenseUri = 'https://github.com/endjin/ZeroFailed/blob/main/LICENSE'
 
         # A URL to the main website for this project.
-        ProjectUri = 'https://github.com/endjin/endjin-devops'
+        ProjectUri = 'https://github.com/endjin/ZeroFailed'
 
         # A URL to an icon representing this module.
         IconUri = 'https://www.nuget.org/profiles/endjin/avatar'

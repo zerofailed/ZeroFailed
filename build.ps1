@@ -49,7 +49,7 @@ if ($MyInvocation.ScriptName -notlike '*Invoke-Build.ps1') {
 #endregion
 
 # Load the local version of the module
-Import-Module "$here/module/endjin-devops.psd1" -Force
+Import-Module "$here/module/ZeroFailed.psd1" -Force
 
 # Load the build configuration
 . $here/.devops/config.ps1

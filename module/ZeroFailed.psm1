@@ -1,7 +1,7 @@
-# <copyright file="endjin-devops.psm1" company="Endjin Limited">
+# <copyright file="ZeroFailed.psm1" company="Endjin Limited">
 # Copyright (c) Endjin Limited. All rights reserved.
 # </copyright>
-Set-Alias endjin-devops.tasks $PSScriptRoot/import-tasks.ps1
+Set-Alias ZeroFailed.tasks $PSScriptRoot/import-tasks.ps1
 
 # find all the functions that make-up this module
 $functions = Get-ChildItem -Recurse $PSScriptRoot/functions -Include *.ps1 | `
@@ -15,4 +15,4 @@ Export-ModuleMember -Function ( $functions |
                                     ForEach-Object { (Get-Item $_).BaseName } | 
                                         Where-Object { -not $_.StartsWith("_") }
                             ) `
-                    -Alias endjin-devops.tasks
+                    -Alias ZeroFailed.tasks
