@@ -16,6 +16,9 @@ function Get-ExtensionFromRepository {
         .PARAMETER Repository
         Specifies the PowerShell module repository from which to retrieve the extension.
         
+        .PARAMETER TargetPath
+        Specifies the path where the extension should be installed.
+
         .PARAMETER Version
         Specifies the version of the extension to retrieve. If not specified, the latest version will be retrieved.
         
@@ -29,12 +32,12 @@ function Get-ExtensionFromRepository {
         Hashtable.
         
         Returns a hashtable containing completed set of metadata for the extension. This consists of the originally supplied metadata
-        plus these additional propeties:
+        plus these additional properties:
         - Path: The path to the installed extension.
         - Enabled: Indicates whether the extension is enabled.
         
         .EXAMPLE
-        PS:> Get-ExtensionFromRepository -Name "MyExtension" -Version "1.0.0"`
+        PS:> Get-ExtensionFromRepository -Name "MyExtension" -Version "1.0.0" -Path "C:/MyProject/.zf"
         Retrieves version 1.0 of the "MyExtension" extension from the default repository (e.g. PSGallery).
     #>
     
@@ -45,6 +48,9 @@ function Get-ExtensionFromRepository {
 
         [Parameter(Mandatory=$true)]
         [string] $Repository,
+
+        [Parameter(Mandatory=$true)]
+        [string] $TargetPath,
 
         [Parameter()]
         [string] $Version,
@@ -70,28 +76,17 @@ function Get-ExtensionFromRepository {
     }
 
     # Check whether module is already installed
-    $existingExtensionPath,$existingExtensionVersion = Get-InstalledExtensionDetails @psResourceArgs
+    $existingExtensionPath,$existingExtensionVersion = Get-InstalledExtensionDetails @psResourceArgs -TargetPath $TargetPath
 
     # Handle getting the module from the repository
     if (!$existingExtensionPath) {
         Write-Verbose "Extension '$Name' not found locally, checking repository"
-        if (Find-PSResource @psResourceArgs -ErrorAction Ignore) {
+        $availableModule = Find-PSResource @psResourceArgs -ErrorAction Ignore
+        if ($availableModule) {
             Write-Host "Installing extension $Name from $Repository" -f Cyan
-            $installArgs = $extension.Clone()
-            $installArgs.Remove("Enabled") | Out-Null
-            $installArgs += @{
-                Scope = "CurrentUser"
-                TrustRepository = $true
-            }
-            # When installing pre-release versions we must force reinstall to ensure that an existing pre-release
-            # version is updated. This is because PowerShell does not let multiple pre-releases of a given
-            # version to be installed side-by-side.
-            if ($psResourceArgs.ContainsKey("PreRelease")) {
-                $installArgs.Add("Reinstall", $true)
-            }
-            Install-PSResource @installArgs | Out-Null
+            $availableModule | Save-PSResource -Path $TargetPath -TrustRepository
 
-            $existingExtensionPath,$existingExtensionVersion = Get-InstalledExtensionDetails @psResourceArgs
+            $existingExtensionPath,$existingExtensionVersion = Get-InstalledExtensionDetails @psResourceArgs -TargetPath $TargetPath
             if (!$existingExtensionPath) {
                 throw "Failed to install extension $Name (v$Version) from $Repository repository"
             }

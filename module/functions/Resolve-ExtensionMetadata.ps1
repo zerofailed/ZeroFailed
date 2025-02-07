@@ -37,6 +37,13 @@ function Resolve-ExtensionMetadata {
             Name = "MyExtension"
             Path = "c:\path\to\MyExtension"
         }
+
+        .EXAMPLE
+        PS:> Resolve-ExtensionMetadata -Value @{NAme="MyExtension"; Version="1.0.0"}
+        @{
+            Name = "MyExtension"
+            Version = "1.0.0"
+        }
     #>
 
     [CmdletBinding()]

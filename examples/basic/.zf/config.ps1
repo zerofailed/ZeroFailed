@@ -16,7 +16,7 @@ $zerofailedExtensions = @(
 )
 
 # Load the tasks and process
-. ZeroFailed.tasks
+. ZeroFailed.tasks -ZfPath $here/.zf
 
 #
 # Build process configuration

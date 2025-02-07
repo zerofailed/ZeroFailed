@@ -26,7 +26,7 @@ $zerofailedExtensions = @(
 )
 
 # Load the tasks and process
-. ZeroFailed.tasks
+. ZeroFailed.tasks -ZfPath $here/.zf
 
 # Set the required build options
 $PesterTestsDir = "$here/module"

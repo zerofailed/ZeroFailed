@@ -52,4 +52,4 @@ if ($MyInvocation.ScriptName -notlike '*Invoke-Build.ps1') {
 Import-Module "$here/module/ZeroFailed.psd1" -Force
 
 # Load the build configuration
-. $here/.devops/config.ps1
+. $here/.zf/config.ps1

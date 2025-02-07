@@ -1,7 +1,11 @@
 # <copyright file="import-tasks.ps1" company="Endjin Limited">
 # Copyright (c) Endjin Limited. All rights reserved.
 # </copyright>
-
+[CmdletBinding()]
+param (
+    [Parameter(Mandatory)]
+    [string] $ZfPath
+)
 # Load core task definitions
 # TBC: What should constitute a core task?
 # NOTE: These are currently overridden when importing the original 'Endjin.RecommendedPractices.Build'
@@ -33,6 +37,7 @@ if ($zerofailedExtensions.Count -gt 0) {
     Write-Host "*** Registering Extensions..." -f Green
     $registeredExtensions = Register-Extensions -Extensions $zerofailedExtensions `
                                                 -DefaultRepository $zerofailedExtensionsRepository `
+                                                -ZfPath $ZfPath `
                                                 -Verbose:$VerbosePreference
 }
 else {

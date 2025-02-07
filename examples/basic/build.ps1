@@ -104,4 +104,4 @@ Write-Host "Using Build module version: $((Get-Module ZeroFailed | Select-Object
 #endregion
 
 # Load the build configuration
-. $here/.devops/config.ps1
+. $here/.zf/config.ps1

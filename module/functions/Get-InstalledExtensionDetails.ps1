@@ -13,8 +13,13 @@ function Get-InstalledExtensionDetails {
         .PARAMETER Name
         The name of the extension, which is also the name of the PowerShell module.
 
+        .PARAMETER TargetPath
+        The path to the folder where ZeroFailed extensions are installed (typically '.zf/extensions').
+
         .PARAMETER Version
-        The version of the extension, if not specified the latest version available, if any, will be returned.
+        The version of the extension, if not specified the latest version available, if any, will be returned. When this contains a
+        semantic version with a pre-release tag, then this implies that a pre-release version is acceptable. (i.e. as if the '-PreRelease'
+        switch had been specified)
 
         .PARAMETER PreRelease
         Indicates whether to include pre-release versions in the search.
@@ -27,13 +32,25 @@ function Get-InstalledExtensionDetails {
         extension; otherwise returns $null if the extension is not available.
 
         .EXAMPLE
+        PS:> $path,$version = Get-InstalledExtensionDetails -Name "MyExtension"
+        
+        .EXAMPLE
         PS:> $path,$version = Get-InstalledExtensionDetails -Name "MyExtension" -Version "1.0.0"
+
+        .EXAMPLE
+        PS:> $path,$version = Get-InstalledExtensionDetails -Name "MyExtension" -Version "1.0.0-beta0001"
+
+        .EXAMPLE
+        PS:> $path,$version = Get-InstalledExtensionDetails -Name "MyExtension" -PreRelease
     #>
 
     [CmdletBinding()]
     param (
         [Parameter(Mandatory=$true)]
         [string] $Name,
+
+        [Parameter(Mandatory=$true)]
+        [string] $TargetPath,
 
         [Parameter()]
         [string] $Version,
@@ -42,47 +59,39 @@ function Get-InstalledExtensionDetails {
         [switch] $PreRelease
     )
 
-    # NOTE: For some reason using PSBoundParameters with 'Get-PSResource' does not behave as expected,
-    # so we have to create a specific splat object rather then just using PSBoundParameters
-    # after having removed the 'PreRelease' parameter that Get-PSResource does not use.
-    $splat = @{
-        Name = $Name
-    }
-    if ($Version) {
-        $splat.Add("Version", $Version)
-    }
-    
-    # Setup a dynamic filter to handle whether we should see any installed pre-release versions
-    if ($PreRelease -or $Version) {
-        # Return all versions as we're either looking for a specific version (in which case
-        # we should only have a single result), or we're interested in pre-release versions
-        # so no filtering is required.
-        $filter = { $true }
-    }
-    else {
-        # Otherwise we're only intrested in non pre-release versions
-        $filter = { $_.PreRelease -eq "" }
-    }
+    # New logic to query whether a given extension is already installed, now that we are installing into the 
+    # project directory we can't use the Get-*PSResource cmdlets
+    $existingVersion = Get-ChildItem -Path (Join-Path $TargetPath $Name) -Directory -ErrorAction Ignore |
+                            ForEach-Object {
+                                $foundVersion = [semver]$_.BaseName
+                                # Check whether we need to include pre-release versions
+                                $manifestPath = Join-Path $_ "$Name.psd1"
+                                $manifest = Import-PowerShellDataFile $manifestPath
+                                $preReleaseTag = try { $manifest.PrivateData.PSData.Prerelease } catch {}
+                                if ($preReleaseTag) {
+                                    # Re-generate the SemVer object with the prerelease tag
+                                    $foundVersion = [semver]"$foundVersion-$preReleaseTag"
+                                }
 
-    # Use Get-PsResource to query whether the module is already installed, unlike Get-Module it supports
-    # filtering the version using a proper SemVer syntax.
-    $existing = Get-PSResource @splat -ErrorAction Ignore |
-                        Where-Object $filter |
-                        Sort-Object Version -Descending |
-                        Select-Object -First 1
+                                if ($PreRelease -or ($Version -and $Version -eq "$foundVersion")) {
+                                    # Return all versions as we're either looking for a specific version (in which case
+                                    # we should only have a single result), or we're interested in pre-release versions
+                                    # so no filtering is required.
+                                    $foundVersion
+                                }
+                                elseif (!$foundVersion.PreReleaseLabel) {
+                                    # Otherwise we're only interested in non pre-release versions
+                                    $foundVersion
+                                }
+                            } |
+                            Sort-Object -Descending |
+                            Select-Object -First 1
 
-    if ($existing) {
-        # Derive the path to the module from the installed module metadata
-        # NOTE: The available 'InstalledLocation' property is different depending on
-        #       whether the module has just been installed or was already installed.
-        if ($existing.InstalledLocation.EndsWith("Modules")) {
-            $modulePath = Join-Path -Resolve $existing.InstalledLocation $existing.Name $existing.Version
-        }
-        else {
-            $modulePath = $existing.InstalledLocation
-        }
-        $existingVersion = $existing.Prerelease ? "$($existing.Version)-$($existing.Prerelease)" : $existing.Version
-        return $modulePath,$existingVersion
+    if ($existingVersion) {
+        # Reconstruct the required outputs
+        $versionFolderName = ("{0}.{1}.{2}" -f $existingVersion.Major, $existingVersion.Minor, $existingVersion.Patch)
+        $modulePath = Join-Path $TargetPath $Name $versionFolderName
+        return $modulePath,"$existingVersion"
     }
     else {
         return $null

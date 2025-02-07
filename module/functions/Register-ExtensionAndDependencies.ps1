@@ -11,6 +11,9 @@ function Register-ExtensionAndDependencies {
         
         .PARAMETER ExtensionConfig
         A hashtable containing the initial extension metadata provided by the user. This parameter is mandatory.
+
+        .PARAMETER TargetPath
+        The path to the folder where ZeroFailed extensions are installed (typically '.zf/extensions'). This parameter is mandatory.
         
         .INPUTS
         None. You can't pipe objects to Register-ExtensionAndDependencies.
@@ -24,13 +27,16 @@ function Register-ExtensionAndDependencies {
             Path = "C:\Extensions\MyExtension"
             Repository = "https://example.com/extensions"
         }
-        PS:>Register-ExtensionAndDependencies -ExtensionConfig $extensionConfig
+        PS:>Register-ExtensionAndDependencies -ExtensionConfig $extensionConfig -TargetPath "$PWD/.zf/extensions"
     #>
     
     [CmdletBinding()]
     param (
         [Parameter(Mandatory=$true)]
-        $ExtensionConfig
+        $ExtensionConfig,
+
+        [Parameter(Mandatory=$true)]
+        [string] $TargetPath
     )
 
     [hashtable[]]$processedExtensionConfig = @()
@@ -42,6 +48,7 @@ function Register-ExtensionAndDependencies {
     $splat = $extension.Clone()
     $splat.Remove("Process") | Out-Null
     $splat.Add("Repository", $extension.ContainsKey("Repository") ? $extension.Repository : $DefaultRepository)
+    $splat.Add("TargetPath", $TargetPath)
     
     # Decide how the extension is being provided
     if (!$extension.ContainsKey("Path")) {
@@ -73,7 +80,7 @@ function Register-ExtensionAndDependencies {
     if ($extension.Enabled) {
         foreach ($dependency in $extension.dependencies) {
             Write-Host "Processing dependency: $($dependency.Name)"
-            $processedExtensionConfig += Register-ExtensionAndDependencies -ExtensionConfig $dependency
+            $processedExtensionConfig += Register-ExtensionAndDependencies -ExtensionConfig $dependency -TargetPath $TargetPath
         }
     }
     
