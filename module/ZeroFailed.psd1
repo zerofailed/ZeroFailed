@@ -25,7 +25,7 @@ CompanyName = 'Endjin Limited'
 Copyright = '(c) endjin. All rights reserved.'
 
 # Description of the functionality provided by this module
-Description = 'Provides automated build features using on the InvokeBuild module'
+Description = 'Provides an extensibility framework for automated processes implemented using the "InvokeBuild" PowerShell module.'
 
 # Minimum version of the PowerShell engine required by this module
 PowerShellVersion = '7.0'
