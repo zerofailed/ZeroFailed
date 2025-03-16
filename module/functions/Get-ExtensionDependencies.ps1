@@ -64,16 +64,18 @@ function Get-ExtensionDependencies {
     if ((Test-Path $depConfigPath)) {
         $dependencies = Import-PowerShellDataFile -Path $depConfigPath
         
-        $dependencies | ForEach-Object {
-            try {
-                # Use existing logic to resolve the supported syntaxes into the canonical form
-                $deps += Resolve-ExtensionMetadata -Value $_
+        if ($dependencies.Keys.Count -gt 0) {
+            $dependencies | ForEach-Object {
+                try {
+                    # Use existing logic to resolve the supported syntaxes into the canonical form
+                    $deps += Resolve-ExtensionMetadata -Value $_
+                }
+                catch {
+                    throw "Failed to resolve extension metadata for dependency due to invalid configuration: `n$($_ | ConvertTo-Json)"
+                }
             }
-            catch {
-                throw "Failed to resolve extension metadata for dependency due to invalid configuration: `n$($_ | ConvertTo-Json)"
-            }
+            $deps = $dependencies
         }
-        $deps = $dependencies
     }
 
     return $deps
