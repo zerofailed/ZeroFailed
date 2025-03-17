@@ -43,12 +43,10 @@ jobs:
       id: prepareEnvVarsAndSecrets
       with:
         environmentVariablesYaml: |
-          {
-          }
+          {}
         secretsYaml: |
-          {
-            BUILDVAR_PowerShellGalleryApiKey: ${{ secrets.ENDJIN_PSGALLERY_APIKEY }}
-          }
+          BUILDVAR_PowerShellGalleryApiKey: ${{ secrets.PSGALLERY_APIKEY }}
+        secretsEncryptionKey: ${{ secrets.SHARED_WORKFLOW_KEY }}
 
     - uses: endjin/Endjin.RecommendedPractices.GitHubActions/actions/run-build-process@main
       id: run_build
@@ -58,5 +56,5 @@ jobs:
         forcePublish: ${{ github.event.inputs.forcePublish == 'true' }}
         buildEnv: ${{ steps.prepareEnvVarsAndSecrets.outputs.environmentVariablesYamlBase64 }}
         buildSecrets: ${{ steps.prepareEnvVarsAndSecrets.outputs.secretsYamlBase64 }}
-        buildAzureCredentials: ${{ secrets.ENDJIN_PROD_ACR_PUBLISH_CREDENTIALS }}
+        secretsEncryptionKey: ${{ secrets.SHARED_WORKFLOW_KEY }}
         token: ${{ secrets.GITHUB_TOKEN }}

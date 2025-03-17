@@ -20,10 +20,19 @@ Examples of these files can be found [here](./examples/).
 
 Extensions are PowerShell modules that follow the conventions below to offer specific features to ZeroFailed processes that consume them.
 
+These features are delivered using 4 different types of component:
+
+1. Functions - regular PowerShell functions to encapsulate functionality consumed by Tasks
+1. Tasks - definitions of InvokeBuild tasks
+1. Processes - orchestrate a sequence of Tasks to execute as an automated process
+1. Properties - configuration settings that control the behaviour of Tasks and Processes
+
+An extension will organise its components as follows:
+
 - Shared functions are defined in a `functions` directory
-- Shared InvokeBuild tasks are defined in a `tasks` directory
+- Shared InvokeBuild tasks & properties are defined in a `tasks` directory
 - OPTIONAL: Dependencies on other extensions are defined in a `dependencies.psd1` file
-- OPTIONAL: 1 or more InvokeBuild process definitions - currently these can reside anywhere within the module, with the onus being on the consumer to know where
+- OPTIONAL: 1 or more InvokeBuild process definitions - currently these can reside anywhere within the module, with the onus being on the consumer to reference the required path.
 
 For example:
 ```
@@ -32,11 +41,13 @@ For example:
 │   ├── functionA.ps1
 │   └── functionB.ps1
 ├── tasks/
-│   ├── tasksGroupA.tasks.ps1       (a .tasks.ps1 file may contain 1 or more task definitions)
+│   ├── tasksGroupA.properties.ps1    (a .properties.ps1 file contains variables that can be used to alter the behaviour of the associated tasks)
+|   ├── tasksGroupA.tasks.ps1         (a .tasks.ps1 file may contain 1 or more task definitions)
+│   ├── tasksGroupB.properties.ps1
 │   ├── tasksGroupB.tasks.ps1
-│   ├── bigTask.tasks.ps1           (a complex task may be defined in a dedicated code file)
+│   ├── bigTask.tasks.ps1             (a complex task may be defined in a dedicated code file)
 │   └── someProcess.build.ps1
-├── dependencies.psd1               (defines any other extensions this one depends on)
+├── dependencies.psd1                 (defines any other extensions this one depends on)
 ├── MyExtension.psd1
 └── MyExtension.psm1
 ```
