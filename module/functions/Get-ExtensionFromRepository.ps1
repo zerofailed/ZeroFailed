@@ -79,8 +79,14 @@ function Get-ExtensionFromRepository {
     $existingExtensionPath,$existingExtensionVersion = Get-InstalledExtensionDetails @psResourceArgs -TargetPath $TargetPath
 
     # Handle getting the module from the repository
-    if (!$existingExtensionPath) {
-        Write-Verbose "Extension '$Name' not found locally, checking repository"
+    if (!$existingExtensionPath -or ($Version -and $existingExtensionVersion -ne $Version)) {
+        if (!$existingExtensionPath) {
+            Write-Verbose "Extension '$Name' not found locally, checking repository"
+        }
+        elseif ($Version -and $existingExtensionVersion -ne $Version) {
+            Write-Verbose "Extension '$Name' found locally but version mismatch detected. Found: v$existingExtensionVersion; Required: v$Version"
+        }
+        
         $availableModule = Find-PSResource @psResourceArgs -ErrorAction Ignore
         if ($availableModule) {
             Write-Host "Installing extension $Name from $Repository" -f Cyan
