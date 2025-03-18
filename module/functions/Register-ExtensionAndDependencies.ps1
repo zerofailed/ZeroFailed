@@ -54,7 +54,7 @@ function Register-ExtensionAndDependencies {
     if (!$extension.ContainsKey("Path")) {
         # Call the helper that will install the extension if it's not already installed and
         # provide the resulting additional metadata that we need to use the extension
-        $extension += Get-ExtensionFromRepository @splat
+        $extension += Get-ExtensionFromPowerShellRepository @splat
     }
     elseif ((Test-Path $extension.Path)) {
         $extension.Add("Enabled", $true)
