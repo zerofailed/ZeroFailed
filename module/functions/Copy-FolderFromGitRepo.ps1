@@ -63,10 +63,12 @@ function Copy-FolderFromGitRepo {
 
     try {
         Write-Verbose "Cloning repository $RepoUrl to $tempDir..."
-        & $GitCmd clone --quiet --single-branch --depth 1 -b $GitRef $RepoUrl $tempDir
-        if ($LASTEXITCODE -ne 0) {
-            throw "Git clone failed. Verify repository URL and network connectivity."
-        }
+        Push-Location $tempDir
+        $PSNativeCommandUseErrorActionPreference = $true
+        & $GitCmd init --quiet
+        & $GitCmd fetch $RepoUrl "$($GitRef):local" --depth 1 --quiet
+        & $GitCmd checkout local --quiet
+        Pop-Location
 
         $sourcePath = [IO.Path]::GetFullPath((Join-Path -Path $tempDir -ChildPath $RepoFolderPath))
         if (!(Test-Path $sourcePath)) {
