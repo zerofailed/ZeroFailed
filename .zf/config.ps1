@@ -29,6 +29,7 @@ $GitHubReleaseArtefacts = @()
 $SkipZeroFailedModuleVersionCheck = $true
 $SkipPrAutoflowVersionCheck = $true
 $SkipPrAutoflowEnrollmentCheck = $true
+$CheckLatestVersion = $true
 
 # Customise the build process
 task . FullBuild
