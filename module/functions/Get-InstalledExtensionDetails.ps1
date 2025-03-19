@@ -44,7 +44,7 @@ function Get-InstalledExtensionDetails {
         PS:> $path,$version = Get-InstalledExtensionDetails -Name "MyExtension" -PreRelease
     #>
 
-    [CmdletBinding()]
+    [CmdletBinding(DefaultParameterSetName='Version')]
     param (
         [Parameter(Mandatory=$true)]
         [string] $Name,
@@ -52,8 +52,11 @@ function Get-InstalledExtensionDetails {
         [Parameter(Mandatory=$true)]
         [string] $TargetPath,
 
-        [Parameter()]
+        [Parameter(ParameterSetName='Version')]
         [string] $Version,
+
+        [Parameter(Mandatory=$true, ParameterSetName='GitRef')]
+        [string] $GitRef,
 
         [Parameter()]
         [switch] $PreRelease
@@ -63,33 +66,47 @@ function Get-InstalledExtensionDetails {
     # project directory we can't use the Get-*PSResource cmdlets
     $existingVersion = Get-ChildItem -Path (Join-Path $TargetPath $Name) -Directory -ErrorAction Ignore |
                             ForEach-Object {
-                                $foundVersion = [semver]$_.BaseName
-                                # Check whether we need to include pre-release versions
-                                $manifestPath = Join-Path $_ "$Name.psd1"
-                                $manifest = Import-PowerShellDataFile $manifestPath
-                                $preReleaseTag = try { $manifest.PrivateData.PSData.Prerelease } catch {}
-                                if ($preReleaseTag) {
-                                    # Re-generate the SemVer object with the prerelease tag
-                                    $foundVersion = [semver]"$foundVersion-$preReleaseTag"
+                                if ($PSCmdlet.ParameterSetName -eq 'Version') {
+                                    $foundVersion = [semver]$_.BaseName
+                                    # Check whether we need to include pre-release versions
+                                    $manifestPath = Join-Path $_ "$Name.psd1"
+                                    $manifest = Import-PowerShellDataFile $manifestPath
+                                    $preReleaseTag = try { $manifest.PrivateData.PSData.Prerelease } catch {}
+                                    if ($preReleaseTag) {
+                                        # Re-generate the SemVer object with the prerelease tag
+                                        $foundVersion = [semver]"$foundVersion-$preReleaseTag"
+                                    }
+    
+                                    if ($PreRelease -or ($Version -and $Version -eq "$foundVersion")) {
+                                        # Return all versions as we're either looking for a specific version (in which case
+                                        # we should only have a single result), or we're interested in pre-release versions
+                                        # so no filtering is required.
+                                        $foundVersion
+                                    }
+                                    elseif (!$foundVersion.PreReleaseLabel) {
+                                        # Otherwise we're only interested in non pre-release versions
+                                        $foundVersion
+                                    }
+                                }
+                                else {
+                                    $foundGitRef = $_.BaseName
+                                    if ($GitRef -eq $foundGitRef) {
+                                        $foundGitRef
+                                    }
                                 }
 
-                                if ($PreRelease -or ($Version -and $Version -eq "$foundVersion")) {
-                                    # Return all versions as we're either looking for a specific version (in which case
-                                    # we should only have a single result), or we're interested in pre-release versions
-                                    # so no filtering is required.
-                                    $foundVersion
-                                }
-                                elseif (!$foundVersion.PreReleaseLabel) {
-                                    # Otherwise we're only interested in non pre-release versions
-                                    $foundVersion
-                                }
                             } |
                             Sort-Object -Descending |
                             Select-Object -First 1
 
     if ($existingVersion) {
         # Reconstruct the required outputs
-        $versionFolderName = ("{0}.{1}.{2}" -f $existingVersion.Major, $existingVersion.Minor, $existingVersion.Patch)
+        if ($PSCmdlet.ParameterSetName -eq 'Version') {
+            $versionFolderName = ("{0}.{1}.{2}" -f $existingVersion.Major, $existingVersion.Minor, $existingVersion.Patch)
+        }
+        else {
+            $versionFolderName = $GitRef
+        }
         $modulePath = Join-Path $TargetPath $Name $versionFolderName
         return $modulePath,"$existingVersion"
     }
