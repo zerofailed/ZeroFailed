@@ -56,7 +56,7 @@ function Get-InstalledExtensionDetails {
         [string] $Version,
 
         [Parameter(Mandatory=$true, ParameterSetName='GitRef')]
-        [string] $GitRef,
+        [string] $GitRefAsFolderName,
 
         [Parameter()]
         [switch] $PreRelease
@@ -90,7 +90,7 @@ function Get-InstalledExtensionDetails {
                                 }
                                 else {
                                     $foundGitRef = $_.BaseName
-                                    if ($GitRef -eq $foundGitRef) {
+                                    if ($GitRefAsFolderName -eq $foundGitRef) {
                                         $foundGitRef
                                     }
                                 }
@@ -105,7 +105,7 @@ function Get-InstalledExtensionDetails {
             $versionFolderName = ("{0}.{1}.{2}" -f $existingVersion.Major, $existingVersion.Minor, $existingVersion.Patch)
         }
         else {
-            $versionFolderName = $GitRef
+            $versionFolderName = $GitRefAsFolderName
         }
         $modulePath = Join-Path $TargetPath $Name $versionFolderName
         return $modulePath,"$existingVersion"

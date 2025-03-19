@@ -19,7 +19,7 @@ Describe 'Get-ExtensionFromGitRepository' {
         New-Item -Path $targetPath -ItemType Directory -Force | Out-Null
     }
 
-    Context 'Basic' {
+    Context 'Installing extension from a simple branch reference' {
         BeforeAll {
             $name = 'ZeroFailed.Build.Common'
             $repo = 'https://github.com/zerofailed/ZeroFailed.Build.DotNet.git'
@@ -35,6 +35,28 @@ Describe 'Get-ExtensionFromGitRepository' {
         }
         It "Should install from the correct branch" {
             Split-Path -Leaf $result.Path | Should -Be $gitRef
+        }
+        It "Should mark the extension as enabled" {
+            $result.Enabled | Should -Be $true
+        }
+    }
+
+    Context 'Installing extension using the full Git ref syntax' {
+        BeforeAll {
+            $name = 'ZeroFailed.Build.Common'
+            $repo = 'https://github.com/zerofailed/ZeroFailed.Build.DotNet.git'
+            $gitRef = 'refs/heads/main'
+            $result = Get-ExtensionFromGitRepository -Name $name -TargetPath $targetPath -Repository $repo -GitRef $gitRef
+        }
+        AfterAll {
+            Remove-Item -Path $targetPath/*.* -Recurse -Force
+        }
+
+        It 'Should install the extension into the correct location' {
+            Test-Path (Join-Path $result.Path 'ZeroFailed.Build.DotNet.psd1') | Should -Be $true
+        }
+        It "Should use a folder name based on safe formatting of the Git reference" {
+            Split-Path -Leaf $result.Path | Should -Be 'refs-heads-main'
         }
         It "Should mark the extension as enabled" {
             $result.Enabled | Should -Be $true

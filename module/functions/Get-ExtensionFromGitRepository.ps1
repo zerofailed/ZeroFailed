@@ -90,14 +90,15 @@ function Get-ExtensionFromGitRepository {
         }
         
         Write-Host "Installing extension $Name from $Repository" -f Cyan
+        $safeGitRef = $GitRef.Replace('/', '-')
         Copy-FolderFromGitRepo `
                 -RepoUrl $Repository `
-                -DestinationPath (Join-Path $TargetPath $Name $GitRef) `
+                -DestinationPath (Join-Path $TargetPath $Name $safeGitRef) `
                 -RepoFolderPath $SourceRepoFolderPath `
                 -GitRef $gitRef `
                 -ErrorAction Continue       # Log the errors but we'll use the logic below to handle them
 
-        $existingExtensionPath,$existingExtensionVersion = Get-InstalledExtensionDetails -Name $Name -TargetPath $TargetPath -GitRef $GitRef
+        $existingExtensionPath,$existingExtensionVersion = Get-InstalledExtensionDetails -Name $Name -TargetPath $TargetPath -GitRefAsFolderName $safeGitRef
         if (!$existingExtensionPath) {
             throw "Failed to install extension $Name ($GitRef) from $Repository repository"
         }
