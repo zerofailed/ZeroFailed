@@ -47,7 +47,7 @@ function Register-ExtensionAndDependencies {
     # Prepare the parameters needed for extension registration
     $splat = $extension.Clone()
     $splat.Remove("Process") | Out-Null
-    $splat.Add("Repository", $extension.ContainsKey("Repository") ? $extension.Repository : $DefaultRepository)
+    $splat.Add("PSRepository", $extension.ContainsKey("PSRepository") ? $extension.PSRepository : $DefaultPSRepository)
     $splat.Add("TargetPath", $TargetPath)
     
     # Decide how the extension is being provided

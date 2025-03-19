@@ -13,7 +13,7 @@ function Get-ExtensionFromPowerShellRepository {
         .PARAMETER Name
         Specifies the module name of the extension to retrieve.
         
-        .PARAMETER Repository
+        .PARAMETER PSRepository
         Specifies the PowerShell module repository from which to retrieve the extension.
         
         .PARAMETER TargetPath
@@ -47,7 +47,7 @@ function Get-ExtensionFromPowerShellRepository {
         [string] $Name,
 
         [Parameter(Mandatory=$true)]
-        [string] $Repository,
+        [string] $PSRepository,
 
         [Parameter(Mandatory=$true)]
         [string] $TargetPath,
@@ -62,7 +62,7 @@ function Get-ExtensionFromPowerShellRepository {
     # Setup some objects we'll use for splatting
     $extension = @{
         Name = $Name
-        Repository = $Repository
+        Repository = $PSRepository
         Enabled = $true
     }
     $psResourceArgs = @{
@@ -89,17 +89,17 @@ function Get-ExtensionFromPowerShellRepository {
         
         $availableModule = Find-PSResource @psResourceArgs -ErrorAction Ignore
         if ($availableModule) {
-            Write-Host "Installing extension $Name from $Repository" -f Cyan
+            Write-Host "Installing extension $Name from $PSRepository" -f Cyan
             $availableModule | Save-PSResource -Path $TargetPath -TrustRepository
 
             $existingExtensionPath,$existingExtensionVersion = Get-InstalledExtensionDetails @psResourceArgs -TargetPath $TargetPath
             if (!$existingExtensionPath) {
-                throw "Failed to install extension $Name (v$Version) from $Repository repository"
+                throw "Failed to install extension $Name (v$Version) from $PSRepository repository"
             }
             Write-Host "INSTALLED MODULE: $Name (v$existingExtensionVersion)" -f Cyan
         }
         else {
-            Write-Warning "SKIPPED: Extension $Name not found in $Repository repository"
+            Write-Warning "SKIPPED: Extension $Name not found in $PSRepository repository"
             $extension.Enabled = $false
         }
     }
