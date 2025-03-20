@@ -13,10 +13,10 @@ function Get-ExtensionFromGitRepository {
         .PARAMETER Name
         Specifies the name of the extension being retrieved.
         
-        .PARAMETER Repository
+        .PARAMETER RepositoryUri
         Specifies the Git repository URI from which to retrieve the extension.
 
-        .PARAMETER SourceRepoFolderPath
+        .PARAMETER RepositoryFolderPath
         Specifies the folder path within the repository where the extension is located. Defaults to standard ZF convention of 'module'.
         
         .PARAMETER TargetPath
@@ -37,34 +37,34 @@ function Get-ExtensionFromGitRepository {
         - Enabled: Indicates whether the extension is enabled.
         
         .EXAMPLE
-        PS:> Get-ExtensionFromGitRepository -Name "MyExtension" -TargetPath "C:/MyProject/.zf" -Repository "https://github.com/myorg/MyExtension.git"
+        PS:> Get-ExtensionFromGitRepository -Name "MyExtension" -TargetPath "C:/MyProject/.zf" -RepositoryUri "https://github.com/myorg/MyExtension.git"
         Retrieves the 'main' branch version of the "MyExtension" extension from a git repository that uses the default ZF extension folder structure.
 
         .EXAMPLE
-        PS:> Get-ExtensionFromGitRepository -Name "MyExtension" -GitRef "refs/tags/1.0" -TargetPath "C:/MyProject/.zf" -Repository "https://github.com/myorg/MyExtension.git"
+        PS:> Get-ExtensionFromGitRepository -Name "MyExtension" -GitRef "refs/tags/1.0" -TargetPath "C:/MyProject/.zf" -RepositoryUri "https://github.com/myorg/MyExtension.git"
         Retrieves '1.0' tagged version of the "MyExtension" extension from a git repository that uses the default ZF extension folder structure.
 
         .EXAMPLE
-        PS:> Get-ExtensionFromGitRepository -Name "MyExtension" -TargetPath "C:/MyProject/.zf" -Repository "https://github.com/myorg/MyExtension.git" -SourceRepoFolderPath 'modules/MyExtension'
+        PS:> Get-ExtensionFromGitRepository -Name "MyExtension" -TargetPath "C:/MyProject/.zf" -RepositoryUri "https://github.com/myorg/MyExtension.git" -RepositoryFolderPath 'modules/MyExtension'
         Retrieves the 'main' branch version of the "MyExtension" extension from a git repository that uses a custom folder structure.
     #>
     
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory=$true)]
+        [Parameter(Mandatory)]
         [string] $Name,
 
-        [Parameter(Mandatory=$true)]
-        [uri] $Repository,
+        [Parameter(Mandatory)]
+        [uri] $RepositoryUri,
 
         [Parameter()]
-        [string] $SourceRepoFolderPath = 'module',
+        [string] $RepositoryFolderPath = 'module',
 
-        [Parameter(Mandatory=$true)]
+        [Parameter(Mandatory)]
         [string] $TargetPath,
 
-        [Parameter()]
-        [string] $GitRef = 'main'
+        [Parameter(Mandatory)]
+        [string] $GitRef
     )
 
     # Potential approaches:
@@ -78,29 +78,30 @@ function Get-ExtensionFromGitRepository {
     # Check whether module is already installed
     # TODO: Should we retain the same module-based folder structure as with PowerShell modules?
     #       If so, will it even work given that the equivalent of module version will be the git ref?
-    $existingExtensionPath,$existingExtensionVersion = Get-InstalledExtensionDetails -Name $Name -TargetPath $TargetPath -Version $GitRef
+    $safeGitRef = $GitRef.Replace('/', '-')
+    $existingExtensionPath,$existingExtensionVersion = Get-InstalledExtensionDetails -Name $Name -TargetPath $TargetPath -GitRefAsFolderName $safeGitRef
 
     # Handle getting the module from the repository
-    if (!$existingExtensionPath -or $existingExtensionVersion -ne $GitRef) {
+    if (!$existingExtensionPath -or $existingExtensionVersion -ne $safeGitRef) {
         if (!$existingExtensionPath) {
             Write-Verbose "Extension '$Name' not found locally."
         }
-        elseif ($existingExtensionVersion -ne $GitRef) {
-            Write-Verbose "Extension '$Name' found locally but version mismatch detected. Found: '$existingExtensionVersion'; Required: '$GitRef'"
+        elseif ($existingExtensionVersion -ne $safeGitRef) {
+            Write-Verbose "Extension '$Name' found locally but version mismatch detected. Found: '$existingExtensionVersion'; Required: '$safeGitRef' [$GitRef]"
         }
         
-        Write-Host "Installing extension $Name from $Repository" -f Cyan
-        $safeGitRef = $GitRef.Replace('/', '-')
+        Write-Host "Installing extension $Name from $RepositoryUri" -f Cyan
+        
         Copy-FolderFromGitRepo `
-                -RepoUrl $Repository `
+                -RepoUrl $RepositoryUri `
                 -DestinationPath (Join-Path $TargetPath $Name $safeGitRef) `
-                -RepoFolderPath $SourceRepoFolderPath `
+                -RepoFolderPath $RepositoryFolderPath `
                 -GitRef $gitRef `
                 -ErrorAction Continue       # Log the errors but we'll use the logic below to handle them
 
         $existingExtensionPath,$existingExtensionVersion = Get-InstalledExtensionDetails -Name $Name -TargetPath $TargetPath -GitRefAsFolderName $safeGitRef
         if (!$existingExtensionPath) {
-            throw "Failed to install extension $Name ($GitRef) from $Repository repository"
+            throw "Failed to install extension $Name ($GitRef) from $RepositoryUri repository"
         }
         Write-Host "INSTALLED MODULE: $Name ($existingExtensionVersion)" -f Cyan
     }
