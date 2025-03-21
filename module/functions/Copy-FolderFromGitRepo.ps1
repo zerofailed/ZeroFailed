@@ -59,7 +59,8 @@ function Copy-FolderFromGitRepo {
     }
 
     # Create a temporary folder for cloning
-    $tempDir = New-TemporaryDirectory
+    $tempDir = Join-Path ([System.IO.Path]::GetTempPath()) "$(New-Guid)"
+    New-Item -ItemType Directory -Path $tempDir | Out-Null
 
     try {
         Write-Verbose "Cloning repository $RepoUrl to $tempDir..."
