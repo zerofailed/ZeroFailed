@@ -23,7 +23,7 @@ Describe 'Get-ExtensionFromPowerShellRepository' {
         BeforeAll {
             $name = 'SamplePsModule'
             $moduleInfo = Find-Module $name
-            $result = Get-ExtensionFromPowerShellRepository -Name $name -TargetPath $targetPath -Repository PSGallery
+            $result = Get-ExtensionFromPowerShellRepository -Name $name -TargetPath $targetPath -PSRepository PSGallery
         }
         AfterAll {
             Remove-Item -Path $targetPath/*.* -Recurse -Force
@@ -45,7 +45,7 @@ Describe 'Get-ExtensionFromPowerShellRepository' {
         BeforeAll {
             $name = 'SamplePsModule'
             $moduleInfo = Find-Module $name -AllowPrerelease
-            $result = Get-ExtensionFromPowerShellRepository -Name $name -TargetPath $targetPath -Repository PSGallery -PreRelease
+            $result = Get-ExtensionFromPowerShellRepository -Name $name -TargetPath $targetPath -PSRepository PSGallery -PreRelease
         }
         AfterAll {
             Remove-Item -Path $targetPath/*.* -Recurse -Force
@@ -69,7 +69,7 @@ Describe 'Get-ExtensionFromPowerShellRepository' {
 
         BeforeAll {
             $name = 'NonExistentExtension'
-            $result = Get-ExtensionFromPowerShellRepository -Name $name -TargetPath $targetPath -Repository PSGallery
+            $result = Get-ExtensionFromPowerShellRepository -Name $name -TargetPath $targetPath -PSRepository PSGallery
         }
         AfterAll {
             Remove-Item -Path $targetPath/*.* -Recurse -Force
@@ -100,7 +100,7 @@ Describe 'Get-ExtensionFromPowerShellRepository' {
 }
 "@
             New-Item -Path (Join-Path $targetPath $name "1.0.0" "AlreadyInstalledExtension.psd1") -ItemType File -Value $mockExtensionManifest -Force | Out-Null
-            $result = Get-ExtensionFromPowerShellRepository -Name $name -TargetPath $targetPath -Repository PSGallery
+            $result = Get-ExtensionFromPowerShellRepository -Name $name -TargetPath $targetPath -PSRepository PSGallery
         }
         AfterAll {
             Remove-Item -Path $targetPath/*.* -Recurse -Force
@@ -135,7 +135,7 @@ Describe 'Get-ExtensionFromPowerShellRepository' {
 }
 "@
             New-Item -Path (Join-Path $targetPath $name "0.0.9" "SamplePsModule.psd1") -ItemType File -Value $mockExtensionManifest -Force | Out-Null
-            $result = Get-ExtensionFromPowerShellRepository -Name $name -Version $moduleInfo.Version -TargetPath $targetPath -Repository PSGallery
+            $result = Get-ExtensionFromPowerShellRepository -Name $name -Version $moduleInfo.Version -TargetPath $targetPath -PSRepository PSGallery
         }
         AfterAll {
             Remove-Item -Path $targetPath/*.* -Recurse -Force
@@ -166,7 +166,7 @@ Describe 'Get-ExtensionFromPowerShellRepository' {
 }
 "@
             New-Item -Path (Join-Path $targetPath $name "0.0.9" "SamplePsModule.psd1") -ItemType File -Value $mockExtensionManifest -Force | Out-Null
-            $result = Get-ExtensionFromPowerShellRepository -Name $name -TargetPath $targetPath -Repository PSGallery
+            $result = Get-ExtensionFromPowerShellRepository -Name $name -TargetPath $targetPath -PSRepository PSGallery
         }
         AfterAll {
             Remove-Item -Path $targetPath/*.* -Recurse -Force

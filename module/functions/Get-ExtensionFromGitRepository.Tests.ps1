@@ -24,7 +24,7 @@ Describe 'Get-ExtensionFromGitRepository' {
             $name = 'ZeroFailed.Build.Common'
             $repo = 'https://github.com/zerofailed/ZeroFailed.Build.DotNet.git'
             $gitRef = 'main'
-            $result = Get-ExtensionFromGitRepository -Name $name -TargetPath $targetPath -Repository $repo -GitRef $gitRef
+            $result = Get-ExtensionFromGitRepository -Name $name -TargetPath $targetPath -RepositoryUri $repo -GitRef $gitRef
         }
         AfterAll {
             Remove-Item -Path $targetPath/*.* -Recurse -Force
@@ -46,7 +46,7 @@ Describe 'Get-ExtensionFromGitRepository' {
             $name = 'ZeroFailed.Build.Common'
             $repo = 'https://github.com/zerofailed/ZeroFailed.Build.DotNet.git'
             $gitRef = 'refs/heads/main'
-            $result = Get-ExtensionFromGitRepository -Name $name -TargetPath $targetPath -Repository $repo -GitRef $gitRef
+            $result = Get-ExtensionFromGitRepository -Name $name -TargetPath $targetPath -RepositoryUri $repo -GitRef $gitRef
         }
         AfterAll {
             Remove-Item -Path $targetPath/*.* -Recurse -Force
