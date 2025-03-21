@@ -1,20 +1,25 @@
 # ZeroFailed
 
-Provides an extensibility framework for automated processes implemented using the [InvokeBuild](https://github.com/nightroman/Invoke-Build) PowerShell module.  For more details on why you might
-want to design your automated processes around InvokeBuild, please refer to its [wiki](https://github.com/nightroman/Invoke-Build/wiki/Concepts).
+ZeroFailed is an extensible automation framework that aims to help you build flexible and reliable automated processes.
 
-For example, a software build script can use this module to:
+It uses PowerShell Core to enable cross-platform support and this lower-level tooling allows it to be agnostic about what higher level tools may consume it (e.g. CI/CD platforms), whilst at the same time being able to integrate with them where desirable.
 
-- Bootstrap itself using 2 files:
-    - A boilerplate entrypoint script that installs the top-level dependencies:
-        - `InvokeBuild`
-        - `ZeroFailed`
+The framework allows you to build & share your own custom functionality, whilst our library of extensions provide opinionated solutions for specific scenarios that have been used to deliver Real World projects.
+
+ZeroFailed uses a Directed Acyclic Graph (DAG) approach to orchestrating these processes, and leverages the excellent [InvokeBuild](https://github.com/nightroman/Invoke-Build) PowerShell module, rather than reinventing the wheel.  For more details on why you might want to design your automated processes around InvokeBuild, please refer to its [wiki](https://github.com/nightroman/Invoke-Build/wiki/Concepts).
+
+As an example, lets consider a software build process. ZeroFailed enables you to:
+
+- Bootstrap and configure the process by adding just 2 files to your repo:
+    - A boilerplate entrypoint script that installs the top-level PowerShell module dependencies:
+        - [InvokeBuild](https://www.powershellgallery.com/packages/InvokeBuild)
+        - [ZeroFailed](https://www.powershellgallery.com/packages/ZeroFailed)
     - A configuration script, by convention stored in `.zf/config.ps1`, that defines:
-        - One or more `ZeroFailed` extension modules that implement functionality needed for the process (and optionally, the process itself)
+        - One or more `ZeroFailed` extension modules that implement the functionality needed for the process (and optionally, the process itself)
         - Configuration to drive those extensions for this specific process
-        - InvokeBuild task definitions for custom functionality specific to this process
+        - `InvokeBuild` task definitions for custom functionality specific to this process
 
-Examples of these files can be found [here](./examples/).
+Examples of these files can be found [here](./examples/). We also have a [collection of sample repositories](https://github.com/search?q=org%3Azerofailed+ZeroFailed.Sample&type=repositories) that demonstrate how to use many of our extensions.
 
 ## Extensions
 
@@ -56,6 +61,8 @@ For example:
 
 A ZeroFailed-based process can use extensions by referencing them via the `zerofailedExtensions` property in its `.zf/config.ps1` file.
 
+Extensions can be shared as modules published to a PowerShell repository (e.g. PowerShell Gallery) or via public git repositories. ZeroFailed will take care of downloading the required extensions and making their functionality available to your process.
+
 #### Simple Syntax
 
 This uses the simplest syntax to reference the latest stable versions of 2 extensions available via PowerShell Gallery.
@@ -67,7 +74,7 @@ $zerofailedExtensions = @(
 )
 ```
 
-#### Advanced Syntax
+#### Advanced Syntax - PowerShell Module Repository
 
 This uses the richer syntax to reference specific versions of 2 public extensions and an internal extension available via a private repository.
 
@@ -83,7 +90,39 @@ $zerofailedExtensions = @(
     }
     @{
         Name = "MyCustomExtension"
-        Repository = "MyPrivatePSRepository"
+        PSRepository = "MyPrivatePSRepository"
+    }
+)
+```
+
+#### Advanced Syntax - Git Repository
+
+It is also possible to reference extensions that are available via public git repositories.
+
+This shows the different syntax options:
+* Omitting the `GitRef` property will default to the `main` branch
+* The full range of git references can be used to select specific a branch, tag or commit
+
+```
+$zerofailedExtensions = @(
+    @{
+        Name = "ZeroFailed.Build.DotNet"
+        GitRepository = "https://github.com/zerofailed/ZeroFailed.Build.DotNet"
+    }
+    @{
+        Name = "ZeroFailed.Build.Containers"
+        GitRepository = "https://github.com/zerofailed/ZeroFailed.Build.DotNet"
+        GitRef = "feature/myfeature"
+    }
+    @{
+        Name = "MyCustomExtension1"
+        GitRepository = "https://github.com/myorg/MyZeroFailedExtension"
+        GitRef = "refs/tags/1.0.0"
+    }
+    @{
+        Name = "MyCustomExtension2"
+        GitRepository = "https://github.com/myorg/MyZeroFailedExtension2"
+        GitRef = "87c819e2f8cfc948ca7195fe26ab0e6ecba5f4bc"
     }
 )
 ```
