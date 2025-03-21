@@ -2,9 +2,9 @@
 
 ZeroFailed is an extensible automation framework that aims to help you build flexible and reliable automated processes.
 
-It uses PowerShell Core to enable cross-platform support and this lower-level tooling allows it to be agnostic about what higher level tools may consume it (e.g. CI/CD platforms), whilst at the same time being able to integrate with them where desirable.
+It uses PowerShell Core to enable cross-platform support and using this lower-level toolset allows it to be agnostic about higher-level tools that may consume it (e.g. CI/CD platforms), whilst at the same time being able to integrate with them where desirable.
 
-The framework allows you to build & share your own custom functionality, whilst our library of extensions provide opinionated solutions for specific scenarios that have been used to deliver Real World projects.
+The framework allows you to build & share your own custom automation functionality, whilst our library of extensions provide opinionated solutions for specific scenarios that have been used to deliver Real World projects.
 
 ZeroFailed uses a Directed Acyclic Graph (DAG) approach to orchestrating these processes, and leverages the excellent [InvokeBuild](https://github.com/nightroman/Invoke-Build) PowerShell module, rather than reinventing the wheel.  For more details on why you might want to design your automated processes around InvokeBuild, please refer to its [wiki](https://github.com/nightroman/Invoke-Build/wiki/Concepts).
 
