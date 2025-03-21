@@ -32,11 +32,11 @@ Describe 'Get-InstalledExtensionDetails' {
 
 
         # Create another sample extension in TestDrive
-        $extension2Ver = "2.0.0"
-        $extension2Path = Join-Path -Path $targetPath -ChildPath 'TestExtension2' $extension2Ver
-        $extension2Manifest = @"
+        $extension2aVer = "2.0.0"
+        $extension2aPath = Join-Path -Path $targetPath -ChildPath 'TestExtension2' $extension2aVer
+        $extension2aManifest = @"
 @{
-    ModuleVersion = '$extension2Ver'
+    ModuleVersion = '$extension2aVer'
     Author = 'TestAuthor2'
     PrivateData = @{
         PSData = @{
@@ -45,8 +45,42 @@ Describe 'Get-InstalledExtensionDetails' {
     }
 }
 "@
-        New-Item -Path $extension2Path -ItemType Directory -Force | Out-Null
-        New-Item -Path (Join-Path -Path $extension2Path -ChildPath 'TestExtension2.psd1') -ItemType File -Value $extension2Manifest -Force | Out-Null
+        New-Item -Path $extension2aPath -ItemType Directory -Force | Out-Null
+        New-Item -Path (Join-Path -Path $extension2aPath -ChildPath 'TestExtension2.psd1') -ItemType File -Value $extension2aManifest -Force | Out-Null
+
+        # Create a later pre-release version of the same sample extension in TestDrive
+        $extension2bVer = "2.1.0"
+        $extension2bPath = Join-Path -Path $targetPath -ChildPath 'TestExtension2' $extension2bVer
+        $extension2bManifest = @"
+@{
+    ModuleVersion = '$extension2bVer'
+    Author = 'TestAuthor2'
+    PrivateData = @{
+        PSData = @{
+            Prerelease = 'rc0001'
+        }
+    }
+}
+"@
+        New-Item -Path $extension2bPath -ItemType Directory -Force | Out-Null
+        New-Item -Path (Join-Path -Path $extension2bPath -ChildPath 'TestExtension2.psd1') -ItemType File -Value $extension2bManifest -Force | Out-Null
+
+        # Create an older stable version of the same sample extension in TestDrive
+        $extension2cVer = "1.9.0"
+        $extension2cPath = Join-Path -Path $targetPath -ChildPath 'TestExtension2' $extension2cVer
+        $extension2cManifest = @"
+@{
+    ModuleVersion = '$extension2cVer'
+    Author = 'TestAuthor2'
+    PrivateData = @{
+        PSData = @{
+            Prerelease = ''
+        }
+    }
+}
+"@
+        New-Item -Path $extension2cPath -ItemType Directory -Force | Out-Null
+        New-Item -Path (Join-Path -Path $extension2cPath -ChildPath 'TestExtension2.psd1') -ItemType File -Value $extension2cManifest -Force | Out-Null
         
 
         # Create a pre-releases sample extension in TestDrive
@@ -159,6 +193,24 @@ Describe 'Get-InstalledExtensionDetails' {
         $path | Should -Be (Join-Path $targetPath $expected.Name $expected.Version)
         $version | Should -BeOfType 'String'
         $version | Should -Be "$($expected.Version)-$($expected.PreRelease)"
+    }
+
+    It 'Should prefer the latest stable version over a newer pre-release version when no versioning constraints are specified' {
+        # Arrange
+        $expected = @{
+            Name = 'TestExtension2'
+            Version = '2.0.0'
+            Author = 'TestAuthor2'
+        }
+
+        # Act
+        $path,$version = Get-InstalledExtensionDetails -Name 'TestExtension2' -TargetPath $targetPath
+
+        # Assert
+        $path | Should -BeOfType 'String'
+        $path | Should -Be (Join-Path $targetPath $expected.Name $expected.Version)
+        $version | Should -BeOfType 'String'
+        $version | Should -Be $expected.Version
     }
 
     It 'Should return null when no installed extension is found (without version constraints)' {

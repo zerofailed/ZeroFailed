@@ -1,4 +1,4 @@
-# <copyright file="Get-ExtensionFromRepository.Tests.ps1" company="Endjin Limited">
+# <copyright file="Get-ExtensionFromPowerShellRepository.Tests.ps1" company="Endjin Limited">
 # Copyright (c) Endjin Limited. All rights reserved.
 # </copyright>
 
@@ -10,7 +10,7 @@ BeforeAll {
     . (Join-Path (Split-Path -Parent $PSCommandPath) 'Get-InstalledExtensionDetails.ps1')
 }
 
-Describe 'Get-ExtensionFromRepository' {
+Describe 'Get-ExtensionFromPowerShellRepository' {
     # Setup TestDrive with sample extension definitions
     BeforeAll {
         # Setup .zf folder
@@ -23,7 +23,10 @@ Describe 'Get-ExtensionFromRepository' {
         BeforeAll {
             $name = 'SamplePsModule'
             $moduleInfo = Find-Module $name
-            $result = Get-ExtensionFromRepository -Name $name -TargetPath $targetPath -Repository PSGallery
+            $result = Get-ExtensionFromPowerShellRepository -Name $name -TargetPath $targetPath -PSRepository PSGallery
+        }
+        AfterAll {
+            Remove-Item -Path $targetPath/*.* -Recurse -Force
         }
         
         It 'Should install the extension into the correct location' {
@@ -42,7 +45,10 @@ Describe 'Get-ExtensionFromRepository' {
         BeforeAll {
             $name = 'SamplePsModule'
             $moduleInfo = Find-Module $name -AllowPrerelease
-            $result = Get-ExtensionFromRepository -Name $name -TargetPath $targetPath -Repository PSGallery -PreRelease
+            $result = Get-ExtensionFromPowerShellRepository -Name $name -TargetPath $targetPath -PSRepository PSGallery -PreRelease
+        }
+        AfterAll {
+            Remove-Item -Path $targetPath/*.* -Recurse -Force
         }
         
         It 'Should install the extension into the correct location and return path metadata' {
@@ -63,7 +69,10 @@ Describe 'Get-ExtensionFromRepository' {
 
         BeforeAll {
             $name = 'NonExistentExtension'
-            $result = Get-ExtensionFromRepository -Name $name -TargetPath $targetPath -Repository PSGallery
+            $result = Get-ExtensionFromPowerShellRepository -Name $name -TargetPath $targetPath -PSRepository PSGallery
+        }
+        AfterAll {
+            Remove-Item -Path $targetPath/*.* -Recurse -Force
         }
 
         It 'Should not provide path metadata' {
@@ -91,7 +100,10 @@ Describe 'Get-ExtensionFromRepository' {
 }
 "@
             New-Item -Path (Join-Path $targetPath $name "1.0.0" "AlreadyInstalledExtension.psd1") -ItemType File -Value $mockExtensionManifest -Force | Out-Null
-            $result = Get-ExtensionFromRepository -Name $name -TargetPath $targetPath -Repository PSGallery
+            $result = Get-ExtensionFromPowerShellRepository -Name $name -TargetPath $targetPath -PSRepository PSGallery
+        }
+        AfterAll {
+            Remove-Item -Path $targetPath/*.* -Recurse -Force
         }
 
         It 'Should not attempt to install from the repository' {
@@ -103,6 +115,69 @@ Describe 'Get-ExtensionFromRepository' {
         }
         It 'Should return version metadata' {
             $result.Version | Should -Be '1.0.0'
+        }
+        It "Should mark the extension as enabled" {
+            $result.Enabled | Should -Be $true
+        }
+    }
+
+    Context 'When installing an extension that is already installed but not with the specified version' {
+        BeforeAll {
+            $name = 'SamplePsModule'
+            $moduleInfo = Find-Module $name
+            $mockExtensionManifest = @"
+@{
+    PrivateData = @{
+        PSData = @{
+            Prerelease = ''
+        }
+    }
+}
+"@
+            New-Item -Path (Join-Path $targetPath $name "0.0.9" "SamplePsModule.psd1") -ItemType File -Value $mockExtensionManifest -Force | Out-Null
+            $result = Get-ExtensionFromPowerShellRepository -Name $name -Version $moduleInfo.Version -TargetPath $targetPath -PSRepository PSGallery
+        }
+        AfterAll {
+            Remove-Item -Path $targetPath/*.* -Recurse -Force
+        }
+
+        It 'Should install the extension into the correct location' {
+            Test-Path $result.Path | Should -Be $true
+        }
+        It 'Should install the correct version' {
+            $result.Path | Should -BeLike ("*{0}{1}" -f ([IO.Path]::DirectorySeparatorChar), $moduleInfo.Version)
+        }
+        It "Should mark the extension as enabled" {
+            $result.Enabled | Should -Be $true
+        }
+    }
+
+    Context 'When installing an extension, without version constraint, that is already installed but is not the latest version' {
+        BeforeAll {
+            Mock Save-Module {}
+            $name = 'SamplePsModule'
+            $mockExtensionManifest = @"
+@{
+    PrivateData = @{
+        PSData = @{
+            Prerelease = ''
+        }
+    }
+}
+"@
+            New-Item -Path (Join-Path $targetPath $name "0.0.9" "SamplePsModule.psd1") -ItemType File -Value $mockExtensionManifest -Force | Out-Null
+            $result = Get-ExtensionFromPowerShellRepository -Name $name -TargetPath $targetPath -PSRepository PSGallery
+        }
+        AfterAll {
+            Remove-Item -Path $targetPath/*.* -Recurse -Force
+        }
+
+        It 'Should use the existing version' {
+            Test-Path $result.Path | Should -Be $true
+        }
+        It 'Should not upgrade to the latest version' {
+            Should -Invoke -CommandName Save-Module -Times 0
+            $result.Path | Should -BeLike ("*{0}0.0.9" -f ([IO.Path]::DirectorySeparatorChar), $moduleInfo.Version)
         }
         It "Should mark the extension as enabled" {
             $result.Enabled | Should -Be $true

@@ -43,7 +43,26 @@ function Register-Extensions {
                 PreRelease = $true
             }
             @{
-                Path = "/myLocalExtension/module"
+                Name = "PublicExtension"                            # Extension available via a Git repo, using the 'main' branch
+                GitRepository = "https://github.com/myorg/PublicExtension"
+            }
+            @{
+                Name = "PublicExtension"                            # Extension available via a Git repo, using a tagged version
+                GitRepository = "https://github.com/myorg/PublicExtension"
+                GitRef = "refs/tags/1.0.0"
+            }
+            @{
+                Name = "PublicExtension"                            # Extension available via a Git repo, using a custom branch
+                GitRepository = "https://github.com/myorg/PublicExtension"
+                GitRef = "feature/new-stuff"
+            }
+            @{
+                Name = "PublicExtension"                            # Extension available via a Git repo, using the 'main' branch, located in a non-standard folder
+                GitRepository = "https://github.com/myorg/PublicExtension"
+                GitRepositoryPath = "src/PublicExtension"
+            }
+            @{
+                Path = "~/myLocalExtension/module"                  # Extension being developed locally
             }
             @{
                 Path = "/myNonExistantExtension/module"             # Incorrect path to a local extension
@@ -66,10 +85,34 @@ function Register-Extensions {
             }
             @{
                 Name = "BetaPublicExtension"                        # Extension available via PS Gallery, latest pre-release version
-                Version = " 2.0.0-beta0010"
+                Version = "2.0.0-beta0010"
                 Path = "/myproject/.zf/extensions/BetaPublicExtension/2.0.0"
                 Enabled = $true
             }
+            @{
+                Name = "PublicExtension"                            # Extension available via a Git repo, using the 'main' branch
+                Version = "main"
+                Path = "/myproject/.zf/extensions/PublicExtension/main"
+                Enabled = $true
+            }
+            @{
+                Name = "PublicExtension"                            # Extension available via a Git repo, using a tagged version
+                Version = "refs/tags/1.0.0"
+                Path = "/myproject/.zf/extensions/PublicExtension/refs-tags-1.0.0"
+                Enabled = $true
+            }
+            @{
+                Name = "PublicExtension"                            # Extension available via a Git repo, using a custom branch
+                Version = "feature/new-stuff"
+                Path = "/myproject/.zf/extensions/PublicExtension/feature-new-stuff"
+                Enabled = $true
+            }
+            @{
+                Name = "PublicExtension"                            # Extension available via a Git repo, using the 'main' branch, located in a non-standard folder
+                Version = "main"
+                Path = "/myproject/.zf/extensions/PublicExtension/main"
+                Enabled = $true
+            }               
             @{
                 Name = "myLocalExtension"                           # Extension being developed locally
                 Path = "/myLocalExtension/module"
@@ -88,7 +131,7 @@ function Register-Extensions {
         [hashtable[]] $ExtensionsConfig,
 
         [Parameter(Mandatory=$true)]
-        [string] $DefaultRepository,
+        [string] $DefaultPSRepository,
 
         [Parameter(Mandatory=$true)]
         [string] $ZfPath

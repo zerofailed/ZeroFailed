@@ -47,20 +47,41 @@ function Register-ExtensionAndDependencies {
     # Prepare the parameters needed for extension registration
     $splat = $extension.Clone()
     $splat.Remove("Process") | Out-Null
-    $splat.Add("Repository", $extension.ContainsKey("Repository") ? $extension.Repository : $DefaultRepository)
     $splat.Add("TargetPath", $TargetPath)
-    
-    # Decide how the extension is being provided
-    if (!$extension.ContainsKey("Path")) {
-        # Call the helper that will install the extension if it's not already installed and
-        # provide the resulting additional metadata that we need to use the extension
-        $extension += Get-ExtensionFromRepository @splat
+    if ($extension.ContainsKey("GitRepository")) {
+        # Git-based extension
+        $splat.Remove("GitRepository")
+        $splat.Add("RepositoryUri", $extension.GitRepository)
+        # Set defaults for any optional configuration settings
+        if (!$extension.ContainsKey("GitRef")) { $splat.Add("GitRef", 'main') }
+        if ($extension.ContainsKey("GitRepositoryFolderPath")) {
+            $splat.Remove("GitRepositoryFolderPath")
+            $splat.Add("RepositoryFolderPath", $extension.GitRepositoryFolderPath)
+        }
+        else {
+            $splat.Add("RepositoryFolderPath", 'module')
+        }
+
+        # Call the helper that will install the extension from a Git repository if it's not
+        # already installed and provide the resulting additional metadata that we need to use the extension
+        $extension += Get-ExtensionFromGitRepository @splat
+    }
+    elseif (!$extension.ContainsKey("Path")) {
+        # PowerShell module-based extension
+        # Set defaults for any optional configuration settings
+        $splat.Add("PSRepository", $extension.ContainsKey("PSRepository") ? $extension.PSRepository : $DefaultPSRepository)
+        
+        # Call the helper that will install the extension from a PowerShell module repository if it's not
+        # already installed and provide the resulting additional metadata that we need to use the extension
+        $extension += Get-ExtensionFromPowerShellRepository @splat
     }
     elseif ((Test-Path $extension.Path)) {
+        # Local file-system-based extension
         $extension.Add("Enabled", $true)
         Write-Host "USING PATH: $($extension.Name) ($($extension.Path))" -f Cyan
     }
     else {
+        # Missing local extension or invalid config
         Write-Warning "Extension '$($extension.Name)' not found at $($extension.Path) - it has been disabled."
         $extension.Add("Enabled", $false)
         continue

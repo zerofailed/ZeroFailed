@@ -93,10 +93,10 @@ PrivateData = @{
         # Tags = @()
 
         # A URL to the license for this module.
-        LicenseUri = 'https://github.com/endjin/ZeroFailed/blob/main/LICENSE'
+        LicenseUri = 'https://github.com/zerofailed/ZeroFailed/blob/main/LICENSE'
 
         # A URL to the main website for this project.
-        ProjectUri = 'https://github.com/endjin/ZeroFailed'
+        ProjectUri = 'https://github.com/zerofailed/ZeroFailed'
 
         # A URL to an icon representing this module.
         IconUri = 'https://www.nuget.org/profiles/endjin/avatar'

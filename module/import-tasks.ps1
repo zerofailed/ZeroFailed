@@ -36,7 +36,7 @@ $zerofailedExtensionsRepository ??= !$env:ZF_EXTENSIONS_PS_REPO ? "PSGallery" : 
 if ($zerofailedExtensions.Count -gt 0) {
     Write-Host "*** Registering Extensions..." -f Green
     $registeredExtensions = Register-Extensions -Extensions $zerofailedExtensions `
-                                                -DefaultRepository $zerofailedExtensionsRepository `
+                                                -DefaultPSRepository $zerofailedExtensionsRepository `
                                                 -ZfPath $ZfPath `
                                                 -Verbose:$VerbosePreference
 }
