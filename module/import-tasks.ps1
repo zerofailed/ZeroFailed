@@ -6,21 +6,8 @@ param (
     [Parameter(Mandatory)]
     [string] $ZfPath
 )
-# Load core task definitions
-# TBC: What should constitute a core task?
-# NOTE: These are currently overridden when importing the original 'Endjin.RecommendedPractices.Build'
-#       module as an extension.
-$taskGroups = @()
-$taskGroups | ForEach-Object {
-    $taskFilename = "$_.tasks.ps1"
-    $taskFilePath = Resolve-Path ([IO.Path]::Combine($PSScriptRoot, "tasks", $taskFilename))
-    Write-Verbose "Importing core task: $taskFilename"
-    . $taskFilePath
-}
 
-# Functionality is provided by extensions, for convenience we can provide 1 or more common
-# scenarios (e.g. .NET Build, Python Build, Azure Deployment etc.), but a customised set
-# of extensions can be specified in 2 ways:
+# Functionality is provided by extensions that are specified in 2 ways:
 #  1) Defining the '$zerofailedExtensions' variable early in the calling script (i.e. before calling 'ZeroFailed.tasks')
 #  2) Via the 'ZF_EXTENSIONS' environment variable containing a JSON string with the same structure as #1. Note that this method will take precedence over #1.
 if ($env:ZF_EXTENSIONS) {
