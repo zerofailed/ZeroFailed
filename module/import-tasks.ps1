@@ -101,37 +101,43 @@ else {
 #
 # Load tasks & functions from extensions
 #
-Write-Host "Loading functions & tasks from extensions..." -f Green
-foreach ($extension in $registeredExtensions) {
-    Write-Host $extension.Name -f Cyan
-    $extensionName = $extension.Name
-    if (!$extension.Enabled) {
-        Write-Warning "Skipping disabled extension '$extensionName'"
-        continue
-    }
-
-    # Import tasks
-    Write-Host "- Importing tasks"
-    $tasksDir = Join-Path $extension.Path "tasks"
-    $tasksToImport = Get-TasksFileListFromExtension -TasksPath $tasksDir
-    if (!($tasksToImport)) {
-        Write-Warning "No tasks found in '$extensionName'"
-    }
-    else {
-        $tasksToImport | ForEach-Object {
-            Write-Verbose "Importing task '$($_.FullName)'"
+if ($registeredExtensions.Count -gt 0) {
+    Write-Host "Loading functions & tasks from extensions..." -f Green
+    # We do this processing in reverse order (i.e. starting from the bottom of the dependency tree),
+    # so that any overriding values that are set in the dependent extension(s) can take precedence.
+    for ($i=$registeredExtensions.Count-1; $i -ge 0; $i--) {
+        
+        $extension = $registeredExtensions[$i]
+        Write-Host $extension.Name -f Cyan
+        $extensionName = $extension.Name
+        if (!$extension.Enabled) {
+            Write-Warning "Skipping disabled extension '$extensionName'"
+            continue
+        }
+    
+        # Import tasks
+        Write-Host "- Importing tasks"
+        $tasksDir = Join-Path $extension.Path "tasks"
+        $tasksToImport = Get-TasksFileListFromExtension -TasksPath $tasksDir
+        if (!($tasksToImport)) {
+            Write-Warning "No tasks found in '$extensionName'"
+        }
+        else {
+            $tasksToImport | ForEach-Object {
+                Write-Verbose "Importing task '$($_.FullName)'"
+                . $_
+            }
+        }
+    
+        # Import functions
+        Write-Host "- Importing functions"
+        $functionsDir = Join-Path $extension.Path "functions"
+        $functionsToImport = Get-FunctionsFileListFromExtension -FunctionsPath $functionsDir
+        $functionsToImport | ForEach-Object {
+            Write-Verbose "Importing function '$($_.FullName)'"
             . $_
         }
+    
     }
-
-    # Import functions
-    Write-Host "- Importing functions"
-    $functionsDir = Join-Path $extension.Path "functions"
-    $functionsToImport = Get-FunctionsFileListFromExtension -FunctionsPath $functionsDir
-    $functionsToImport | ForEach-Object {
-        Write-Verbose "Importing function '$($_.FullName)'"
-        . $_
-    }
-
 }
 Write-Host "*** Extensions registration complete`n" -f Green
