@@ -42,10 +42,10 @@ if ($zerofailedExtensions.Count -gt 0) {
                                                 -Verbose:$VerbosePreference
 }
 else {
-    Write-Warning "No extensions specified"
+    Write-Host "No extensions specified" -f Yellow
 }
 
-# Valiate whether extension dependencies are non-conflicting
+# Validate whether extension dependencies are non-conflicting
 # For the moment we'll just log a warning and remove duplicate references, with no regard for versioning - first one wins
 ($registeredExtensions | Group-Object -Property Name) |
     Where-Object { $_.Count -gt 1 } |
@@ -68,7 +68,7 @@ $registeredExtensions = $registeredExtensions |
 # First we decide where the core process is being defined:
 # 1) Check whether an extension has been declared as providing it via the 'Process' property
 #    NOTE: For the moment, the first one found wins
-# 2) If not, fallback to using the core process defined in this module
+# 2) If not, assume the calling process is defining their own process
 [array]$processesFromExtension = $registeredExtensions |
                             Where-Object { $_.ContainsKey("Process") }
 if ($processesFromExtension.Count -gt 1) {
@@ -79,17 +79,24 @@ $processFromExtension = $processesFromExtension | Select-Object -First 1
 if ($processFromExtension) {
     $processPath = Join-Path $processFromExtension.Path $processFromExtension.Process
     Write-Host "Using process from extension '$($processFromExtension.Name)'" -f Green
+    
+    # Dot-source the file that defines the tasks representing the top-level process
+    if (!(Test-Path $processPath)) {
+        throw "Process definition not found: $processPath"
+    }
+    Write-Verbose "Importing process definition: $processPath"
+    . $processPath
 }
 else {
-    $processPath = Join-Path $PSScriptRoot "tasks" "build.process.ps1"
-    Write-Host "Using default process" -f Green
+    $localProcessDefinition = Get-ChildItem $ZfPath\*.process.ps1 | Select-Object -First 1
+    if ($localProcessDefinition) {
+        Write-Host "Found local process definition '$($localProcessDefinition.Name)'" -f Green
+        . $localProcessDefinition.FullName
+    }
+    else {
+        Write-Host "No process definition has been specified from an extension or found locally, assuming an in-line definition" -f Green
+    }
 }
-# Dot-source the file that defines the tasks representing the top-level process
-if (!(Test-Path $processPath)) {
-    throw "Process definition not found: $processPath"
-}
-Write-Verbose "Importing process definition: $processPath"
-. $processPath
 
 #
 # Load tasks & functions from extensions
