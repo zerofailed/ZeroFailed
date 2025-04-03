@@ -15,11 +15,6 @@ on:
         required: true
         default: false
         type: boolean
-      psRepository:
-        description: The PowerShell repository used when publishing the module
-        required: true
-        default: github
-        type: string
 
 permissions:
   checks: write  # enable test result annotations
