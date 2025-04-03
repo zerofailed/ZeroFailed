@@ -85,7 +85,7 @@ Describe 'Register-ExtensionAndDependencies' {
 
                 $result[1].Name | Should -Be "ZeroFailed.DevOps.Common"
                 $result[1].Version | Should -Be $null
-                $result[1].GitRef | Should -Be $null
+                $result[1].GitRef | Should -Be "main"
                 $result[1].Enabled | Should -Be $true
             }
         }
@@ -114,7 +114,7 @@ Describe 'Register-ExtensionAndDependencies' {
 
                 $result[2].Name | Should -Be "ZeroFailed.DevOps.Common"
                 $result[2].Version | Should -Be $null
-                $result[2].GitRef | Should -Be $null
+                $result[2].GitRef | Should -Be "main"
                 $result[2].Enabled | Should -Be $true
             }
         }
