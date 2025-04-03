@@ -149,14 +149,14 @@ function Register-Extensions {
 
     # Ensure that $zfExtensionsPath is the first place we will look
     # for modules by putting it at the front of $env:PSModulePath
-    [string[]]$moduleSearchPaths = $env:PSModulePath -split ";"
+    [string[]]$moduleSearchPaths = $env:PSModulePath -split [IO.Path]::PathSeparator
     if ($zfExtensionsPath -notin $moduleSearchPaths) {
         $moduleSearchPaths = ,$zfExtensionsPath + $moduleSearchPaths
     }
     elseif ($moduleSearchPaths[0] -ne $zfExtensionsPath) {
-        $moduleSearchPaths = ,$zfExtensionsPath + $($moduleSearchPaths | ? {$_ -ne $zfExtensionsPath})
+        $moduleSearchPaths = ,$zfExtensionsPath + $($moduleSearchPaths | Where-Object {$_ -ne $zfExtensionsPath})
     }
-    $env:PSModulePath = $moduleSearchPaths -join ";"
+    $env:PSModulePath = $moduleSearchPaths -join [IO.Path]::PathSeparator
 
     # Process each configured extension
     for ($i=0; $i -lt $ExtensionsConfig.Length; $i++) {
