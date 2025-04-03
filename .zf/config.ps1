@@ -1,12 +1,10 @@
 # Extensions setup
 $zerofailedExtensions = @(
     @{
-        # Temporarily use pre-ZF build tooling until the required functionality has been migrated
-        Name = "Endjin.RecommendedPractices.Build"
-        Process = "tasks/build.process.ps1"
-        Version = "1.5.12"
+        Name = "ZeroFailed.Build.PowerShell"
+        GitRepository = "https://github.com/zerofailed/ZeroFailed.Build.PowerShell.git"
+        GitRef = "main"
     }
-    # TODO: Add support for obtaining extensions via Git?
 )
 
 # Load the tasks and process

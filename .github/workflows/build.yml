@@ -45,7 +45,7 @@ jobs:
         environmentVariablesYaml: |
           {}
         secretsYaml: |
-          BUILDVAR_PowerShellGalleryApiKey: ${{ secrets.PSGALLERY_APIKEY }}
+          ZF_BUILD_PS_REPOSITORY_APIKEY: ${{ secrets.PSGALLERY_APIKEY }}
         secretsEncryptionKey: ${{ secrets.SHARED_WORKFLOW_KEY }}
 
     - uses: endjin/Endjin.RecommendedPractices.GitHubActions/actions/run-build-process@main
