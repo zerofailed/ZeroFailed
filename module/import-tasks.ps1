@@ -22,9 +22,23 @@ $taskGroups | ForEach-Object {
 # scenarios (e.g. .NET Build, Python Build, Azure Deployment etc.), but a customised set
 # of extensions can be specified in 2 ways:
 #  1) Defining the '$zerofailedExtensions' variable early in the calling script (i.e. before calling 'ZeroFailed.tasks')
-#  2) Via the 'ZF_EXTENSIONS' environment variables, however note that the former method will take precedence over the environment variable
-if ($null -eq $zerofailedExtensions) {
-    [string[]]$zerofailedExtensions = $env:ZF_EXTENSIONS ? ($env:ZF_EXTENSIONS -split ";" | ForEach-Object { $_ }) : @()
+#  2) Via the 'ZF_EXTENSIONS' environment variable containing a JSON string with the same structure as #1. Note that this method will take precedence over #1.
+if ($env:ZF_EXTENSIONS) {
+    if ($zerofailedExtensions) {
+        Write-Host "Overriding extensions configuration with environment variable 'ZF_EXTENSIONS'" -f Green
+    }
+    else {
+        Write-Host "Loading extensions configuration from environment variable 'ZF_EXTENSIONS'" -f Green
+    }
+
+    try {
+        [hashtable[]]$zerofailedExtensions = $env:ZF_EXTENSIONS | ConvertFrom-Json -AsHashtable
+    }
+    catch {
+        Write-Warning "Failed to parse environment variable 'ZF_EXTENSIONS' as JSON: $($_.Exception.Message)"
+        Write-Verbose "ZF_EXTENSIONS: $env:ZF_EXTENSIONS"
+        [hashtable[]]$zerofailedExtensions = @()
+    }
 }
 
 # By default, extensions are loaded from the PowerShell Gallery, but this can be overridden
