@@ -2,7 +2,7 @@
 
 ## Status
 
-* Status: proposed
+* Status: decided
 * Deciders: endjineers
 * Date: June 2025
 
@@ -25,22 +25,42 @@ Therefore a new approach is required for how extensions declare their dependenci
 
 ## Decision Outcome
 
-TBD
+Implement Option 2.
 
 ### Positive Consequences
 
-TBD
+* Fixes the original bug
+* Aligns with existing PowerShell tooling & conventions
+* Does not preclude use of additional metadata in the future
 
 ### Negative Consequences
 
-TBD
+* To avoid a breaking change the ZeroFailed module will need to support both approaches, at least in the short-term
+* Existing extensions will need to be updated to align with this new approach
 
 ## Pros and Cons of the Options
 
 ### Change the structure of the existing `dependencies.psd1` file
 
-This options involves changing the expected structure of the `dependencies.psd1` file to be as follows:
+This is the file's existing structure, that exhibits the issue outlined above:
+```
+@(
+    @{
+        Name = "Extension_A"
+    }
+    @{
+        Name = "Extension_B"
+        Version = "1.2.3"
+    }
+    @{
+        Name = "Extension_B"
+        GitRepository = "https://github.com/myOrg/Extension_C"
+        GitRef = "main"
+    }
+)
+```
 
+This option involves changing the expected structure of the `dependencies.psd1` file to be as follows:
 ```
 @{
     dependencies = @(
@@ -49,6 +69,12 @@ This options involves changing the expected structure of the `dependencies.psd1`
         }
         @{
             Name = "Extension_B"
+            Version = "1.2.3"
+        }
+        @{
+            Name = "Extension_B"
+            GitRepository = "https://github.com/myOrg/Extension_C"
+            GitRef = "main"
         }
     )
 }
@@ -83,6 +109,12 @@ This involves adding a 'ZeroFailed' key to the `PrivateData` part of the module 
                 }
                 @{
                     Name = "Extension_B"
+                    Version = "1.2.3"
+                }
+                @{
+                    Name = "Extension_B"
+                    GitRepository = "https://github.com/myOrg/Extension_C"
+                    GitRef = "main"
                 }
             )
         }
