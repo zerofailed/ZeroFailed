@@ -20,32 +20,138 @@ Describe 'Get-ExtensionDependencies' {
             Name = "fake-extension"
             Path = $extensionPath
         }
+        $mockLegacyModuleManifest = @{
+            RootModule = "an-extension"
+            PrivateData = @{
+                PSData = @{
+                    ExternalModuleDependencies = @()
+                }
+            }
+        }
+    }
+
+    Context 'No dependencies' {
+
+        Context 'Legacy definition' {
+
+            BeforeAll {
+                $mockDependenciesPsd1FilePath = Join-Path $extensionPath 'dependencies.psd1'
+                $extensionDependencies = @'
+@{}
+'@
+                Set-Content -Path $mockDependenciesPsd1FilePath -Value $extensionDependencies
+
+                Mock Import-PowerShellDataFile -ParameterFilter { $Path -ne $mockDependenciesPsd1FilePath } { $mockLegacyModuleManifest }
+                Mock Write-Warning {}
+
+                [array]$deps = Get-ExtensionDependencies $extensionConfig
+            }
+            AfterAll {}
+    
+            It 'Should resolve no dependencies' {
+                $deps.Count | Should -Be 0
+            }
+            It 'Should log a deprecation warning' {
+                Should -Invoke Write-Warning -Times 1 -Exactly -Scope Context
+            }
+        }
+
+        Context 'Module manifest private data definition' {
+            BeforeAll {
+                $mockModuleManifest = @{
+                    RootModule = "an-extension"
+                    PrivateData = @{
+                        PSData = @{
+                            ExternalModuleDependencies = @()
+                        }
+                        ZeroFailed = @{
+                            ExtensionDependencies = @()
+                        }
+                    }
+                }
+                Mock Import-PowerShellDataFile { $mockModuleManifest }
+                [array]$deps = Get-ExtensionDependencies $extensionConfig
+            }
+            AfterAll {}
+    
+            It 'Should resolve no dependencies' {
+                $deps.Count | Should -Be 0
+            }
+        }
     }
 
     Context 'Single dependency' {
-        BeforeAll {
-            $extensionDependencies = @'
+
+        Context 'Legacy definition' {
+
+            BeforeAll {
+                $mockDependenciesPsd1FilePath = Join-Path $extensionPath 'dependencies.psd1'
+                $extensionDependencies = @'
 @{
     Name = "an-extension"
     Version = "1.0.0"
 }
 '@
-            Set-Content -Path (Join-Path $extensionPath 'dependencies.psd1') -Value $extensionDependencies
-            [array]$deps = Get-ExtensionDependencies $extensionConfig
-        }
-        AfterAll {}
+                Set-Content -Path $mockDependenciesPsd1FilePath -Value $extensionDependencies
 
-        It 'Should resolve the dependency' {
-            $deps.Count | Should -Be 1
+                Mock Import-PowerShellDataFile -ParameterFilter { $Path -ne $mockDependenciesPsd1FilePath } { $mockLegacyModuleManifest }
+                Mock Write-Warning {}
+
+                [array]$deps = Get-ExtensionDependencies $extensionConfig
+            }
+            AfterAll {}
+    
+            It 'Should resolve the dependency' {
+                $deps.Count | Should -Be 1
+            }
+            It 'Should return the correct dependency metadata' {
+                $deps[0].Name | Should -Be 'an-extension'
+                $deps[0].Version | Should -Be '1.0.0'
+            }
+            It 'Should log a deprecation warning' {
+                Should -Invoke Write-Warning -Times 1 -Exactly -Scope Context
+            }
         }
-        It 'Should return the dependency metadata' {
-            $deps[0].Version | Should -Be '1.0.0'
+
+        Context 'Module manifest private data definition' {
+            BeforeAll {
+                $mockModuleManifest = @{
+                    RootModule = "an-extension"
+                    PrivateData = @{
+                        PSData = @{
+                            ExternalModuleDependencies = @()
+                        }
+                        ZeroFailed = @{
+                            ExtensionDependencies = @(
+                                @{
+                                    Name = "an-extension"
+                                    Version = "1.0.0"
+                                }
+                            )
+                        }
+                    }
+                }
+                Mock Import-PowerShellDataFile { $mockModuleManifest }
+                [array]$deps = Get-ExtensionDependencies $extensionConfig
+            }
+            AfterAll {}
+    
+            It 'Should resolve the dependency' {
+                $deps.Count | Should -Be 1
+            }
+            It 'Should return the correct dependency metadata' {
+                $deps[0].Name | Should -Be 'an-extension'
+                $deps[0].Version | Should -Be '1.0.0'
+            }
         }
     }
 
     Context 'Multiple dependencies' {
-        BeforeAll {
-            $extensionDependencies = @'
+
+        Context 'Legacy definition' {
+            BeforeAll {
+                $mockDependenciesPsd1FilePath = Join-Path $extensionPath 'dependencies.psd1'
+                $extensionDependencies = @'
 @(
     @{
         Name = "an-extension"
@@ -55,19 +161,113 @@ Describe 'Get-ExtensionDependencies' {
         Name = "another-extension"
         Version = "2.0.0"
     }
+    @{
+        Name = "an-extension-from-git"
+        GitRepository = "https://github.com/myOrg/myExtension"
+        GitRef = "main"
+    }
 )
 '@
-            Set-Content -Path (Join-Path $extensionPath 'dependencies.psd1') -Value $extensionDependencies
-            [array]$deps = Get-ExtensionDependencies $extensionConfig
-        }
-        AfterAll {}
+                Set-Content -Path $mockDependenciesPsd1FilePath -Value $extensionDependencies
+                
+                Mock Import-PowerShellDataFile -ParameterFilter { $Path -ne $mockDependenciesPsd1FilePath } { $mockLegacyModuleManifest }
+                Mock Write-Warning {}
+                [array]$deps = Get-ExtensionDependencies $extensionConfig
+            }
+            AfterAll {
+                Remove-Item $mockDependenciesPsd1FilePath
+            }
 
-        It 'Should resolve all the dependencies' {
-            $deps.Count | Should -Be 2
+            It 'Should only resolve a single dependency' {
+                $deps.Count | Should -Be 1
+            }
+            It 'Should return the correct dependency metadata' {
+                $deps[0].Name | Should -Be 'an-extension'
+                $deps[0].Version | Should -Be '1.0.0'
+            }
+            It 'Should log an unsupported warning' {
+                Should -Invoke Write-Warning -Times 2 -Exactly -Scope Context
+            }
         }
-        It 'Should return the dependency metadata' {
-            $deps[0].Version | Should -Be '1.0.0'
-            $deps[1].Version | Should -Be '2.0.0'
+
+        Context 'Module manifest private data definition' {
+            BeforeAll {
+                $mockModuleManifest = @{
+                    RootModule = "an-extension"
+                    PrivateData = @{
+                        PSData = @{
+                            ExternalModuleDependencies = @()
+                        }
+                        ZeroFailed = @{
+                            ExtensionDependencies = @(
+                                @{
+                                    Name = "an-extension"
+                                    Version = "1.0.0"
+                                }
+                                @{
+                                    Name = "another-extension"
+                                    Version = "2.0.0"
+                                }
+                                @{
+                                    Name = "an-extension-from-git"
+                                    GitRepository = "https://github.com/myOrg/myExtension"
+                                    GitRef = "main"
+                                }
+                            )
+                        }
+                    }
+                }
+                Mock Import-PowerShellDataFile { $mockModuleManifest }
+                [array]$deps = Get-ExtensionDependencies $extensionConfig
+            }
+            AfterAll {}
+
+            It 'Should resolve all the dependencies' {
+                $deps.Count | Should -Be 3
+            }
+            It 'Should return the correct dependency metadata' {
+                $deps[0].Name | Should -Be 'an-extension'
+                $deps[0].Version | Should -Be '1.0.0'
+                $deps[1].Name | Should -Be 'another-extension'
+                $deps[1].Version | Should -Be '2.0.0'
+                $deps[2].Name | Should -Be 'an-extension-from-git'
+                $deps[2].GitRepository | Should -Be 'https://github.com/myOrg/myExtension'
+                $deps[2].GitRef | Should -Be 'main'
+            }
+        }
+
+        Context 'Module manifest private data definition - mixed syntax' {
+            BeforeAll {
+                $mockModuleManifest = @{
+                    RootModule = "an-extension"
+                    PrivateData = @{
+                        PSData = @{
+                            ExternalModuleDependencies = @()
+                        }
+                        ZeroFailed = @{
+                            ExtensionDependencies = @(
+                                "an-extension"
+                                @{
+                                    Name = "another-extension"
+                                    Version = "2.0.0"
+                                }
+                            )
+                        }
+                    }
+                }
+                Mock Import-PowerShellDataFile { $mockModuleManifest }
+                [array]$deps = Get-ExtensionDependencies $extensionConfig
+            }
+            AfterAll {}
+
+            It 'Should resolve all the dependencies' {
+                $deps.Count | Should -Be 2
+            }
+            It 'Should return the correct dependency metadata' {
+                $deps[0].Name | Should -Be 'an-extension'
+                $deps[1].Name | Should -Be 'another-extension'
+                $deps[1].Version | Should -Be '2.0.0'
+            }
         }
     }
 }
