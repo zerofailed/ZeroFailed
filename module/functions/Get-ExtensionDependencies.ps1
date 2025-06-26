@@ -130,9 +130,8 @@ function Get-ExtensionDependencies {
         catch {
             throw "Failed to resolve extension metadata for dependency due to invalid configuration: `n$($dependencyConfig | ConvertTo-Json -Depth 3)"
         }
-        # $resolvedDeps = $dependenciesConfig
     }
 
-    Write-Verbose "Resolved Dependencies: $($dependencyConfig | ConvertTo-Json -Depth 3)"
+    Write-Verbose "Resolved Dependencies: $($resolvedDeps | ConvertTo-Json -Depth 3)"
     return $resolvedDeps
 }
