@@ -69,7 +69,7 @@ function Register-ExtensionAndDependencies {
     elseif (!$extension.ContainsKey("Path")) {
         # PowerShell module-based extension
         # Set defaults for any optional configuration settings
-        $splat.Add("PSRepository", $extension.ContainsKey("PSRepository") ? $extension.PSRepository : $DefaultPSRepository)
+        $splat["PSRepository"] = $extension.ContainsKey("PSRepository") ? $extension.PSRepository : $DefaultPSRepository
         
         # Call the helper that will install the extension from a PowerShell module repository if it's not
         # already installed and provide the resulting additional metadata that we need to use the extension

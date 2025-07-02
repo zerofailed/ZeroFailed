@@ -270,4 +270,32 @@ Describe 'Get-ExtensionDependencies' {
             }
         }
     }
+
+    Context 'Invalid dependency configuration' {
+        BeforeAll {
+            $mockModuleManifest = @{
+                RootModule = "an-extension"
+                PrivateData = @{
+                    PSData = @{
+                        ExternalModuleDependencies = @()
+                    }
+                    ZeroFailed = @{
+                        ExtensionDependencies = @(
+                            @{
+                                InvalidKey = "InvalidValue"
+                            }
+                        )
+                    }
+                }
+            }
+            Mock Import-PowerShellDataFile { $mockModuleManifest }
+        }
+        AfterAll {}
+
+        It 'Should throw an exception with the correct message' {
+            {
+                Get-ExtensionDependencies $extensionConfig
+            } | Should -Throw "Failed to resolve extension metadata for dependency due to invalid configuration: Invalid extension configuration syntax*"
+        }
+    }
 }

@@ -97,4 +97,13 @@ Describe 'Resolve-ExtensionMetadata' {
             }
         }
     }
+
+    Context 'Invalid configuration' {
+        It 'Should throw an exception when Name and Path are missing' {
+            $config = @{}
+            {
+                Resolve-ExtensionMetadata $config
+            } | Should -Throw "Invalid extension configuration syntax."
+        }
+    }
 }
