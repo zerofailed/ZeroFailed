@@ -28,6 +28,8 @@ Describe 'Get-ExtensionDependencies' {
                 }
             }
         }
+        Mock Write-Warning {}
+        Mock Write-Host {}
     }
 
     Context 'No dependencies' {
@@ -42,7 +44,6 @@ Describe 'Get-ExtensionDependencies' {
                 Set-Content -Path $mockDependenciesPsd1FilePath -Value $extensionDependencies
 
                 Mock Import-PowerShellDataFile -ParameterFilter { $Path -ne $mockDependenciesPsd1FilePath } { $mockLegacyModuleManifest }
-                Mock Write-Warning {}
 
                 [array]$deps = Get-ExtensionDependencies $extensionConfig
             }
@@ -95,7 +96,6 @@ Describe 'Get-ExtensionDependencies' {
                 Set-Content -Path $mockDependenciesPsd1FilePath -Value $extensionDependencies
 
                 Mock Import-PowerShellDataFile -ParameterFilter { $Path -ne $mockDependenciesPsd1FilePath } { $mockLegacyModuleManifest }
-                Mock Write-Warning {}
 
                 [array]$deps = Get-ExtensionDependencies $extensionConfig
             }
@@ -171,7 +171,6 @@ Describe 'Get-ExtensionDependencies' {
                 Set-Content -Path $mockDependenciesPsd1FilePath -Value $extensionDependencies
                 
                 Mock Import-PowerShellDataFile -ParameterFilter { $Path -ne $mockDependenciesPsd1FilePath } { $mockLegacyModuleManifest }
-                Mock Write-Warning {}
                 [array]$deps = Get-ExtensionDependencies $extensionConfig
             }
             AfterAll {

@@ -17,6 +17,7 @@ Describe 'Get-ExtensionFromGitRepository' {
         # Setup .zf folder
         $targetPath = Join-Path -Path TestDrive: -ChildPath '.zf' 'extensions'
         New-Item -Path $targetPath -ItemType Directory -Force | Out-Null
+        Mock Write-Host {}
     }
 
     Context 'Installing extension from a simple branch reference' {

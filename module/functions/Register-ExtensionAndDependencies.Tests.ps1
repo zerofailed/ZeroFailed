@@ -29,10 +29,6 @@ Describe 'Register-ExtensionAndDependencies' {
 
         Mock Write-Host {}
         Mock Write-Warning {}
-        # Mock Get-ExtensionAvailableTasks {
-        #     param ($ExtensionPath)
-        #     return @("MockTask1", "MockTask2")
-        # }
     }
 
     Context 'Git-Based Extensions' {
