@@ -12,7 +12,7 @@ $zerofailedExtensions = @(
 
 # Set the required build options
 $PesterTestsDir = "$here/module"
-$PesterVersion = "5.5.0"
+$PesterVersion = "5.7.1"
 
 $PowerShellModulesToPublish = @(
     @{
@@ -54,3 +54,27 @@ task . FullBuild
 # task PrePublish {}
 # task PostPublish {}
 # task RunLast {}
+
+task RunPesterTests `
+    -If {!$SkipPesterTests -and $PesterTestsDir} `
+    -After TestCore `
+    InstallPester,{
+
+    $config = New-PesterConfiguration
+    $config.Run.Path = $PesterTestsDir
+    $config.Run.PassThru = $true
+    $config.Output.Verbosity = 'Normal'
+    $config.TestResult.OutputFormat = $PesterOutputFormat
+    $config.TestResult.OutputPath = $PesterOutputFilePath
+    $config.CodeCoverage.Enabled = $true
+    $config.CodeCoverage.OutputFormat = 'Cobertura'
+    $config.CodeCoverage.OutputPath = (Join-Path $CoverageDir 'pester-coverage.xml')
+
+    New-Item -ItemType Directory $CoverageDir -Force | Out-Null
+
+    $results = Invoke-Pester -Configuration $config
+
+    if ($results.FailedCount -gt 0) {
+        throw ("{0} out of {1} tests failed - check previous logging for more details" -f $results.FailedCount, $results.TotalCount)
+    }
+}
