@@ -267,7 +267,7 @@ Describe 'Register-ExtensionAndDependencies' {
             New-Item -Path $mockExtensionPath -ItemType Directory -Force | Out-Null
             Set-Content -Path (Join-Path $mockExtensionPath "$mockExtensionName.psd1") -Value @'
 @{
-    RootModule = 'ZeroFailed.psm1'
+    RootModule = 'MyLocalZfExtension.psm1'
     ModuleVersion = '0.0.1'
     PrivateData = @{
         ZFData = @{
@@ -296,327 +296,72 @@ Describe 'Register-ExtensionAndDependencies' {
         }
     }
 
-    # Context 'Disabled Extension Scenarios' {
-    #     BeforeEach {
-    #         # Reset mocks for each test in this context
-    #         Mock Test-Path {
-    #             param ($Path)
-    #             return $false # Default to false, override for specific tests
-    #         }
-    #         Mock Write-Warning {} # Capture Write-Warning output
-    #         Mock Get-ExtensionDependencies {
-    #             param ($Extension)
-    #             return @()
-    #         }
-    #         Mock Get-ExtensionAvailableTasks {
-    #             param ($ExtensionPath)
-    #             return @()
-    #         }
-    #         Mock Register-ExtensionAndDependencies {
-    #             param ($ExtensionConfig, $TargetPath)
-    #             # Prevent recursive calls from actually executing during these tests
-    #             return @($ExtensionConfig)
-    #         } -ParameterFilter { $ExtensionConfig.Name -ne "TestDisabledExtension" -and $ExtensionConfig.Name -ne "ExplicitlyDisabledExtension" }
-    #     }
+    Context 'Disabled Extension Scenarios' {
+        BeforeEach {
+        }
 
-    #     Context 'Local extension path does not exist' {
-    #         It 'Should disable the extension and write a warning' {
-    #             Mock Resolve-ExtensionMetadata {
-    #                 param ($Value)
-    #                 $mockExtension = $Value.Clone()
-    #                 $mockExtension.Enabled = $true # Assume it's enabled initially
-    #                 return $mockExtension
-    #             }
+        Context 'Local extension path does not exist' {
+            It 'Should disable the extension and write a warning' {
+                $missingExtension = 'missingZfExtension'
+                $missingPath = Join-Path $TestDrive $missingExtension
+                $extensionConfig = @{
+                    Name = $missingExtension
+                    Path = $missingPath
+                }
 
-    #             $invalidPath = "$targetPath/non-existent-local-extension"
-    #             $extensionConfig = @{
-    #                 Name = "TestDisabledExtension"
-    #                 Path = $invalidPath
-    #             }
+                [array]$result = Register-ExtensionAndDependencies -ExtensionConfig $extensionConfig -TargetPath $targetPath
 
-    #             [array]$result = Register-ExtensionAndDependencies -ExtensionConfig $extensionConfig -TargetPath $targetPath
+                $result.Count | Should -Be 1
+                $result[0].Name | Should -Be $missingExtension
+                $result[0].Enabled | Should -Be $false
+                Should -Invoke Write-Warning -Exactly 1 -ParameterFilter {
+                    $_.ToString() -like "Extension 'TestmockExtensionName' not found at $invalidPath - it has been disabled.*"
+                }
+                Should -Not -Invoke Get-ExtensionDependencies
+                Should -Not -Invoke Get-ExtensionAvailableTasks
+                Should -Not -Invoke Register-ExtensionAndDependencies -ParameterFilter { $ExtensionConfig.Name -ne $missingExtension }
+            }
+        }
 
-    #             $result.Count | Should -Be 1
-    #             $result[0].Name | Should -Be "TestDisabledExtension"
-    #             $result[0].Enabled | Should -Be $false
-    #             Should -Invoke Write-Warning -Exactly 1 -ParameterFilter {
-    #                 $_.ToString() -like "Extension 'TestDisabledExtension' not found at $invalidPath - it has been disabled.*"
-    #             }
-    #             Should -Not -Invoke Get-ExtensionDependencies
-    #             Should -Not -Invoke Get-ExtensionAvailableTasks
-    #             Should -Not -Invoke Register-ExtensionAndDependencies -ParameterFilter { $ExtensionConfig.Name -ne "TestDisabledExtension" }
-    #         }
-    #     }
+        Context 'Extension explicitly disabled via configuration' {
+            It 'Should not process dependencies or tasks' {
+                Mock Get-ExtensionDependencies {}
+                Mock Get-ExtensionAvailableTasks {}
+                Mock Write-Host {}
 
-    #     Context 'Extension explicitly disabled via configuration' {
-    #         It 'Should not process dependencies or tasks' {
-    #             Mock Resolve-ExtensionMetadata {
-    #                 param ($Value)
-    #                 $mockExtension = $Value.Clone()
-    #                 $mockExtension.Enabled = $false
-    #                 return $mockExtension
-    #             }
+                $mockExtensionName = 'MyLocalZfExtension'
+                $mockExtensionPath = Join-Path -Path TestDrive: -ChildPath $mockExtensionName
+                New-Item -Path $mockExtensionPath -ItemType Directory -Force | Out-Null
+                Set-Content -Path (Join-Path $mockExtensionPath "$mockExtensionName.psd1") -Value @'
+    @{
+        RootModule = 'MyLocalZfExtension.psm1'
+        ModuleVersion = '0.0.1'
+        PrivateData = @{
+            ZFData = @{
+                Dependencies = @()
+            }
+        }
+    }
+'@
+                $extensionConfig = @{
+                    Name = $mockExtensionName
+                    Path = $mockExtensionPath
+                    Enabled = $false
+                }
 
-    #             $extensionConfig = @{
-    #                 Name = "ExplicitlyDisabledExtension"
-    #                 Path = "$targetPath/some-path" # Path doesn't matter as Resolve-ExtensionMetadata is mocked
-    #                 Enabled = $false # This will be overridden by mock
-    #             }
+                [array]$result = Register-ExtensionAndDependencies -ExtensionConfig $extensionConfig -TargetPath $targetPath
 
-    #             [array]$result = Register-ExtensionAndDependencies -ExtensionConfig $extensionConfig -TargetPath $targetPath
+                $result.Count | Should -Be 1
+                $result[0].Name | Should -Be $mockExtensionName
+                $result[0].Enabled | Should -Be $false
+                Should -Not -Invoke Get-ExtensionDependencies
+                Should -Not -Invoke Get-ExtensionAvailableTasks
+                Should -Invoke Write-Host -ParameterFilter { $Object -eq 'Skipping extension - explicitly disabled' }
+            }
+        }
+    }
 
-    #             $result.Count | Should -Be 1
-    #             $result[0].Name | Should -Be "ExplicitlyDisabledExtension"
-    #             $result[0].Enabled | Should -Be $false
-    #             Should -Not -Invoke Get-ExtensionDependencies
-    #             Should -Not -Invoke Get-ExtensionAvailableTasks
-    #             Should -Not -Invoke Register-ExtensionAndDependencies -ParameterFilter { $ExtensionConfig.Name -ne "ExplicitlyDisabledExtension" }
-    #         }
-    #     }
-    # }
-
-    # Context 'Dependency Resolution Edge Cases' {
-    #     BeforeEach {
-    #         # Reset mocks for each test in this context
-    #         Mock Resolve-ExtensionMetadata {
-    #             param ($Value)
-    #             if ($Value -is [string]) {
-    #                 return @{ Name = $Value; Path = $Value; Enabled = $true }
-    #             }
-    #             return $Value
-    #         }
-    #         Mock Get-ExtensionDependencies {
-    #             param ($Extension)
-    #             return @() # Default to no dependencies, override for specific tests
-    #         }
-    #         Mock Get-ExtensionFromGitRepository {
-    #             param ($Name, $RepositoryUri, $TargetPath)
-    #             return @{ Path = Join-Path $TargetPath $Name }
-    #         }
-    #         Mock Get-ExtensionFromPowerShellRepository {
-    #             param ($Name, $PSRepository, $TargetPath)
-    #             return @{ Path = Join-Path $TargetPath $Name }
-    #         }
-    #         Mock Test-Path {
-    #             param ($Path)
-    #             return $true # Default to path exists
-    #         }
-    #         Mock Write-Warning {}
-    #         Mock Write-Host {}
-    #         Mock Register-ExtensionAndDependencies {
-    #             param ($ExtensionConfig, $TargetPath)
-    #             # Allow recursive calls to be tracked, but return a simple processed config
-    #             return @($ExtensionConfig)
-    #         } -ParameterFilter { $ExtensionConfig.Name -ne "CircularDependencyB" -and $ExtensionConfig.Name -ne "NonExistentDependency" -and $ExtensionConfig.Name -ne "CommonDependency" }
-    #     }
-
-    #     Context 'Extension with no dependencies' {
-    #         It 'Should only process the main extension' {
-    #             $extensionConfig = @{
-    #                 Name = "ExtensionNoDeps"
-    #                 GitRepository = "https://github.com/test/nodeps"
-    #             }
-
-    #             [array]$result = Register-ExtensionAndDependencies -ExtensionConfig $extensionConfig -TargetPath $targetPath
-
-    #             $result.Count | Should -Be 1
-    #             $result[0].Name | Should -Be "ExtensionNoDeps"
-    #             Should -Invoke Get-ExtensionDependencies -Exactly 1 -ParameterFilter { $Extension.Name -eq "ExtensionNoDeps" }
-    #             Should -Not -Invoke Register-ExtensionAndDependencies -ParameterFilter { $ExtensionConfig.Name -ne "ExtensionNoDeps" }
-    #         }
-    #     }
-
-    #     # Context 'Circular Dependencies (A -> B -> A)' {
-    #     #     It 'Should process each unique extension only once' {
-    #     #         Mock Get-ExtensionDependencies {
-    #     #             param ($Extension)
-    #     #             if ($Extension.Name -eq "CircularDependencyA") {
-    #     #                 return @(@{ Name = "CircularDependencyB"; GitRepository = "https://github.com/test/B" })
-    #     #             }
-    #     #             if ($Extension.Name -eq "CircularDependencyB") {
-    #     #                 return @(@{ Name = "CircularDependencyA"; GitRepository = "https://github.com/test/A" })
-    #     #             }
-    #     #             return @()
-    #     #         }
-
-    #     #         # Mock Register-ExtensionAndDependencies to prevent infinite recursion and track calls
-    #     #         $processedCalls = [System.Collections.Generic.List[string]]::new()
-    #     #         Mock Register-ExtensionAndDependencies {
-    #     #             param ($ExtensionConfig, $TargetPath)
-    #     #             if (-not ($processedCalls.Contains($ExtensionConfig.Name))) {
-    #     #                 $processedCalls.Add($ExtensionConfig.Name)
-    #     #                 # Call original function for the first time, then return mock for subsequent calls
-    #     #                 if ($ExtensionConfig.Name -eq "CircularDependencyA") {
-    #     #                     return (Invoke-MockOriginal -ExtensionConfig $ExtensionConfig -TargetPath $TargetPath)
-    #     #                 }
-    #     #             }
-    #     #             return @($ExtensionConfig) # Return a simple mock for subsequent calls
-    #     #         } -MockWith { Invoke-MockOriginal } -ParameterFilter { $ExtensionConfig.Name -eq "CircularDependencyA" }
-
-    #     #         $extensionConfig = @{
-    #     #             Name = "CircularDependencyA"
-    #     #             GitRepository = "https://github.com/test/A"
-    #     #         }
-
-    #     #         [array]$result = Register-ExtensionAndDependencies -ExtensionConfig $extensionConfig -TargetPath $targetPath
-
-    #     #         $result.Count | Should -Be 2 # A and B should be in the final list
-    #     #         $result.Name | Should -Contain "CircularDependencyA"
-    #     #         $result.Name | Should -Contain "CircularDependencyB"
-
-    #     #         # Verify that Register-ExtensionAndDependencies was called for each unique dependency once
-    #     #         $processedCalls.Count | Should -Be 2
-    #     #         $processedCalls | Should -Contain "CircularDependencyA"
-    #     #         $processedCalls | Should -Contain "CircularDependencyB"
-    #     #     }
-    #     # }
-
-    #     Context 'Non-existent Dependency' {
-    #         It 'Should mark the non-existent dependency as disabled and warn' {
-    #             Mock Get-ExtensionDependencies {
-    #                 param ($Extension)
-    #                 if ($Extension.Name -eq "MainExtension") {
-    #                     return @(@{ Name = "NonExistentDependency"; Path = "$targetPath/non-existent-dep" })
-    #                 }
-    #                 return @()
-    #             }
-    #             Mock Test-Path {
-    #                 param ($Path)
-    #                 return $Path -ne "$targetPath/non-existent-dep"
-    #             }
-    #             Mock Resolve-ExtensionMetadata {
-    #                 param ($Value)
-    #                 if ($Value.Name -eq "NonExistentDependency") {
-    #                     return @{ Name = "NonExistentDependency"; Path = "$targetPath/non-existent-dep"; Enabled = $true } # Assume initially enabled
-    #                 }
-    #                 return $Value
-    #             }
-
-    #             $extensionConfig = @{
-    #                 Name = "MainExtension"
-    #                 GitRepository = "https://github.com/test/main"
-    #             }
-
-    #             [array]$result = Register-ExtensionAndDependencies -ExtensionConfig $extensionConfig -TargetPath $targetPath
-
-    #             $result.Count | Should -Be 2
-    #             $result.Name | Should -Contain "MainExtension"
-    #             $result.Name | Should -Contain "NonExistentDependency"
-    #             ($result | Where-Object Name -eq "NonExistentDependency").Enabled | Should -Be $false
-
-    #             Should -Invoke Write-Warning -Exactly 1 -ParameterFilter {
-    #                 $_.ToString() -like "Extension 'NonExistentDependency' not found at $targetPath/non-existent-dep - it has been disabled.*"
-    #             }
-    #         }
-    #     }
-
-    #     Context 'Duplicate Dependencies (A -> B, C -> B)' {
-    #         It 'Should process the duplicate dependency only once' {
-    #             Mock Get-ExtensionDependencies {
-    #                 param ($Extension)
-    #                 if ($Extension.Name -eq "ExtensionA") {
-    #                     return @(@{ Name = "CommonDependency"; GitRepository = "https://github.com/test/common" })
-    #                 }
-    #                 if ($Extension.Name -eq "ExtensionC") {
-    #                     return @(@{ Name = "CommonDependency"; GitRepository = "https://github.com/test/common" })
-    #                 }
-    #                 return @()
-    #             }
-
-    #             # Mock Register-ExtensionAndDependencies to track calls
-    #             $registerCalls = [System.Collections.Generic.List[string]]::new()
-    #             Mock Register-ExtensionAndDependencies {
-    #                 param ($ExtensionConfig, $TargetPath)
-    #                 $registerCalls.Add($ExtensionConfig.Name)
-    #                 return (Invoke-MockOriginal -ExtensionConfig $ExtensionConfig -TargetPath $TargetPath)
-    #             } -ParameterFilter { $ExtensionConfig.Name -ne "ExtensionA" -and $ExtensionConfig.Name -ne "ExtensionC" }
-
-    #             $extensionConfigA = @{
-    #                 Name = "ExtensionA"
-    #                 GitRepository = "https://github.com/test/A"
-    #             }
-    #             $extensionConfigC = @{
-    #                 Name = "ExtensionC"
-    #                 GitRepository = "https://github.com/test/C"
-    #             }
-
-    #             [array]$resultA = Register-ExtensionAndDependencies -ExtensionConfig $extensionConfigA -TargetPath $targetPath
-    #             [array]$resultC = Register-ExtensionAndDependencies -ExtensionConfig $extensionConfigC -TargetPath $targetPath
-
-    #             # Combine results and ensure unique entries
-    #             $combinedResult = ($resultA + $resultC | Select-Object -Unique Name)
-
-    #             $combinedResult.Count | Should -Be 3
-    #             $combinedResult.Name | Should -Contain "ExtensionA"
-    #             $combinedResult.Name | Should -Contain "ExtensionC"
-    #             $combinedResult.Name | Should -Contain "CommonDependency"
-
-    #             # Verify that CommonDependency was processed only once by Register-ExtensionAndDependencies
-    #             ($registerCalls | Where-Object { $_ -eq "CommonDependency" }).Count | Should -Be 1
-    #         }
-    #     }
-    # }
-
-    # Context 'Error Handling of Internal Calls' {
-    #     BeforeEach {
-    #         # Reset mocks for each test in this context
-    #         Mock Resolve-ExtensionMetadata {
-    #             param ($Value)
-    #             if ($Value -is [string]) {
-    #                 return @{ Name = $Value; Path = $Value; Enabled = $true }
-    #             }
-    #             return $Value
-    #         }
-    #         Mock Get-ExtensionFromGitRepository {
-    #             param ($Name, $RepositoryUri, $TargetPath)
-    #             return @{ Path = Join-Path $TargetPath $Name }
-    #         }
-    #         Mock Get-ExtensionFromPowerShellRepository {
-    #             param ($Name, $PSRepository, $TargetPath)
-    #             return @{ Path = Join-Path $TargetPath $Name }
-    #         }
-    #         Mock Get-ExtensionDependencies {
-    #             param ($Extension)
-    #             return @()
-    #         }
-    #         Mock Test-Path {
-    #             param ($Path)
-    #             return $true
-    #         }
-    #         Mock Write-Warning {}
-    #         Mock Write-Host {}
-    #     }
-
-    #     Context 'When Get-ExtensionFromGitRepository throws an error' {
-    #         It 'Should propagate the exception' {
-    #             Mock Get-ExtensionFromGitRepository {
-    #                 throw "Mock Git Repository Error"
-    #             }
-
-    #             $extensionConfig = @{
-    #                 Name = "ErrorGitExtension"
-    #                 GitRepository = "https://github.com/error/git"
-    #             }
-
-    #             { Register-ExtensionAndDependencies -ExtensionConfig $extensionConfig -TargetPath $targetPath } | Should -Throw "Mock Git Repository Error"
-    #         }
-    #     }
-
-    #     Context 'When Get-ExtensionDependencies throws an error' {
-    #         It 'Should propagate the exception' {
-    #             Mock Get-ExtensionDependencies {
-    #                 throw "Mock Dependency Error"
-    #             }
-
-    #             $extensionConfig = @{
-    #                 Name = "ErrorDepExtension"
-    #                 Path = "$targetPath/error-dep"
-    #             }
-
-    #             { Register-ExtensionAndDependencies -ExtensionConfig $extensionConfig -TargetPath $targetPath } | Should -Throw "Mock Dependency Error"
-    #         }
-    #     }
-    # }
+    
 
     Context 'Invalid extension path configuration' {
         BeforeAll {
