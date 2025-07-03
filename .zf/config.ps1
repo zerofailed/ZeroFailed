@@ -61,6 +61,7 @@ task . FullBuild
 # task PostPublish {}
 # task RunLast {}
 
+# Override & customise the default implementation to enable code coverage features
 task RunPesterTests `
     -If {!$SkipPesterTests -and $PesterTestsDir} `
     -After TestCore `
@@ -87,8 +88,7 @@ task RunPesterTests `
         -OutputPath $CoverageDir
     
     _GenerateCodeCoverageMarkdownReport `
-        -UseGitHubFlavour $IsGitHubActions `
-        -TargetFrameworkMoniker "PS7" `
+        -UseGitHubFlavour $IsGitHubActions
         -OutputPath $CoverageDir
 
     if ($results.FailedCount -gt 0) {
