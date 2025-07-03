@@ -88,7 +88,7 @@ task RunPesterTests `
         -OutputPath $CoverageDir
     
     _GenerateCodeCoverageMarkdownReport `
-        -UseGitHubFlavour $IsGitHubActions
+        -UseGitHubFlavour $IsGitHubActions `
         -OutputPath $CoverageDir
 
     if ($results.FailedCount -gt 0) {
