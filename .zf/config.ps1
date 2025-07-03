@@ -64,6 +64,7 @@ task RunPesterTests `
     $config.Run.Path = $PesterTestsDir
     $config.Run.PassThru = $true
     $config.Output.Verbosity = 'Normal'
+    $config.TestResult.Enabled = $true
     $config.TestResult.OutputFormat = $PesterOutputFormat
     $config.TestResult.OutputPath = (Join-Path $here $PesterOutputFilePath)
     $config.CodeCoverage.Enabled = $true
