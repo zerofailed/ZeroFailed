@@ -77,4 +77,8 @@ task RunPesterTests `
     if ($results.FailedCount -gt 0) {
         throw ("{0} out of {1} tests failed - check previous logging for more details" -f $results.FailedCount, $results.TotalCount)
     }
+
+    # debug where test results are in GHA
+    gci -Recurse -Path $here -Filter PesterTestResults.xml | out-string | write-host
+    gci -Recurse -Path $here -Filter pester-coverage.xml | out-string | write-host
 }
