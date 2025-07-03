@@ -5,6 +5,12 @@ $zerofailedExtensions = @(
         GitRepository = "https://github.com/zerofailed/ZeroFailed.Build.PowerShell.git"
         GitRef = "main"
     }
+    # Currently needed for the report generator tool
+    @{
+        Name = "ZeroFailed.Build.DotNet"
+        GitRepository = "https://github.com/zerofailed/ZeroFailed.Build.DotNet.git"
+        GitRef = "main"
+    }
 )
 
 # Load the tasks and process
@@ -69,19 +75,23 @@ task RunPesterTests `
     $config.TestResult.OutputPath = (Join-Path $here $PesterOutputFilePath)
     $config.CodeCoverage.Enabled = $true
     $config.CodeCoverage.OutputFormat = 'Cobertura'
-    $config.CodeCoverage.OutputPath = (Join-Path $CoverageDir 'pester-coverage.xml')
-
-    $config | ConvertTo-Json -Depth 100 | Write-Host
+    $config.CodeCoverage.OutputPath = (Join-Path $CoverageDir 'coverage.pester-cobertura.xml')
 
     New-Item -ItemType Directory $CoverageDir -Force | Out-Null
 
     $results = Invoke-Pester -Configuration $config
 
+    # Generate code coverage reports
+    _GenerateTestReport `
+        -ReportTypes $TestReportTypes `
+        -OutputPath $CoverageDir
+    
+    _GenerateCodeCoverageMarkdownReport `
+        -UseGitHubFlavour $IsGitHubActions `
+        -TargetFrameworkMoniker "PS7" `
+        -OutputPath $CoverageDir
+
     if ($results.FailedCount -gt 0) {
         throw ("{0} out of {1} tests failed - check previous logging for more details" -f $results.FailedCount, $results.TotalCount)
     }
-
-    # debug where test results are in GHA
-    gci -Recurse -Path $here -Filter PesterTestResults.xml | out-string | write-host
-    gci -Recurse -Path $here -Filter pester-coverage.xml | out-string | write-host
 }

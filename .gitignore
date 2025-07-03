@@ -1,2 +1,4 @@
 PesterTestResults.xml
 .zf/extensions/
+_codeCoverage/
+_packages/
