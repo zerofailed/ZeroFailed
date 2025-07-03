@@ -94,11 +94,17 @@ function Get-ExtensionDependencies {
     $extensionModuleManifestPath = Join-Path -Path $Extension.Path -ChildPath "$($Extension.Name).psd1"
     $extensionModuleManifest = Import-PowerShellDataFile -Path $extensionModuleManifestPath
     if ($extensionModuleManifest.ContainsKey("PrivateData") -and `
-            $extensionModuleManifest.PrivateData.ContainsKey($ZF_PRIVATEDATA_KEY_NAME) -and `
-            $extensionModuleManifest.PrivateData.$ZF_PRIVATEDATA_KEY_NAME.ContainsKey($ZF_EXTENSION_DEPENDENCIES_KEY_NAME)
+            $extensionModuleManifest.PrivateData.ContainsKey($ZF_PRIVATEDATA_KEY_NAME)
     ) {
-        Write-Verbose "Reading dependencies from module manifest"
-        $dependenciesConfig = $extensionModuleManifest.PrivateData.$ZF_PRIVATEDATA_KEY_NAME.$ZF_EXTENSION_DEPENDENCIES_KEY_NAME
+        if ($extensionModuleManifest.PrivateData.$ZF_PRIVATEDATA_KEY_NAME.ContainsKey($ZF_EXTENSION_DEPENDENCIES_KEY_NAME)) {
+            Write-Verbose "Reading dependencies from module manifest"
+            $dependenciesConfig = $extensionModuleManifest.PrivateData.$ZF_PRIVATEDATA_KEY_NAME.$ZF_EXTENSION_DEPENDENCIES_KEY_NAME
+        }
+        else {
+            if ($extensionModuleManifest.PrivateData.$ZF_PRIVATEDATA_KEY_NAME.Keys.Count -gt 0) {
+                Write-Warning "Unknown '$ZF_PRIVATEDATA_KEY_NAME' configuration keys were detected in the extension's module manifest: $($extensionModuleManifest.PrivateData.$ZF_PRIVATEDATA_KEY_NAME.Keys)"
+            }
+        }
     }
     else {
         # Fallback to legacy mechanism as backwards-compatibility measure

@@ -297,4 +297,30 @@ Describe 'Get-ExtensionDependencies' {
             } | Should -Throw "Failed to resolve extension metadata for dependency due to invalid configuration: Invalid extension configuration syntax*"
         }
     }
+    Context 'Unknown ZF configuration' {
+        BeforeAll {
+            $mockModuleManifest = @{
+                RootModule = "an-extension"
+                PrivateData = @{
+                    PSData = @{
+                        ExternalModuleDependencies = @()
+                    }
+                    ZeroFailed = @{
+                        RandomKey = 'foo'
+                    }
+                }
+            }
+            Mock Import-PowerShellDataFile { $mockModuleManifest }
+            Mock Write-Warning {}
+        }
+        AfterAll {}
+
+        It 'Should log a warning about unknown configuration settings' {
+            Get-ExtensionDependencies $extensionConfig
+
+            Should -Invoke Write-Warning -ParameterFilter {
+                $Message -eq "Unknown 'ZeroFailed' configuration keys were detected in the extension's module manifest: RandomKey"
+            }
+        }
+    }
 }
