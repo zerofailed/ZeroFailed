@@ -65,10 +65,12 @@ task RunPesterTests `
     $config.Run.PassThru = $true
     $config.Output.Verbosity = 'Normal'
     $config.TestResult.OutputFormat = $PesterOutputFormat
-    $config.TestResult.OutputPath = $PesterOutputFilePath
+    $config.TestResult.OutputPath = (Join-Path $here $PesterOutputFilePath)
     $config.CodeCoverage.Enabled = $true
     $config.CodeCoverage.OutputFormat = 'Cobertura'
     $config.CodeCoverage.OutputPath = (Join-Path $CoverageDir 'pester-coverage.xml')
+
+    $config | ConvertTo-Json -Depth 100 | Write-Host
 
     New-Item -ItemType Directory $CoverageDir -Force | Out-Null
 
