@@ -16,6 +16,8 @@ Describe 'Get-ExtensionFromPowerShellRepository' {
         # Setup .zf folder
         $targetPath = Join-Path -Path TestDrive: -ChildPath '.zf' 'extensions'
         New-Item -Path $targetPath -ItemType Directory -Force | Out-Null
+        Mock Write-Host {}
+        Mock Write-Warning {}
     }
 
     Context 'When installing an extension without version constraint' {

@@ -13,6 +13,9 @@ param (
     [string] $PackagesDir = "_packages",
 
     [Parameter()]
+    [string] $CoverageDir = "_codeCoverage",
+
+    [Parameter()]
     [ValidateSet("minimal","normal","detailed")]
     [string] $LogLevel = "minimal",
 

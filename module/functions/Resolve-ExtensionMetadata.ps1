@@ -74,14 +74,14 @@ function Resolve-ExtensionMetadata {
         # Assume full object-based syntax
         $extension = $Value
     }
-    else {
-        throw "Invalid extension configuration syntax. Expected a string or hashtable, but found $($Value.GetType().Name)"
-    }
 
     # Ensure we have the module name, as this is needed to ensure our duplicate extension detection works correctly
     # We can be missing this when the extension is specified as a path using either the simple or object syntax.
-    if (!$extension.ContainsKey("Name")) {
+    if (!$extension.ContainsKey("Name") -and $extension.ContainsKey("Path")) {
         $extension.Add("Name", (_resolveModuleNameFromPath $extension.Path))
+    }
+    elseif (!$extension.ContainsKey("Name")) {
+        throw "Invalid extension configuration syntax."
     }
 
     Write-Verbose "Resolved extension metadata: $($extension | ConvertTo-Json)"

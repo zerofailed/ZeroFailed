@@ -48,43 +48,50 @@ function Register-ExtensionAndDependencies {
     $splat = $extension.Clone()
     $splat.Remove("Process") | Out-Null
     $splat.Add("TargetPath", $TargetPath)
-    if ($extension.ContainsKey("GitRepository")) {
-        # Git-based extension
-        $splat.Remove("GitRepository")
-        $splat.Add("RepositoryUri", $extension.GitRepository)
-        # Set defaults for any optional configuration settings
-        if (!$extension.ContainsKey("GitRef")) { $splat.Add("GitRef", 'main') }
-        if ($extension.ContainsKey("GitRepositoryFolderPath")) {
-            $splat.Remove("GitRepositoryFolderPath")
-            $splat.Add("RepositoryFolderPath", $extension.GitRepositoryFolderPath)
+
+    # Skip further processing is extension is explicitly disabled
+    if (!$extension.ContainsKey('Enabled') -or $extension.Enabled) {
+        if ($extension.ContainsKey("GitRepository")) {
+            # Git-based extension
+            $splat.Remove("GitRepository")
+            $splat.Add("RepositoryUri", $extension.GitRepository)
+            # Set defaults for any optional configuration settings
+            if (!$extension.ContainsKey("GitRef")) { $splat.Add("GitRef", 'main') }
+            if ($extension.ContainsKey("GitRepositoryFolderPath")) {
+                $splat.Remove("GitRepositoryFolderPath")
+                $splat.Add("RepositoryFolderPath", $extension.GitRepositoryFolderPath)
+            }
+            else {
+                $splat.Add("RepositoryFolderPath", 'module')
+            }
+    
+            # Call the helper that will install the extension from a Git repository if it's not
+            # already installed and provide the resulting additional metadata that we need to use the extension
+            $extension += Get-ExtensionFromGitRepository @splat
+        }
+        elseif (!$extension.ContainsKey("Path")) {
+            # PowerShell module-based extension
+            # Set defaults for any optional configuration settings
+            $splat["PSRepository"] = $extension.ContainsKey("PSRepository") ? $extension.PSRepository : $DefaultPSRepository
+            
+            # Call the helper that will install the extension from a PowerShell module repository if it's not
+            # already installed and provide the resulting additional metadata that we need to use the extension
+            $extension += Get-ExtensionFromPowerShellRepository @splat
+        }
+        elseif ((Test-Path $extension.Path)) {
+            # Local file-system-based extension
+            $extension['Enabled'] = $extension.ContainsKey('Enabled') ? $extension.Enabled : $true
+            Write-Host "USING PATH: $($extension.Name) ($($extension.Path))" -f Cyan
         }
         else {
-            $splat.Add("RepositoryFolderPath", 'module')
+            # Missing local extension or invalid config
+            Write-Warning "Extension '$($extension.Name)' not found at $($extension.Path) - it has been disabled."
+            $extension['Enabled'] = $false
+            continue
         }
-
-        # Call the helper that will install the extension from a Git repository if it's not
-        # already installed and provide the resulting additional metadata that we need to use the extension
-        $extension += Get-ExtensionFromGitRepository @splat
-    }
-    elseif (!$extension.ContainsKey("Path")) {
-        # PowerShell module-based extension
-        # Set defaults for any optional configuration settings
-        $splat.Add("PSRepository", $extension.ContainsKey("PSRepository") ? $extension.PSRepository : $DefaultPSRepository)
-        
-        # Call the helper that will install the extension from a PowerShell module repository if it's not
-        # already installed and provide the resulting additional metadata that we need to use the extension
-        $extension += Get-ExtensionFromPowerShellRepository @splat
-    }
-    elseif ((Test-Path $extension.Path)) {
-        # Local file-system-based extension
-        $extension.Add("Enabled", $true)
-        Write-Host "USING PATH: $($extension.Name) ($($extension.Path))" -f Cyan
     }
     else {
-        # Missing local extension or invalid config
-        Write-Warning "Extension '$($extension.Name)' not found at $($extension.Path) - it has been disabled."
-        $extension.Add("Enabled", $false)
-        continue
+        Write-Host "Skipping extension - explicitly disabled"
     }
     
     # If enabled, interrogate the extension for its dependencies and exported tasks? recursive?
