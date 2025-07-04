@@ -111,7 +111,7 @@ $zerofailedExtensions = @(
     }
     @{
         Name = "ZeroFailed.Build.Containers"
-        GitRepository = "https://github.com/zerofailed/ZeroFailed.Build.DotNet"
+        GitRepository = "https://github.com/zerofailed/ZeroFailed.Build.Containers"
         GitRef = "feature/myfeature"
     }
     @{
