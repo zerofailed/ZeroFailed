@@ -8,7 +8,7 @@ function Update-VendirConfig {
 
         .DESCRIPTION
         This function adds or updates an entry in the vendir configuration file (zf.vendir.yml) for a specific extension.
-        It maintains a JSON version of the configuration for easier programmatic manipulation and generates the YAML version for vendir.
+        It uses powershell-yaml to read and write the configuration.
 
         .PARAMETER Name
         The name of the extension.
@@ -52,37 +52,42 @@ function Update-VendirConfig {
         [string] $ZfRootPath
     )
 
-    $configPath = Join-Path $ZfRootPath "zf.vendir.json"
     $yamlPath = Join-Path $ZfRootPath "zf.vendir.yml"
 
-    if (Test-Path $configPath) {
-        $config = Get-Content $configPath | ConvertFrom-Json
+    if (Test-Path $yamlPath) {
+        $config = Get-Content -Raw $yamlPath | ConvertFrom-Yaml
     }
     else {
-        $config = [PSCustomObject]@{
+        $config = [ordered]@{
             apiVersion = "vendir.k14s.io/v1alpha1"
             kind = "Config"
             directories = @()
         }
     }
 
-    # Ensure directories is an array (in case of single item from JSON or empty)
+    # Ensure directories is an array
     if ($null -eq $config.directories) {
-        $config | Add-Member -MemberType NoteProperty -Name "directories" -Value @()
+        $config.directories = @()
     }
-    if ($config.directories -isnot [array]) {
+    if ($config.directories -isnot [array] -and $config.directories -isnot [System.Collections.IList]) {
         $config.directories = @($config.directories)
     }
 
     # Check if entry exists
-    $existingEntry = $config.directories | Where-Object { $_.path -eq $CachePath } | Select-Object -First 1
+    $existingEntry = $null
+    foreach ($dir in $config.directories) {
+        if ($dir.path -eq $CachePath) {
+            $existingEntry = $dir
+            break
+        }
+    }
     
-    $newEntry = [PSCustomObject]@{
+    $newEntry = [ordered]@{
         path = $CachePath
         contents = @(
-            [PSCustomObject]@{
+            [ordered]@{
                 path = "."
-                git = [PSCustomObject]@{
+                git = [ordered]@{
                     url = $RepositoryUri
                     ref = $GitRef
                 }
@@ -95,8 +100,6 @@ function Update-VendirConfig {
 
     if ($existingEntry) {
         # Update existing
-        # Since we can't easily replace in the array by reference if it's a copy, 
-        # we'll rebuild the array or find index.
         $newDirectories = @()
         foreach ($dir in $config.directories) {
             if ($dir.path -eq $CachePath) {
@@ -113,31 +116,6 @@ function Update-VendirConfig {
         $config.directories += $newEntry
     }
 
-    # Save JSON
-    $config | ConvertTo-Json -Depth 10 | Set-Content $configPath
-
-    # Generate YAML
-    $sb = [System.Text.StringBuilder]::new()
-    $sb.AppendLine("apiVersion: vendir.k14s.io/v1alpha1") | Out-Null
-    $sb.AppendLine("kind: Config") | Out-Null
-    $sb.AppendLine("directories:") | Out-Null
-    
-    foreach ($dir in $config.directories) {
-        $sb.AppendLine("- path: $($dir.path)") | Out-Null
-        $sb.AppendLine("  contents:") | Out-Null
-        foreach ($content in $dir.contents) {
-            $sb.AppendLine("  - path: $($content.path)") | Out-Null
-            $sb.AppendLine("    git:") | Out-Null
-            $sb.AppendLine("      url: $($content.git.url)") | Out-Null
-            $sb.AppendLine("      ref: $($content.git.ref)") | Out-Null
-            if ($content.includePaths) {
-                $sb.AppendLine("    includePaths:") | Out-Null
-                foreach ($inc in $content.includePaths) {
-                    $sb.AppendLine("    - $inc") | Out-Null
-                }
-            }
-        }
-    }
-    
-    $sb.ToString() | Set-Content $yamlPath
+    # Save YAML
+    $config | ConvertTo-Yaml -Options WithIndentedSequences | Set-Content $yamlPath
 }
