@@ -94,7 +94,7 @@ function Register-ExtensionAndDependencies {
         Write-Host "Skipping extension - explicitly disabled"
     }
     
-    # If enabled, interrogate the extension for its dependencies and exported tasks? recursive?
+    # If enabled, interrogate the extension for its dependencies and exported tasks
     if ($extension.Enabled) {
         Write-Verbose "Checking dependencies for $($extension.Name)"
         $extension.Add("dependencies", (Get-ExtensionDependencies -Extension $extension))

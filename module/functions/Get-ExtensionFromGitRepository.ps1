@@ -92,12 +92,42 @@ function Get-ExtensionFromGitRepository {
         
         Write-Host "Installing extension $Name from $RepositoryUri" -f Cyan
         
-        Copy-FolderFromGitRepo `
-                -RepoUrl $RepositoryUri `
-                -DestinationPath (Join-Path $TargetPath $Name $safeGitRef) `
-                -RepoFolderPath $RepositoryFolderPath `
-                -GitRef $gitRef `
-                -ErrorAction Continue       # Log the errors but we'll use the logic below to handle them
+        # Check for vendir
+        if (!(Get-Command vendir -ErrorAction SilentlyContinue)) {
+            throw "vendir is not installed or not in the PATH. Please install vendir."
+        }
+
+        $zfRoot = Split-Path $TargetPath -Parent
+        $cachePath = Join-Path $zfRoot "cache" $Name $safeGitRef
+
+        Update-VendirConfig `
+            -Name $Name `
+            -RepositoryUri $RepositoryUri `
+            -GitRef $GitRef `
+            -RepositoryFolderPath $RepositoryFolderPath `
+            -CachePath $cachePath `
+            -ZfRootPath $zfRoot
+
+        $vendirConfigPath = Join-Path $zfRoot "zf.vendir.yml"
+        
+        Write-Verbose "Running vendir sync with config: $vendirConfigPath"
+        & vendir sync -f $vendirConfigPath | Write-Verbose
+
+        # Copy from cache to target
+        $sourcePath = Join-Path $cachePath $RepositoryFolderPath
+        $destPath = Join-Path $TargetPath $Name $safeGitRef
+        
+        if (!(Test-Path $sourcePath)) {
+            throw "Failed to download extension. Expected path not found: $sourcePath"
+        }
+
+        if (Test-Path $destPath) {
+            Remove-Item $destPath -Recurse -Force
+        }
+        # Ensure parent exists
+        New-Item -ItemType Directory -Path (Split-Path $destPath -Parent) -Force | Out-Null
+        
+        Copy-Item -Path $sourcePath -Destination $destPath -Recurse -Force
 
         $existingExtensionPath,$existingExtensionVersion = Get-InstalledExtensionDetails -Name $Name -TargetPath $TargetPath -GitRefAsFolderName $safeGitRef
         if (!$existingExtensionPath) {
@@ -113,6 +143,7 @@ function Get-ExtensionFromGitRepository {
     $additionalMetadata = @{
         Path = $existingExtensionPath
         Enabled = $true
+        Version = $GitRef
     }
 
     return $additionalMetadata

@@ -1,6 +1,11 @@
 # Extensions setup
 $zerofailedExtensions = @(
     @{
+        Name = "ZeroFailed.DevOps.Common"
+        GitRepository = "https://github.com/zerofailed/ZeroFailed.DevOps.Common.git"
+        GitRef = "feature/gilt"
+    }
+    @{
         Name = "ZeroFailed.Build.PowerShell"
         GitRepository = "https://github.com/zerofailed/ZeroFailed.Build.PowerShell.git"
         GitRef = "main"

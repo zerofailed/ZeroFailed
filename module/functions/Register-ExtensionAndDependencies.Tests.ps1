@@ -10,7 +10,6 @@ BeforeAll {
     . (Join-Path (Split-Path -Parent $PSCommandPath) 'Get-ExtensionFromGitRepository.ps1')
     . (Join-Path (Split-Path -Parent $PSCommandPath) 'Get-ExtensionFromPowerShellRepository.ps1')
     . (Join-Path (Split-Path -Parent $PSCommandPath) 'Get-InstalledExtensionDetails.ps1')
-    . (Join-Path (Split-Path -Parent $PSCommandPath) 'Copy-FolderFromGitRepo.ps1')
     . (Join-Path (Split-Path -Parent $PSCommandPath) 'Get-ExtensionDependencies.ps1')
     . (Join-Path (Split-Path -Parent $PSCommandPath) '_resolveModuleNameFromPath.ps1')
     . (Join-Path (Split-Path -Parent $PSCommandPath) 'Resolve-ExtensionMetadata.ps1')

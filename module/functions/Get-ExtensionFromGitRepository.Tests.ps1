@@ -8,7 +8,7 @@ BeforeAll {
 
     # in-module dependencies
     . (Join-Path (Split-Path -Parent $PSCommandPath) 'Get-InstalledExtensionDetails.ps1')
-    . (Join-Path (Split-Path -Parent $PSCommandPath) 'Copy-FolderFromGitRepo.ps1')
+    . (Join-Path (Split-Path -Parent $PSCommandPath) 'Update-VendirConfig.ps1')
 }
 
 Describe 'Get-ExtensionFromGitRepository' {
@@ -18,6 +18,12 @@ Describe 'Get-ExtensionFromGitRepository' {
         $targetPath = Join-Path -Path TestDrive: -ChildPath '.zf' 'extensions'
         New-Item -Path $targetPath -ItemType Directory -Force | Out-Null
         Mock Write-Host {}
+        
+        # Mock vendir command
+        function vendir { }
+        
+        # Mock Update-VendirConfig to avoid writing files
+        Mock Update-VendirConfig {}
     }
 
     Context 'Installing extension from a simple branch reference' {
@@ -25,6 +31,12 @@ Describe 'Get-ExtensionFromGitRepository' {
             $name = 'ZeroFailed.Build.Common'
             $repo = 'https://github.com/zerofailed/ZeroFailed.Build.DotNet.git'
             $gitRef = 'main'
+            
+            # Pre-populate cache
+            $cachePath = Join-Path TestDrive: ".zf/cache/$name/$gitRef/module"
+            New-Item -Path $cachePath -ItemType Directory -Force | Out-Null
+            New-Item -Path (Join-Path $cachePath "ZeroFailed.Build.DotNet.psd1") -ItemType File | Out-Null
+
             $result = Get-ExtensionFromGitRepository -Name $name -TargetPath $targetPath -RepositoryUri $repo -GitRef $gitRef
         }
         AfterAll {
@@ -47,6 +59,13 @@ Describe 'Get-ExtensionFromGitRepository' {
             $name = 'ZeroFailed.Build.Common'
             $repo = 'https://github.com/zerofailed/ZeroFailed.Build.DotNet.git'
             $gitRef = 'refs/heads/main'
+            $safeGitRef = 'refs-heads-main'
+
+            # Pre-populate cache
+            $cachePath = Join-Path TestDrive: ".zf/cache/$name/$safeGitRef/module"
+            New-Item -Path $cachePath -ItemType Directory -Force | Out-Null
+            New-Item -Path (Join-Path $cachePath "ZeroFailed.Build.DotNet.psd1") -ItemType File | Out-Null
+
             $result = Get-ExtensionFromGitRepository -Name $name -TargetPath $targetPath -RepositoryUri $repo -GitRef $gitRef
         }
         AfterAll {
