@@ -31,7 +31,7 @@ Describe "Update-VendirConfig" {
             
             $yaml.apiVersion | Should -Be "vendir.k14s.io/v1alpha1"
             $yaml.directories.Count | Should -Be 1
-            $yaml.directories[0].path | Should -Be "..\extensions\TestExt\v1"
+            $yaml.directories[0].path | Should -Be ("..{0}extensions{0}TestExt{0}v1" -f [IO.Path]::DirectorySeparatorChar)
             $yaml.directories[0].contents[0].git.url | Should -Be "https://repo.git"
             $yaml.directories[0].contents[0].git.ref | Should -Be 'v1'
             $yaml.directories[0].contents[0].includePaths | Should -Contain "module/**/*"

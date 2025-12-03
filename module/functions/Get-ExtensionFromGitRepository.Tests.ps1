@@ -159,11 +159,16 @@ Describe 'Get-ExtensionFromGitRepository' {
                 Mock Get-Command {} -ParameterFilter { $Name -eq 'vendir' }
                 Mock Invoke-RestMethod {}
                 Mock Invoke-Command { vendir }
+                function chmod {}
+                Mock chmod {}
             }
 
             It 'Should attempt to download vendir' {
                 $result = Get-ExtensionFromGitRepository @splat -GitRef 'main'
                 Should -Invoke Invoke-RestMethod -Times 1
+                if (!$IsWindows) {
+                    Should -Invoke chmod -Times 1
+                }
             }
         }
 
