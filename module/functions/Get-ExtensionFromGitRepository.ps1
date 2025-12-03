@@ -64,20 +64,14 @@ function Get-ExtensionFromGitRepository {
         [string] $TargetPath,
 
         [Parameter(Mandatory)]
-        [string] $GitRef
+        [string] $GitRef,
+
+        [Parameter()]
+        [bool] $UseEphemeralVendirConfig = $true
     )
 
-    # Potential approaches:
-    # - clone the repo into the target path, checkout the required version - would need to handle pulls/updates
-    #   - would sub-module be any easier?
-    #   - only really interested in the module folder, not the whole repo
-    # - clone into a temporary folder, checkout the required version, copy the module into the target path
-    # - how to handle updates since the ref could be the same (i.e. branch name), but the content could have changed
-    #   - have an 'always pull' option?
+    # This function uses the 'vendir' tool to download the extension from the Git repository.
 
-    # Check whether module is already installed
-    # TODO: Should we retain the same module-based folder structure as with PowerShell modules?
-    #       If so, will it even work given that the equivalent of module version will be the git ref?
     $safeGitRef = $GitRef.Replace('/', '-')
     $existingExtensionPath,$existingExtensionVersion = Get-InstalledExtensionDetails -Name $Name -TargetPath $TargetPath -GitRefAsFolderName $safeGitRef
 
@@ -96,38 +90,38 @@ function Get-ExtensionFromGitRepository {
         if (!(Get-Command vendir -ErrorAction SilentlyContinue)) {
             throw "vendir is not installed or not in the PATH. Please install vendir."
         }
+        else {
+            # TODO: Install vendir to '.zf/bin'if not found
+        }
 
         $zfRoot = Split-Path $TargetPath -Parent
-        $cachePath = Join-Path $zfRoot "cache" $Name $safeGitRef
+        $cacheDir = Join-Path $zfRoot '.cache'
+        # Currently we treat the generated vendir config files as ephemeral and extension-specific
+        $vendirConfigPath = Join-Path $cacheDir "zf.$Name.vendir.yml"
 
         Update-VendirConfig `
             -Name $Name `
             -RepositoryUri $RepositoryUri `
             -GitRef $GitRef `
             -RepositoryFolderPath $RepositoryFolderPath `
-            -CachePath $cachePath `
-            -ZfRootPath $zfRoot
-
-        $vendirConfigPath = Join-Path $zfRoot "zf.vendir.yml"
+            -ConfigPath $vendirConfigPath `
+            -TargetPath (Join-Path $TargetPath $Name $safeGitRef)
         
         Write-Verbose "Running vendir sync with config: $vendirConfigPath"
-        & vendir sync -f $vendirConfigPath | Write-Verbose
-
-        # Copy from cache to target
-        $sourcePath = Join-Path $cachePath $RepositoryFolderPath
-        $destPath = Join-Path $TargetPath $Name $safeGitRef
-        
-        if (!(Test-Path $sourcePath)) {
-            throw "Failed to download extension. Expected path not found: $sourcePath"
+        Get-Content $vendirConfigPath | Write-Verbose
+        try {
+            # Run vendir and capture/handle any errors
+            $PSNativeCommandUseErrorActionPreference = $true
+            Invoke-Command { & vendir sync -f $vendirConfigPath --chdir $cacheDir } -ErrorVariable vendirErrors -ErrorAction Stop | Write-Verbose
+        }
+        catch {
+            Write-Host -f Red $vendirErrors
+            throw "Error whilst trying to run vendir: $($_.Exception.Message) [ExitCode=$LASTEXITCODE]"
         }
 
-        if (Test-Path $destPath) {
-            Remove-Item $destPath -Recurse -Force
+        if ($UseEphemeralVendirConfig) {
+            Remove-Item $vendirConfigPath -Force
         }
-        # Ensure parent exists
-        New-Item -ItemType Directory -Path (Split-Path $destPath -Parent) -Force | Out-Null
-        
-        Copy-Item -Path $sourcePath -Destination $destPath -Recurse -Force
 
         $existingExtensionPath,$existingExtensionVersion = Get-InstalledExtensionDetails -Name $Name -TargetPath $TargetPath -GitRefAsFolderName $safeGitRef
         if (!$existingExtensionPath) {

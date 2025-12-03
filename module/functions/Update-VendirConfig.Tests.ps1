@@ -5,53 +5,66 @@ Describe "Update-VendirConfig" {
         . $sut
 
         $testPath = "TestDrive:\.zf"
-        $yamlPath = Join-Path $testPath "zf.vendir.yml"
+        $extensionsBasePath = Join-Path $testPath 'extensions'
+        $cachePath = Join-Path $testPath '.cache'
+
+        Set-StrictMode -Version Latest
     }
 
-    BeforeEach {
-        if (Test-Path $testPath) { Remove-Item $testPath -Recurse -Force }
-        New-Item -ItemType Directory -Path $testPath | Out-Null
-    }
+    Context "Single Extension" {
+        BeforeAll {
+            $configPath = Join-Path $cachePath "zf.vendir.yml"
+            $targetPath = Join-Path $extensionsBasePath 'TestExt' 'v1'
 
-    Context "New Configuration" {
-        It "Creates the configuration files if they don't exist" {
-            Update-VendirConfig -Name "TestExt" -RepositoryUri "https://repo.git" -GitRef "v1" -RepositoryFolderPath "mod" -CachePath ".zf/cache/TestExt/v1" -ZfRootPath $testPath
+            Update-VendirConfig -Name 'TestExt' -RepositoryUri "https://repo.git" -GitRef 'v1' -RepositoryFolderPath "module" -ConfigPath $configPath -TargetPath $targetPath
+        }
+        AfterAll {
+            Remove-Item $configPath
+        }
 
-            Test-Path $yamlPath | Should -Be $true
+        It "Creates the configuration file" {            
+            Test-Path $configPath | Should -Be $true
         }
 
         It "Generates correct YAML content" {
-            Update-VendirConfig -Name "TestExt" -RepositoryUri "https://repo.git" -GitRef "v1" -RepositoryFolderPath "mod" -CachePath ".zf/cache/TestExt/v1" -ZfRootPath $testPath
-
-            $yaml = Get-Content $yamlPath -Raw | ConvertFrom-Yaml
+            $yaml = Get-Content $configPath -Raw | ConvertFrom-Yaml
             
             $yaml.apiVersion | Should -Be "vendir.k14s.io/v1alpha1"
             $yaml.directories.Count | Should -Be 1
-            $yaml.directories[0].path | Should -Be ".zf/cache/TestExt/v1"
+            $yaml.directories[0].path | Should -Be "..\extensions\TestExt\v1"
             $yaml.directories[0].contents[0].git.url | Should -Be "https://repo.git"
-            $yaml.directories[0].contents[0].git.ref | Should -Be "v1"
-            $yaml.directories[0].contents[0].includePaths | Should -Contain "mod/**/*"
+            $yaml.directories[0].contents[0].git.ref | Should -Be 'v1'
+            $yaml.directories[0].contents[0].includePaths | Should -Contain "module/**/*"
         }
     }
 
     Context "Existing Configuration" {
-        It "Adds a new extension to existing configuration" {
-            Update-VendirConfig -Name "Ext1" -RepositoryUri "https://repo1.git" -GitRef "v1" -RepositoryFolderPath "mod1" -CachePath ".zf/cache/Ext1/v1" -ZfRootPath $testPath
-            Update-VendirConfig -Name "Ext2" -RepositoryUri "https://repo2.git" -GitRef "v2" -RepositoryFolderPath "mod2" -CachePath ".zf/cache/Ext2/v2" -ZfRootPath $testPath
+        BeforeAll {
+            $configPath = Join-Path $cachePath "zf.vendir.yml"
+            $targetPath1 = Join-Path $extensionsBasePath 'Ext1' 'v1'
+            $targetPath2 = Join-Path $extensionsBasePath 'Ext2' 'v2'
+        }
+        AfterEach {
+            Remove-Item $configPath
+        }
 
-            $yaml = Get-Content $yamlPath -Raw | ConvertFrom-Yaml
+        It "Adds a new extension to existing configuration" {
+            Update-VendirConfig -Name "Ext1" -RepositoryUri "https://repo1.git" -GitRef "v1" -RepositoryFolderPath "mod1" -ConfigPath $configPath -TargetPath $targetPath1
+            Update-VendirConfig -Name "Ext2" -RepositoryUri "https://repo2.git" -GitRef "v2" -RepositoryFolderPath "mod2" -ConfigPath $configPath -TargetPath $targetPath2
+
+            $yaml = Get-Content $configPath -Raw | ConvertFrom-Yaml
             $yaml.directories.Count | Should -Be 2
             
-            $yaml.directories[0].path | Should -Be ".zf/cache/Ext1/v1"
-            $yaml.directories[1].path | Should -Be ".zf/cache/Ext2/v2"
+            $yaml.directories[0].path | Should -Be "../extensions/Ext1/v1"
+            $yaml.directories[1].path | Should -Be "../extensions/Ext2/v2"
         }
 
         It "Updates existing extension entry if path matches" {
-            Update-VendirConfig -Name "Ext1" -RepositoryUri "https://repo1.git" -GitRef "v1" -RepositoryFolderPath "mod1" -CachePath ".zf/cache/Ext1/v1" -ZfRootPath $testPath
+            Update-VendirConfig -Name "Ext1" -RepositoryUri "https://repo1.git" -GitRef "v1" -RepositoryFolderPath "mod1" -ConfigPath $configPath -TargetPath $targetPath1
             # Update with different repo url but same path (unlikely scenario but good for testing update logic)
-            Update-VendirConfig -Name "Ext1" -RepositoryUri "https://repo1-new.git" -GitRef "v1" -RepositoryFolderPath "mod1" -CachePath ".zf/cache/Ext1/v1" -ZfRootPath $testPath
+            Update-VendirConfig -Name "Ext1" -RepositoryUri "https://repo1-new.git" -GitRef "v1" -RepositoryFolderPath "mod1" -ConfigPath $configPath -TargetPath $targetPath1
 
-            $yaml = Get-Content $yamlPath -Raw | ConvertFrom-Yaml
+            $yaml = Get-Content $configPath -Raw | ConvertFrom-Yaml
             $yaml.directories.Count | Should -Be 1
             $yaml.directories[0].contents[0].git.url | Should -Be "https://repo1-new.git"
         }

@@ -22,14 +22,14 @@ function Update-VendirConfig {
         .PARAMETER RepositoryFolderPath
         The folder path within the repository to include.
 
-        .PARAMETER CachePath
-        The path where vendir should download the content.
+        .PARAMETER ConfigPath
+        The path to the vendir YAML configuration file.
 
-        .PARAMETER ZfRootPath
-        The root path of the .zf directory where configuration files are stored.
+        .PARAMETER TargetPath
+        The path where the downloaded files are stored.
 
         .EXAMPLE
-        Update-VendirConfig -Name "MyExt" -RepositoryUri "https://github.com/org/repo.git" -GitRef "main" -RepositoryFolderPath "module" -CachePath ".zf/cache/MyExt/main" -ZfRootPath "C:\Project\.zf"
+        Update-VendirConfig -Name "MyExt" -RepositoryUri "https://github.com/org/repo.git" -GitRef "main" -RepositoryFolderPath "module" -ConfigPath ".zf/.cache/zf.vendir.yaml" -TargetPath ".zf/extensions/MyExt/main"
     #>
     [CmdletBinding()]
     param(
@@ -46,16 +46,16 @@ function Update-VendirConfig {
         [string] $RepositoryFolderPath,
 
         [Parameter(Mandatory)]
-        [string] $CachePath,
+        [string] $ConfigPath,
 
         [Parameter(Mandatory)]
-        [string] $ZfRootPath
+        [string] $TargetPath
     )
 
-    $yamlPath = Join-Path $ZfRootPath "zf.vendir.yml"
+    New-Item -ItemType Directory -Path (Split-Path -Parent $ConfigPath) -Force | Out-Null
 
-    if (Test-Path $yamlPath) {
-        $config = Get-Content -Raw $yamlPath | ConvertFrom-Yaml
+    if (Test-Path $ConfigPath) {
+        $config = Get-Content -Raw $ConfigPath | ConvertFrom-Yaml
     }
     else {
         $config = [ordered]@{
@@ -73,17 +73,28 @@ function Update-VendirConfig {
         $config.directories = @($config.directories)
     }
 
+    # Derive target path relative to the config path
+    # vendir is invoked with --chdir to the config directory, so paths must be relative to that location
+    $configDir = Split-Path -Parent $ConfigPath
+    
+    # Resolve paths with GetFullPath for paths that may not exist yet, avoiding Resolve-Path errors
+    $resolvedConfigDir = [System.IO.Path]::GetFullPath($configDir)
+    $resolvedTargetPath = [System.IO.Path]::GetFullPath($TargetPath)
+    
+    # Calculate relative path from config directory to target path
+    $relativePath = [System.IO.Path]::GetRelativePath($resolvedConfigDir, $resolvedTargetPath)
+
     # Check if entry exists
     $existingEntry = $null
     foreach ($dir in $config.directories) {
-        if ($dir.path -eq $CachePath) {
+        if ($dir.path -eq $relativePath) {
             $existingEntry = $dir
             break
         }
     }
     
     $newEntry = [ordered]@{
-        path = $CachePath
+        path = $relativePath
         contents = @(
             [ordered]@{
                 path = "."
@@ -94,6 +105,7 @@ function Update-VendirConfig {
                 includePaths = @(
                     "$RepositoryFolderPath/**/*"
                 )
+                newRootPath = $RepositoryFolderPath
             }
         )
     }
@@ -102,7 +114,7 @@ function Update-VendirConfig {
         # Update existing
         $newDirectories = @()
         foreach ($dir in $config.directories) {
-            if ($dir.path -eq $CachePath) {
+            if ($dir.path -eq $relativePath) {
                 $newDirectories += $newEntry
             }
             else {
@@ -117,5 +129,5 @@ function Update-VendirConfig {
     }
 
     # Save YAML
-    $config | ConvertTo-Yaml -Options WithIndentedSequences | Set-Content $yamlPath
+    $config | ConvertTo-Yaml -Options WithIndentedSequences | Set-Content $ConfigPath
 }
