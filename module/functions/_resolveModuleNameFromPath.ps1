@@ -31,13 +31,13 @@ function _resolveModuleNameFromPath {
         [string] $Path
     )
 
-    $moduleManifestPaths = Get-ChildItem -Path $Path -Filter "*.psd1" -ErrorAction Ignore | Where-Object { $_.BaseName -ne "dependencies" }
+    [array]$moduleManifestPaths = Get-ChildItem -Path $Path -Filter "*.psd1" -ErrorAction Ignore | Where-Object { $_.BaseName -ne "dependencies" }
     $moduleManifestPath = $moduleManifestPaths | Select-Object -First 1
-    if ($moduleManifestPaths.Count -gt 1) {
-        Write-Warning "Found multiple module manifest files in '$Path' - using the first one found ($moduleManifestPath.BaseName)"
-    }
-    elseif ($moduleManifestPaths.Count -eq 0) {
+    if (!$moduleManifestPaths -or $moduleManifestPaths.Count -eq 0) {
         throw "Unable to find the extension's module manifest in '$Path'"
+    }
+    elseif ($moduleManifestPaths.Count -gt 1) {
+        Write-Warning "Found multiple module manifest files in '$Path' - using the first one found ($moduleManifestPath.BaseName)"
     }
 
     return $moduleManifestPath.BaseName

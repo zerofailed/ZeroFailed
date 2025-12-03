@@ -15,6 +15,8 @@ BeforeAll {
     . (Join-Path (Split-Path -Parent $PSCommandPath) 'Resolve-ExtensionMetadata.ps1')
     . (Join-Path (Split-Path -Parent $PSCommandPath) 'Get-ExtensionAvailableTasks.ps1')
     . (Join-Path (Split-Path -Parent $PSCommandPath) 'Get-TasksFileListFromExtension.ps1')
+
+    Set-StrictMode -Version Latest
 }
 
 Describe 'Register-ExtensionAndDependencies' {
@@ -112,8 +114,8 @@ Describe 'Register-ExtensionAndDependencies' {
     
                 $result.Count | Should -Be 1
                 $result[0].Name | Should -Be "ZeroFailed.DevOps.Common"
-                $result[0].Version | Should -Be $null
-                $result[0].GitRef | Should -Be $null
+                $result[0].ContainsKey('Version') | Should -Be $false
+                $result[0].ContainsKey('GitRef') | Should -Be $false
                 $result[0].Enabled | Should -Be $true
             }
         }
@@ -130,7 +132,7 @@ Describe 'Register-ExtensionAndDependencies' {
     
                 $result.Count | Should -Be 1
                 $result[0].Name | Should -Be "ZeroFailed.DevOps.Common"
-                $result[0].Version | Should -Be $null
+                $result[0].ContainsKey('Version') | Should -Be $false
                 $result[0].GitRef | Should -Be "refs/heads/main"
                 $result[0].Enabled | Should -Be $true
             }
@@ -149,12 +151,12 @@ Describe 'Register-ExtensionAndDependencies' {
                 $result.Count | Should -Be 2
 
                 $result[0].Name | Should -Be "ZeroFailed.Build.Common"
-                $result[0].Version | Should -Be $null
+                $result[0].ContainsKey('Version') | Should -Be $false
                 $result[0].GitRef | Should -Be "refs/heads/main"
                 $result[0].Enabled | Should -Be $true
 
                 $result[1].Name | Should -Be "ZeroFailed.DevOps.Common"
-                $result[1].Version | Should -Be $null
+                $result[1].ContainsKey('Version') | Should -Be $false
                 $result[1].GitRef | Should -Be "main"
                 $result[1].Enabled | Should -Be $true
             }
@@ -173,17 +175,17 @@ Describe 'Register-ExtensionAndDependencies' {
                 $result.Count | Should -Be 3
 
                 $result[0].Name | Should -Be "ZeroFailed.Build.DotNet"
-                $result[0].Version | Should -Be $null
+                $result[0].ContainsKey('Version') | Should -Be $false
                 $result[0].GitRef | Should -Be "refs/heads/main"
                 $result[0].Enabled | Should -Be $true
 
                 $result[1].Name | Should -Be "ZeroFailed.Build.Common"
-                $result[1].Version | Should -Be $null
+                $result[1].ContainsKey('Version') | Should -Be $false
                 $result[1].GitRef | Should -Be "main"
                 $result[1].Enabled | Should -Be $true
 
                 $result[2].Name | Should -Be "ZeroFailed.DevOps.Common"
-                $result[2].Version | Should -Be $null
+                $result[2].ContainsKey('Version') | Should -Be $false
                 $result[2].GitRef | Should -Be "main"
                 $result[2].Enabled | Should -Be $true
             }

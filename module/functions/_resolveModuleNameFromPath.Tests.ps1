@@ -5,6 +5,8 @@
 BeforeAll {
     # sut
     . $PSCommandPath.Replace('.Tests.ps1','.ps1')
+
+    Set-StrictMode -Version Latest
 }
 
 Describe '_resolveModuleNameFromPath' {

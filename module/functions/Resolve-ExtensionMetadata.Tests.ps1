@@ -8,6 +8,8 @@ BeforeAll {
 
     # in-module dependencies
     . (Join-Path (Split-Path -Parent $PSCommandPath) '_resolveModuleNameFromPath.ps1')
+
+    Set-StrictMode -Version Latest
 }
 
 Describe 'Resolve-ExtensionMetadata' {
