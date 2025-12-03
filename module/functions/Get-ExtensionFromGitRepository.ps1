@@ -74,6 +74,7 @@ function Get-ExtensionFromGitRepository {
 
     $safeGitRef = $GitRef.Replace('/', '-')
     $existingExtensionPath,$existingExtensionVersion = Get-InstalledExtensionDetails -Name $Name -TargetPath $TargetPath -GitRefAsFolderName $safeGitRef
+    $zfRoot = Split-Path $TargetPath -Parent
 
     # Handle getting the module from the repository
     if (!$existingExtensionPath -or $existingExtensionVersion -ne $safeGitRef) {
@@ -83,18 +84,39 @@ function Get-ExtensionFromGitRepository {
         elseif ($existingExtensionVersion -ne $safeGitRef) {
             Write-Verbose "Extension '$Name' found locally but version mismatch detected. Found: '$existingExtensionVersion'; Required: '$safeGitRef' [$GitRef]"
         }
-        
         Write-Host "Installing extension $Name from $RepositoryUri" -f Cyan
         
-        # Check for vendir
-        if (!(Get-Command vendir -ErrorAction SilentlyContinue)) {
-            throw "vendir is not installed or not in the PATH. Please install vendir."
-        }
-        else {
-            # TODO: Install vendir to '.zf/bin'if not found
+        # Check whether the vendir tool is available
+        $vendirTool = 'vendir'
+        if (!(Get-Command $vendirTool -ErrorAction SilentlyContinue)) {
+            $installDir = Join-Path $zfRoot 'bin'
+            New-Item -ItemType Directory -Path $installDir -Force | Out-Null
+
+            if ($IsWindows) {
+                $downloadFile = 'vendir-windows-amd64.exe'
+                $vendirTool = 'vendir.exe'
+            }
+            elseif ($IsLinux) {
+                $downloadFile = 'vendir-linux-amd64'
+            }
+            elseif ($IsMacOS) {
+                $downloadFile = 'vendir-darwin-amd64'
+            }
+
+            $installedToolPath = Join-Path $installDir $vendirTool
+            if (!(Get-Command $installedToolPath -ErrorAction Ignore)) {
+                # Construct the required URL to the relevant release URL
+                $releaseUrl = 'https://github.com/carvel-dev/vendir/releases/download'
+                $releaseVersion = 'v0.45.0'
+                Invoke-RestMethod -Uri "$releaseUrl/$releaseVersion/$downloadFile" -OutFile $installedToolPath
+                if (!$IsWindows) {
+                    # Make executable
+                    & chmod +x $installedToolPath
+                }
+            }
+            $vendirTool = $installedToolPath
         }
 
-        $zfRoot = Split-Path $TargetPath -Parent
         $cacheDir = Join-Path $zfRoot '.cache'
         # Currently we treat the generated vendir config files as ephemeral and extension-specific
         $vendirConfigPath = Join-Path $cacheDir "zf.$Name.vendir.yml"
@@ -112,11 +134,10 @@ function Get-ExtensionFromGitRepository {
         try {
             # Run vendir and capture/handle any errors
             $PSNativeCommandUseErrorActionPreference = $true
-            Invoke-Command { & vendir sync -f $vendirConfigPath --chdir $cacheDir } -ErrorVariable vendirErrors -ErrorAction Stop | Write-Verbose
+            Invoke-Command { & $vendirTool sync -f $vendirConfigPath --chdir $cacheDir } -ErrorVariable vendirErrors -ErrorAction Stop | Write-Verbose
         }
         catch {
-            Write-Host -f Red $vendirErrors
-            throw "Error whilst trying to run vendir: $($_.Exception.Message) [ExitCode=$LASTEXITCODE]"
+            throw "Error whilst trying to run vendir: $($_.Exception.Message) [ExitCode=$LASTEXITCODE]`n$vendirErrors"
         }
 
         if ($UseEphemeralVendirConfig) {

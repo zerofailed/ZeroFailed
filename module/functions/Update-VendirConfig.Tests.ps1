@@ -55,8 +55,8 @@ Describe "Update-VendirConfig" {
             $yaml = Get-Content $configPath -Raw | ConvertFrom-Yaml
             $yaml.directories.Count | Should -Be 2
             
-            $yaml.directories[0].path | Should -Be "../extensions/Ext1/v1"
-            $yaml.directories[1].path | Should -Be "../extensions/Ext2/v2"
+            $yaml.directories[0].path | Should -Be ("..{0}extensions{0}Ext1{0}v1" -f [IO.Path]::DirectorySeparatorChar)
+            $yaml.directories[1].path | Should -Be ("..{0}extensions{0}Ext2{0}v2" -f [IO.Path]::DirectorySeparatorChar)
         }
 
         It "Updates existing extension entry if path matches" {
