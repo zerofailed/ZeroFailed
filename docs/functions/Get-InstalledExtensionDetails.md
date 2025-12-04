@@ -178,7 +178,7 @@ This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable
 
 ### System.String
 
-When an installed extension is found, returns a tuple containing the extenion's install path and version.
+When an installed extension is found, returns a tuple containing the extension's install path and version.
 
 ## NOTES
 
