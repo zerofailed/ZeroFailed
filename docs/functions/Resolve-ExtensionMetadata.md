@@ -57,7 +57,7 @@ Resolve-ExtensionMetadata -Value @{Path="c:\path\to\MyExtension"}
 
 ### EXAMPLE 4
 
-Resolve-ExtensionMetadata -Value @{NAme="MyExtension"; Version="1.0.0"}
+Resolve-ExtensionMetadata -Value @{Name="MyExtension"; Version="1.0.0"}
 @{
     Name = "MyExtension"
     Version = "1.0.0"
