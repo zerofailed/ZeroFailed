@@ -19,7 +19,7 @@ $zerofailedExtensions = @(
 # Set the required build options
 $PesterTestsDir = "$here/module"
 $PesterVersion = "5.7.1"
-
+$PesterCodeCoveragePaths = @("$here/module/functions")
 $PowerShellModulesToPublish = @(
     @{
         ModulePath = "$here/module/ZeroFailed.psd1"
