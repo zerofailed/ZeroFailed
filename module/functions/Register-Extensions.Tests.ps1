@@ -45,7 +45,7 @@ Describe 'Register-Extensions' {
 
         It 'Should add the extensions directory to the front of PSModulePath' {
             # Arrange
-            $zfPath = 'TestDrive:\zf_env_path'
+            $zfPath = Join-Path $TestDrive 'zf_env_path'
             $extensionsConfig = @(@{ Name = 'Dummy' })
             $defaultRepo = 'PSGallery'
             $expectedPath = Join-Path $zfPath 'extensions'
