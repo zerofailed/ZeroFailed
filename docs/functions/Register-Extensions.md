@@ -80,7 +80,7 @@ PS:> Register-Extensions -ExtensionsConfig $extensionsConfig -DefaultRepository 
 @(
     @{
         Name = "PublicExtension"                            # Extension available via PS Gallery, latest stable version
-        Version = " 1.5.2"
+        Version = "1.5.2"
         Path = "/myproject/.zf/extensions/PublicExtension/1.5.2"
         Enabled = $true
     }
