@@ -2,31 +2,8 @@
 # Copyright (c) Endjin Limited. All rights reserved.
 # </copyright>
 function Get-ExtensionAvailableTasks {
-    <#
-        .SYNOPSIS
-        Returns a list of all the task names defined within an extension.
-
-        .DESCRIPTION
-        This function is used to discover all of the tasks defined by an extension.  It does this by creating a private implementation
-        of the InvokeBuild 'task' DSL keyword that simply returns the task name as a string.  This allows us to enumerate all of the tasks defined
-        in the extension's tasks files, without knowing how many tasks are defined in any given file.
-
-        .PARAMETER ExtensionPath
-        The path to the root of the extension being searched.
-
-        .INPUTS
-        None. You can't pipe objects to Get-ExtensionAvailableTasks.
-
-        .OUTPUTS
-        System.String[].
-        
-        Lists all the InvokeBuild tasks exposed by the extension.
-
-        .EXAMPLE
-        PS:> $taskNames = Get-ExtensionAvailableTasks -ExtensionPath c:\myExtension
-    #>
-
     [CmdletBinding()]
+    [OutputType([string[]])]
     param (
         [Parameter(Mandatory=$true)]
         [string] $ExtensionPath
