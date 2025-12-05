@@ -164,7 +164,7 @@ When true, the generated vendir configuration files are deleted once used by thi
 
 ```yaml
 Type: System.Boolean
-DefaultValue: ''
+DefaultValue: True
 SupportsWildcards: false
 Aliases: []
 ParameterSets:
