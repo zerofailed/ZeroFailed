@@ -56,6 +56,9 @@ function Get-ExtensionFromGitRepository {
             elseif ($IsMacOS) {
                 $downloadFile = 'vendir-darwin-amd64'
             }
+            else {
+                throw "Unsupported platform for vendir installation. Please install vendir manually."
+            }
 
             $installedToolPath = Join-Path $installDir $vendirTool
             if (!(Get-Command $installedToolPath -ErrorAction Ignore)) {
