@@ -2,77 +2,8 @@
 # Copyright (c) Endjin Limited. All rights reserved.
 # </copyright>
 function Get-ExtensionDependencies {
-    <#
-        .SYNOPSIS
-        Retrieves the dependencies of a given extension by reading its module manifest.
-
-        .DESCRIPTION
-        Retrieves the dependencies of a given extension by reading its module manifest and falling-back to
-        the legacy definition method in a `dependencies.psd1` file.
-
-        .PARAMETER Extension
-        The metadata object for the extension we are resolving dependencies for.
-
-        .INPUTS
-        None. You can't pipe objects to Get-ExtensionDependencies.
-
-        .OUTPUTS
-        hashtable[]
-
-        Returns the resolved extension metadata for each dependency of the specified extension.
-
-        .EXAMPLE
-        PS:> Get-ExtensionDependencies -Extension $extension
-        @{
-            Name = "some-dependency"
-            Version = "1.0.0"
-        }
-        
-        .NOTES
-        By convention an extension must declare its dependencies in its module manifest under the 'PrivateData'
-        key. The dependencies can be specified in one of two formats:
-        
-        Short-hand syntax:
-            PrivateData = @{
-                ZeroFailed = @{
-                    ExtensionDependencies = @(
-                        'ExtensionA'
-                    )
-                }
-            }
-        
-        Full syntax:
-            PrivateData = @{
-                ZeroFailed = @{
-                    ExtensionDependencies = @(
-                        @{
-                            Name = 'ExtensionA'
-                            Version = '1.0.0'
-                        }
-                        @{
-                            Name = 'MyExtension'
-                            GitRepository = 'https://github.com/myorg/myextension
-                            GitRef = 'main'
-                        }
-                    )
-                }
-            }
-        
-        Mixed syntax:
-            PrivateData = @{
-                ZeroFailed = @{
-                    ExtensionDependencies = @(
-                        'ExtensionA'
-                        @{
-                            Name = 'ExtensionB'
-                            Version = '2.0.0'
-                        }
-                    )
-                }
-            }
-    #>
-
     [CmdletBinding()]
+    [OutputType([hashtable[]])]
     param (
         [Parameter(Mandatory=$true)]
         [hashtable] $Extension

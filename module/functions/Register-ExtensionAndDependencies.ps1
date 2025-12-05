@@ -2,35 +2,8 @@
 # Copyright (c) Endjin Limited. All rights reserved.
 # </copyright>
 function Register-ExtensionAndDependencies {
-    <#
-        .SYNOPSIS
-        Registers an extension and its dependencies.
-        
-        .DESCRIPTION
-        A recursive function responsible for registering the specified extension and its dependencies.
-        
-        .PARAMETER ExtensionConfig
-        A hashtable containing the initial extension metadata provided by the user. This parameter is mandatory.
-
-        .PARAMETER TargetPath
-        The path to the folder where ZeroFailed extensions are installed (typically '.zf/extensions'). This parameter is mandatory.
-        
-        .INPUTS
-        None. You can't pipe objects to Register-ExtensionAndDependencies.
-
-        .OUTPUTS
-        The function returns an array of hashtables representing the processed extension metadata for the input extension and its dependencies.
-        
-        .EXAMPLE
-        PS:> $extensionConfig = @{
-            Name = "MyExtension"
-            Path = "C:\Extensions\MyExtension"
-            Repository = "https://example.com/extensions"
-        }
-        PS:>Register-ExtensionAndDependencies -ExtensionConfig $extensionConfig -TargetPath "$PWD/.zf/extensions"
-    #>
-    
     [CmdletBinding()]
+    [OutputType([hashtable[]])]
     param (
         [Parameter(Mandatory=$true)]
         $ExtensionConfig,

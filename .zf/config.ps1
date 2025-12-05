@@ -19,7 +19,7 @@ $zerofailedExtensions = @(
 # Set the required build options
 $PesterTestsDir = "$here/module"
 $PesterVersion = "5.7.1"
-
+$PesterCodeCoveragePaths = @("$here/module/functions")
 $PowerShellModulesToPublish = @(
     @{
         ModulePath = "$here/module/ZeroFailed.psd1"
@@ -28,6 +28,9 @@ $PowerShellModulesToPublish = @(
         AliasesToExport = @("ZeroFailed.tasks")
     }
 )
+$PSMarkdownDocsFlattenOutputPath = $true
+$PSMarkdownDocsOutputPath = './docs/functions'
+$PSMarkdownDocsIncludeModulePage = $false
 $CreateGitHubRelease = $true
 $GitHubReleaseArtefacts = @()
 $SkipZeroFailedModuleVersionCheck = $true
@@ -60,38 +63,3 @@ task . FullBuild
 # task PrePublish {}
 # task PostPublish {}
 # task RunLast {}
-
-# Override & customise the default implementation to enable code coverage features
-task RunPesterTests `
-    -If {!$SkipPesterTests -and $PesterTestsDir} `
-    -After TestCore `
-    InstallPester,{
-
-    $config = New-PesterConfiguration
-    $config.Run.Path = $PesterTestsDir
-    $config.Run.PassThru = $true
-    $config.Output.Verbosity = 'Normal'
-    $config.TestResult.Enabled = $true
-    $config.TestResult.OutputFormat = $PesterOutputFormat
-    $config.TestResult.OutputPath = (Join-Path $here $PesterOutputFilePath)
-    $config.CodeCoverage.Enabled = $true
-    $config.CodeCoverage.OutputFormat = 'Cobertura'
-    $config.CodeCoverage.OutputPath = (Join-Path $CoverageDir 'coverage.pester-cobertura.xml')
-
-    New-Item -ItemType Directory $CoverageDir -Force | Out-Null
-
-    $results = Invoke-Pester -Configuration $config
-
-    # Generate code coverage reports
-    _GenerateTestReport `
-        -ReportTypes $TestReportTypes `
-        -OutputPath $CoverageDir
-    
-    _GenerateCodeCoverageMarkdownReport `
-        -UseGitHubFlavour $IsGitHubActions `
-        -OutputPath $CoverageDir
-
-    if ($results.FailedCount -gt 0) {
-        throw ("{0} out of {1} tests failed - check previous logging for more details" -f $results.FailedCount, $results.TotalCount)
-    }
-}
