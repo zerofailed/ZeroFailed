@@ -2,51 +2,8 @@
 # Copyright (c) Endjin Limited. All rights reserved.
 # </copyright>
 function Resolve-ExtensionMetadata {
-    <#
-        .SYNOPSIS
-        Resolves extension metadata from a string or hashtable configuration.
-
-        .DESCRIPTION
-        This function resolves extension metadata from a string or hashtable configuration. The function supports both simple and object-based syntax.
-
-        .PARAMETER Value
-        The extension configuration to resolve.
-
-        .INPUTS
-        None. You can't pipe objects to Resolve-ExtensionMetadata.
-
-        .OUTPUTS
-        Hashtable.  Returns a hashtable containing the extension metadata in canonical form, including any resolved values for its Name.
-
-        .EXAMPLE
-        PS:> Resolve-ExtensionMetadata -Value "MyExtension"
-        @{
-            Name = "MyExtension"
-        }
-
-        .EXAMPLE
-        PS:> Resolve-ExtensionMetadata -Value "c:\path\to\MyExtension"
-        @{
-            Name = "MyExtension"
-            Path = "c:\path\to\MyExtension"
-        }
-
-        .EXAMPLE
-        PS:> Resolve-ExtensionMetadata -Value @{Path="c:\path\to\MyExtension"}
-        @{
-            Name = "MyExtension"
-            Path = "c:\path\to\MyExtension"
-        }
-
-        .EXAMPLE
-        PS:> Resolve-ExtensionMetadata -Value @{NAme="MyExtension"; Version="1.0.0"}
-        @{
-            Name = "MyExtension"
-            Version = "1.0.0"
-        }
-    #>
-
     [CmdletBinding()]
+    [OutputType([hashtable])]
     param (
         [Parameter(Mandatory=$true)]
         $Value

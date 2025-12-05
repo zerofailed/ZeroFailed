@@ -28,6 +28,9 @@ $PowerShellModulesToPublish = @(
         AliasesToExport = @("ZeroFailed.tasks")
     }
 )
+$PSMarkdownDocsFlattenOutputPath = $true
+$PSMarkdownDocsOutputPath = './docs/functions'
+$PSMarkdownDocsIncludeModulePage = $false
 $CreateGitHubRelease = $true
 $GitHubReleaseArtefacts = @()
 $SkipZeroFailedModuleVersionCheck = $true

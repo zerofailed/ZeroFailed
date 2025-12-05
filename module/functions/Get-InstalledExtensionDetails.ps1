@@ -2,49 +2,8 @@
 # Copyright (c) Endjin Limited. All rights reserved.
 # </copyright>
 function Get-InstalledExtensionDetails {
-    <#
-        .SYNOPSIS
-        Retrieves the details of an installed extension.
-
-        .DESCRIPTION
-        Searches the local system for an installed version of the PowerShell module representing the specified extension, and returns
-        the path to the module and the version that was found.
-
-        .PARAMETER Name
-        The name of the extension, which is also the name of the PowerShell module.
-
-        .PARAMETER TargetPath
-        The path to the folder where ZeroFailed extensions are installed (typically '.zf/extensions').
-
-        .PARAMETER Version
-        The version of the extension, if not specified the latest version available, if any, will be returned. When this contains a
-        semantic version with a pre-release tag, then this implies that a pre-release version is acceptable. (i.e. as if the '-PreRelease'
-        switch had been specified)
-
-        .PARAMETER PreRelease
-        Indicates whether to include pre-release versions in the search.
-
-        .INPUTS
-        None. You can't pipe objects to Get-InstalledExtensionDetails.
-
-        .OUTPUTS
-        When the extension is found, returns two string values representing the path to the installed extension and the version of the
-        extension; otherwise returns $null if the extension is not available.
-
-        .EXAMPLE
-        PS:> $path,$version = Get-InstalledExtensionDetails -Name "MyExtension"
-        
-        .EXAMPLE
-        PS:> $path,$version = Get-InstalledExtensionDetails -Name "MyExtension" -Version "1.0.0"
-
-        .EXAMPLE
-        PS:> $path,$version = Get-InstalledExtensionDetails -Name "MyExtension" -Version "1.0.0-beta0001"
-
-        .EXAMPLE
-        PS:> $path,$version = Get-InstalledExtensionDetails -Name "MyExtension" -PreRelease
-    #>
-
     [CmdletBinding(DefaultParameterSetName='Version')]
+    [OutputType([string[]])]
     param (
         [Parameter(Mandatory=$true)]
         [string] $Name,
