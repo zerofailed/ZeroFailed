@@ -9,6 +9,7 @@ BeforeAll {
     # in-module dependencies
     . (Join-Path (Split-Path -Parent $PSCommandPath) 'Get-InstalledExtensionDetails.ps1')
     . (Join-Path (Split-Path -Parent $PSCommandPath) 'Update-VendirConfig.ps1')
+    . (Join-Path (Split-Path -Parent $PSCommandPath) '_installVendir.ps1')
 
     Set-StrictMode -Version Latest
 }
@@ -135,71 +136,6 @@ Describe 'Get-ExtensionFromGitRepository' {
                 It "Should mark the extension as enabled" {
                     $result.Enabled | Should -Be $true
                 }
-            }
-        }
-    }
-
-    Context 'vendir installation tests' {
-        BeforeAll {
-            # Define a function simulating the vendir cli tool, so we can mock it
-            function vendir {}
-
-            # Mock vendir to simulate downloading an extension
-            Mock vendir {
-                New-Item -Path $installPath -ItemType Directory -Force | Out-Null
-                New-Item -Path (Join-Path $installPath "$name.psd1") -ItemType File | Out-Null
-            }
-
-            $gitRef = 'main'
-            $installPath = Join-Path $targetPath "$name/$gitRef"
-        }
-
-        Context 'no existing installation' {
-            BeforeAll {
-                Mock Get-Command {} -ParameterFilter { $Name -eq 'vendir' }
-                Mock Invoke-RestMethod {}
-                Mock Invoke-Command { vendir }
-                function chmod {}
-                Mock chmod {}
-            }
-
-            It 'Should attempt to download vendir' {
-                $result = Get-ExtensionFromGitRepository @splat -GitRef 'main'
-                Should -Invoke Invoke-RestMethod -Times 1
-                if (!$IsWindows) {
-                    Should -Invoke chmod -Times 1
-                }
-            }
-        }
-
-        Context 'vendir available in PATH' {
-            BeforeAll {
-                Mock Get-Command { @{Name='vendir'} } -ParameterFilter { $Name -eq 'vendir' }
-                Mock Invoke-RestMethod {}
-                Mock Invoke-Command { vendir }
-            }
-
-            It 'Should not attempt to download vendir' {
-                $result = Get-ExtensionFromGitRepository @splat -GitRef 'main'
-                Should -Not -Invoke Invoke-RestMethod
-            }
-        }
-
-        Context 'vendir previously installed by ZF' {
-            BeforeAll {
-                # Mock the first check for vendir in the PATH
-                Mock Get-Command {} -ParameterFilter { $Name -eq 'vendir' }
-                $zfVendirInstallPath = Join-Path $zfPath 'bin' 'vendir'
-                # Mock the second check for vendir in the ZF install location
-                Mock Get-Command { @{Name='vendir'} } `
-                    -ParameterFilter { $Name.StartsWith($zfVendirInstallPath) }   # .StartsWith() enable a cross-platform match
-                Mock Invoke-RestMethod {}
-                Mock Invoke-Command { vendir }
-            }
-
-            It 'Should not attempt to download vendir' {
-                $result = Get-ExtensionFromGitRepository @splat -GitRef 'main'
-                Should -Not -Invoke Invoke-RestMethod
             }
         }
     }

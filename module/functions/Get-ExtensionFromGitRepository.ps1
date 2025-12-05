@@ -40,38 +40,11 @@ function Get-ExtensionFromGitRepository {
         }
         Write-Host "Installing extension $Name from $RepositoryUri" -f Cyan
         
-        # Check whether the vendir tool is available
+        # Check whether the vendir tool is available by PATH and install it if not
         $vendirTool = 'vendir'
         if (!(Get-Command $vendirTool -ErrorAction SilentlyContinue)) {
             $installDir = Join-Path $zfRoot 'bin'
-            New-Item -ItemType Directory -Path $installDir -Force | Out-Null
-
-            if ($IsWindows) {
-                $downloadFile = 'vendir-windows-amd64.exe'
-                $vendirTool = 'vendir.exe'
-            }
-            elseif ($IsLinux) {
-                $downloadFile = 'vendir-linux-amd64'
-            }
-            elseif ($IsMacOS) {
-                $downloadFile = 'vendir-darwin-amd64'
-            }
-            else {
-                throw "Unsupported platform for vendir installation. Please install vendir manually."
-            }
-
-            $installedToolPath = Join-Path $installDir $vendirTool
-            if (!(Get-Command $installedToolPath -ErrorAction Ignore)) {
-                # Construct the required URL to the relevant release URL
-                $releaseUrl = 'https://github.com/carvel-dev/vendir/releases/download'
-                $releaseVersion = 'v0.45.0'
-                Invoke-RestMethod -Uri "$releaseUrl/$releaseVersion/$downloadFile" -OutFile $installedToolPath
-                if (!$IsWindows) {
-                    # Make executable
-                    & chmod +x $installedToolPath
-                }
-            }
-            $vendirTool = $installedToolPath
+            $vendirTool = _installVendir -ToolName 'vendir' -InstallDir $installDir
         }
 
         $cacheDir = Join-Path $zfRoot '.cache'
@@ -97,15 +70,17 @@ function Get-ExtensionFromGitRepository {
             throw "Error whilst trying to run vendir: $($_.Exception.Message) [ExitCode=$LASTEXITCODE]`n$vendirErrors"
         }
 
-        if ($UseEphemeralVendirConfig) {
-            Remove-Item $vendirConfigPath -Force
-        }
+
 
         $existingExtensionPath,$existingExtensionVersion = Get-InstalledExtensionDetails -Name $Name -TargetPath $TargetPath -GitRefAsFolderName $safeGitRef
         if (!$existingExtensionPath) {
             throw "Failed to install extension $Name ($GitRef) from $RepositoryUri repository"
         }
         Write-Host "INSTALLED MODULE: $Name ($existingExtensionVersion)" -f Cyan
+
+        if ($UseEphemeralVendirConfig) {
+            Remove-Item $vendirConfigPath -Force
+        }
     }
     else {
         Write-Host "FOUND MODULE: $Name ($existingExtensionVersion)" -f Cyan
