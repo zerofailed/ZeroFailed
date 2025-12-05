@@ -4,7 +4,7 @@ external help file: ZeroFailed-Help.xml
 HelpUri: ''
 Locale: en-GB
 Module Name: ZeroFailed
-ms.date: 12/04/2025
+ms.date: 12/05/2025
 PlatyPS schema version: 2024-05-01
 title: Get-ExtensionFromGitRepository
 ---
@@ -21,7 +21,8 @@ Retrieves an extension from a Git repository using the git CLI.
 
 ```
 Get-ExtensionFromGitRepository [-Name] <string> [-RepositoryUri] <uri>
- [[-RepositoryFolderPath] <string>] [-TargetPath] <string> [-GitRef] <string> [<CommonParameters>]
+ [[-RepositoryFolderPath] <string>] [-TargetPath] <string> [-GitRef] <string>
+ [[-UseEphemeralVendirConfig] <bool>] [<CommonParameters>]
 ```
 
 ## ALIASES
@@ -149,6 +150,27 @@ ParameterSets:
 - Name: (All)
   Position: 3
   IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+### -UseEphemeralVendirConfig
+
+When true, the generated vendir configuration files are deleted once used by this function.
+
+```yaml
+Type: System.Boolean
+DefaultValue: True
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: 5
+  IsRequired: false
   ValueFromPipeline: false
   ValueFromPipelineByPropertyName: false
   ValueFromRemainingArguments: false

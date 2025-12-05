@@ -18,22 +18,17 @@ function Get-ExtensionFromGitRepository {
         [string] $TargetPath,
 
         [Parameter(Mandatory)]
-        [string] $GitRef
+        [string] $GitRef,
+
+        [Parameter()]
+        [bool] $UseEphemeralVendirConfig = $true
     )
 
-    # Potential approaches:
-    # - clone the repo into the target path, checkout the required version - would need to handle pulls/updates
-    #   - would sub-module be any easier?
-    #   - only really interested in the module folder, not the whole repo
-    # - clone into a temporary folder, checkout the required version, copy the module into the target path
-    # - how to handle updates since the ref could be the same (i.e. branch name), but the content could have changed
-    #   - have an 'always pull' option?
+    # This function uses the 'vendir' tool to download the extension from the Git repository.
 
-    # Check whether module is already installed
-    # TODO: Should we retain the same module-based folder structure as with PowerShell modules?
-    #       If so, will it even work given that the equivalent of module version will be the git ref?
     $safeGitRef = $GitRef.Replace('/', '-')
     $existingExtensionPath,$existingExtensionVersion = Get-InstalledExtensionDetails -Name $Name -TargetPath $TargetPath -GitRefAsFolderName $safeGitRef
+    $zfRoot = Split-Path $TargetPath -Parent
 
     # Handle getting the module from the repository
     if (!$existingExtensionPath -or $existingExtensionVersion -ne $safeGitRef) {
@@ -43,21 +38,49 @@ function Get-ExtensionFromGitRepository {
         elseif ($existingExtensionVersion -ne $safeGitRef) {
             Write-Verbose "Extension '$Name' found locally but version mismatch detected. Found: '$existingExtensionVersion'; Required: '$safeGitRef' [$GitRef]"
         }
-        
         Write-Host "Installing extension $Name from $RepositoryUri" -f Cyan
         
-        Copy-FolderFromGitRepo `
-                -RepoUrl $RepositoryUri `
-                -DestinationPath (Join-Path $TargetPath $Name $safeGitRef) `
-                -RepoFolderPath $RepositoryFolderPath `
-                -GitRef $gitRef `
-                -ErrorAction Continue       # Log the errors but we'll use the logic below to handle them
+        # Check whether the vendir tool is available by PATH and install it if not
+        $vendirTool = 'vendir'
+        if (!(Get-Command $vendirTool -ErrorAction SilentlyContinue)) {
+            $installDir = Join-Path $zfRoot 'bin'
+            $vendirTool = _installVendir -ToolName 'vendir' -InstallDir $installDir
+        }
+
+        $cacheDir = Join-Path $zfRoot '.cache'
+        # Currently we treat the generated vendir config files as ephemeral and extension-specific
+        $vendirConfigPath = Join-Path $cacheDir "zf.$Name.vendir.yml"
+
+        Update-VendirConfig `
+            -Name $Name `
+            -RepositoryUri $RepositoryUri `
+            -GitRef $GitRef `
+            -RepositoryFolderPath $RepositoryFolderPath `
+            -ConfigPath $vendirConfigPath `
+            -TargetPath (Join-Path $TargetPath $Name $safeGitRef)
+        
+        Write-Verbose "Running vendir sync with config: $vendirConfigPath"
+        Get-Content $vendirConfigPath | Write-Verbose
+        try {
+            # Run vendir and capture/handle any errors
+            $PSNativeCommandUseErrorActionPreference = $true
+            Invoke-Command { & $vendirTool sync -f $vendirConfigPath --chdir $cacheDir } -ErrorVariable vendirErrors -ErrorAction Stop | Write-Verbose
+        }
+        catch {
+            throw "Error whilst trying to run vendir: $($_.Exception.Message) [ExitCode=$LASTEXITCODE]`n$vendirErrors"
+        }
+
+
 
         $existingExtensionPath,$existingExtensionVersion = Get-InstalledExtensionDetails -Name $Name -TargetPath $TargetPath -GitRefAsFolderName $safeGitRef
         if (!$existingExtensionPath) {
             throw "Failed to install extension $Name ($GitRef) from $RepositoryUri repository"
         }
         Write-Host "INSTALLED MODULE: $Name ($existingExtensionVersion)" -f Cyan
+
+        if ($UseEphemeralVendirConfig) {
+            Remove-Item $vendirConfigPath -Force
+        }
     }
     else {
         Write-Host "FOUND MODULE: $Name ($existingExtensionVersion)" -f Cyan
@@ -67,6 +90,7 @@ function Get-ExtensionFromGitRepository {
     $additionalMetadata = @{
         Path = $existingExtensionPath
         Enabled = $true
+        Version = $GitRef
     }
 
     return $additionalMetadata

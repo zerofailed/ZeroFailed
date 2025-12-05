@@ -8,6 +8,8 @@ BeforeAll {
 
     # in-module dependencies
     . (Join-Path (Split-Path -Parent $PSCommandPath) 'Resolve-ExtensionMetadata.ps1')
+
+    Set-StrictMode -Version Latest
 }
 
 Describe 'Get-ExtensionDependencies' {
@@ -50,7 +52,7 @@ Describe 'Get-ExtensionDependencies' {
             AfterAll {}
     
             It 'Should resolve no dependencies' {
-                $deps.Count | Should -Be 0
+                $deps | Should -BeNullOrEmpty
             }
             It 'Should log a deprecation warning' {
                 Should -Invoke Write-Warning -Times 1 -Exactly -Scope Context
@@ -76,7 +78,7 @@ Describe 'Get-ExtensionDependencies' {
             AfterAll {}
     
             It 'Should resolve no dependencies' {
-                $deps.Count | Should -Be 0
+                $deps | Should -BeNullOrEmpty
             }
         }
     }

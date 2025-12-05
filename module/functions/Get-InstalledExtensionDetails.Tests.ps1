@@ -5,6 +5,8 @@
 BeforeAll {
     # sut
     . $PSCommandPath.Replace('.Tests.ps1','.ps1')
+
+    Set-StrictMode -Version Latest
 }
 
 Describe 'Get-InstalledExtensionDetails' {
@@ -218,7 +220,8 @@ Describe 'Get-InstalledExtensionDetails' {
         $path,$version = Get-InstalledExtensionDetails -Name 'NonExistentModule' -TargetPath $targetPath
 
         # Assert
-        $result | Should -BeNullOrEmpty
+        $path | Should -BeNullOrEmpty
+        $version | Should -BeNullOrEmpty
     }
 
     It 'Should return null when no installed extension is found (with version constraint)' {
@@ -226,7 +229,8 @@ Describe 'Get-InstalledExtensionDetails' {
         $path,$version = Get-InstalledExtensionDetails -Name 'NonExistentModule' -Version "1.0.0" -TargetPath $targetPath
 
         # Assert
-        $result | Should -BeNullOrEmpty
+        $path | Should -BeNullOrEmpty
+        $version | Should -BeNullOrEmpty
     }
 
     It 'Should return null when only a pre-release version is installed and a stable version is requested (without version constraints)' {
@@ -234,7 +238,8 @@ Describe 'Get-InstalledExtensionDetails' {
         $path,$version = Get-InstalledExtensionDetails -Name 'TestPreRelExtension' -TargetPath $targetPath
 
         # Assert
-        $result | Should -BeNullOrEmpty
+        $path | Should -BeNullOrEmpty
+        $version | Should -BeNullOrEmpty
     }
 
     It 'Should return null when only a pre-release version is installed and a stable version is requested (with version constraints)' {
@@ -242,6 +247,7 @@ Describe 'Get-InstalledExtensionDetails' {
         $path,$version = Get-InstalledExtensionDetails -Name 'TestPreRelExtension' -Version "1.0.0" -TargetPath $targetPath
 
         # Assert
-        $result | Should -BeNullOrEmpty
+        $path | Should -BeNullOrEmpty
+        $version | Should -BeNullOrEmpty
     }
 }

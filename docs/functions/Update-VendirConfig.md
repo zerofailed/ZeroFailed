@@ -4,45 +4,65 @@ external help file: ZeroFailed-Help.xml
 HelpUri: ''
 Locale: en-GB
 Module Name: ZeroFailed
-ms.date: 12/04/2025
+ms.date: 12/05/2025
 PlatyPS schema version: 2024-05-01
-title: Copy-FolderFromGitRepo
+title: Update-VendirConfig
 ---
 
-# Copy-FolderFromGitRepo
+# Update-VendirConfig
 
 ## SYNOPSIS
 
-Clones a Git repository and copies a specified folder from the cloned repository to a destination.
+Updates the vendir configuration file with a new extension entry.
 
 ## SYNTAX
 
 ### __AllParameterSets
 
 ```
-Copy-FolderFromGitRepo [-RepoUrl] <string> [-RepoFolderPath] <string> [-DestinationPath] <string>
- [[-GitRef] <string>] [[-GitCmd] <string>] [<CommonParameters>]
+Update-VendirConfig [-Name] <string> [-RepositoryUri] <string> [-GitRef] <string>
+ [-RepositoryFolderPath] <string> [-ConfigPath] <string> [-TargetPath] <string> [<CommonParameters>]
 ```
 
 ## ALIASES
 
 ## DESCRIPTION
 
-The function clones the specified Git repository into a temporary directory,
-retrieves the folder indicated by RepoFolderPath, and copies its contents to the specified DestinationPath.
-It validates the existence of Git CLI and cleans up the temporary clone after the operation.
+This function adds or updates an entry in the vendir configuration file (zf.vendir.yml) for a specific extension.
+It uses powershell-yaml to read and write the configuration.
 
 ## EXAMPLES
 
 ### EXAMPLE 1
 
-Copy-FolderFromGitRepo -RepoUrl 'https://github.com/example/repo.git' -RepoFolderPath 'src' -DestinationPath 'C:\target'
+Update-VendirConfig -Name "MyExt" -RepositoryUri "https://github.com/org/repo.git" -GitRef "main" -RepositoryFolderPath "module" -ConfigPath ".zf/.cache/zf.vendir.yml" -TargetPath ".zf/extensions/MyExt/main"
 
 ## PARAMETERS
 
-### -DestinationPath
+### -ConfigPath
 
-The path where the folder's contents will be copied.
+The path to the vendir YAML configuration file.
+
+```yaml
+Type: System.String
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: 4
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+### -GitRef
+
+The Git reference (branch, tag, or commit SHA).
 
 ```yaml
 Type: System.String
@@ -61,20 +81,19 @@ AcceptedValues: []
 HelpMessage: ''
 ```
 
-### -GitCmd
+### -Name
 
-The Git command to use.
-Defaults to expecting 'git' to be in the PATH.
+The name of the extension.
 
 ```yaml
 Type: System.String
-DefaultValue: git
+DefaultValue: ''
 SupportsWildcards: false
 Aliases: []
 ParameterSets:
 - Name: (All)
-  Position: 4
-  IsRequired: false
+  Position: 0
+  IsRequired: true
   ValueFromPipeline: false
   ValueFromPipelineByPropertyName: false
   ValueFromRemainingArguments: false
@@ -83,20 +102,19 @@ AcceptedValues: []
 HelpMessage: ''
 ```
 
-### -GitRef
+### -RepositoryFolderPath
 
-The branch or tag to check out from the repository.
-Defaults to 'main'.
+The folder path within the repository to include.
 
 ```yaml
 Type: System.String
-DefaultValue: main
+DefaultValue: ''
 SupportsWildcards: false
 Aliases: []
 ParameterSets:
 - Name: (All)
   Position: 3
-  IsRequired: false
+  IsRequired: true
   ValueFromPipeline: false
   ValueFromPipelineByPropertyName: false
   ValueFromRemainingArguments: false
@@ -105,9 +123,9 @@ AcceptedValues: []
 HelpMessage: ''
 ```
 
-### -RepoFolderPath
+### -RepositoryUri
 
-The relative path within the repository of the folder to be copied.
+The URI of the Git repository.
 
 ```yaml
 Type: System.String
@@ -126,9 +144,9 @@ AcceptedValues: []
 HelpMessage: ''
 ```
 
-### -RepoUrl
+### -TargetPath
 
-The URL of the Git repository to clone.
+The path where the downloaded files are stored.
 
 ```yaml
 Type: System.String
@@ -137,7 +155,7 @@ SupportsWildcards: false
 Aliases: []
 ParameterSets:
 - Name: (All)
-  Position: 0
+  Position: 5
   IsRequired: true
   ValueFromPipeline: false
   ValueFromPipelineByPropertyName: false
@@ -163,8 +181,6 @@ This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable
 This function has no outputs.
 
 ## NOTES
-
-Requires Git CLI to be installed.
 
 ## RELATED LINKS
 
