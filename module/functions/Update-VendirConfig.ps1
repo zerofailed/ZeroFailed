@@ -2,36 +2,8 @@
 # Copyright (c) Endjin Limited. All rights reserved.
 # </copyright>
 function Update-VendirConfig {
-    <#
-        .SYNOPSIS
-        Updates the vendir configuration file with a new extension entry.
-
-        .DESCRIPTION
-        This function adds or updates an entry in the vendir configuration file (zf.vendir.yml) for a specific extension.
-        It uses powershell-yaml to read and write the configuration.
-
-        .PARAMETER Name
-        The name of the extension.
-
-        .PARAMETER RepositoryUri
-        The URI of the Git repository.
-
-        .PARAMETER GitRef
-        The Git reference (branch, tag, or commit SHA).
-
-        .PARAMETER RepositoryFolderPath
-        The folder path within the repository to include.
-
-        .PARAMETER ConfigPath
-        The path to the vendir YAML configuration file.
-
-        .PARAMETER TargetPath
-        The path where the downloaded files are stored.
-
-        .EXAMPLE
-        Update-VendirConfig -Name "MyExt" -RepositoryUri "https://github.com/org/repo.git" -GitRef "main" -RepositoryFolderPath "module" -ConfigPath ".zf/.cache/zf.vendir.yaml" -TargetPath ".zf/extensions/MyExt/main"
-    #>
     [CmdletBinding()]
+    [OutputType([void])]
     param(
         [Parameter(Mandatory)]
         [string] $Name,
