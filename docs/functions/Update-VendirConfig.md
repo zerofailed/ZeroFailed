@@ -35,7 +35,7 @@ It uses powershell-yaml to read and write the configuration.
 
 ### EXAMPLE 1
 
-Update-VendirConfig -Name "MyExt" -RepositoryUri "https://github.com/org/repo.git" -GitRef "main" -RepositoryFolderPath "module" -ConfigPath ".zf/.cache/zf.vendir.yaml" -TargetPath ".zf/extensions/MyExt/main"
+Update-VendirConfig -Name "MyExt" -RepositoryUri "https://github.com/org/repo.git" -GitRef "main" -RepositoryFolderPath "module" -ConfigPath ".zf/.cache/zf.vendir.yml" -TargetPath ".zf/extensions/MyExt/main"
 
 ## PARAMETERS
 
