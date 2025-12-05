@@ -22,16 +22,31 @@ function _installVendir {
     }
 
     # Detect OS and architecture
-    $cpuArchCode = (Get-WMIObject -Class Win32_Processor).Architecture
-    if ($cpuArchCode -eq 12) {
-        $archSuffix = 'arm64'
-    }
-    elseif ($cpuArchCode -eq 9) {
-        $archSuffix = 'amd64'
+    if ($IsWindows) {
+        $cpuArchCode = Get-CimInstance -ClassName Win32_Processor |
+                            Select-Object -ExpandProperty Architecture
+        if ($cpuArchCode -eq 12) {
+            $archSuffix = 'arm64'
+        }
+        elseif ($cpuArchCode -eq 9) {
+            $archSuffix = 'amd64'
+        }
+        else {
+            throw "Unsupported CPU architecture '$cpuArchCode' for vendir installation. Please install vendir manually."
+        } 
     }
     else {
-        throw "Unsupported CPU architecture '$cpuArchCode' for vendir installation. Please install vendir manually."
-    } 
+        $cpuArch = (uname -m)
+        if ($cpuArch -eq 'x86_64') {
+            $archSuffix = 'amd64'
+        }
+        elseif ($cpuArch -eq 'aarch64' -or $cpuArch -eq 'arm64') {
+            $archSuffix = 'arm64'
+        }
+        else {
+            throw "Unsupported CPU architecture '$cpuArch' for vendir installation. Please install vendir manually."
+        }
+    }
 
     if ($IsWindows) {
         $downloadFile = "vendir-windows-$archSuffix.exe"
@@ -59,7 +74,7 @@ function _installVendir {
         # Configure expected SHA256 hashes for supported versions
         $vendirHashes = @{
             'vendir-windows-amd64.exe' = '779d4fe4170a472523bb1fcd0a591e460ff417381abd92ba8d2d8b7fa91f5531'
-            'vendir-linux-amd64'       = '779d4fe4170a472523bb1fcd0a591e460ff417381abd92ba8d2d8b7fa91f5531'
+            'vendir-linux-amd64'       = 'd60ad65bbd0658d377f2dcf57b3119f16c5a3a7eeaf80019a3d243a620404d7e'
             'vendir-linux-arm64'       = 'f2b517cfa1a843ffc7b9beb37146ffd8157a5c842138c4f6a5728f708115dbfd'
             'vendir-darwin-amd64'      = '4bce3c5341f1f1566fde617bfabaee16b26e26f6d0e8b4394780a03d57b248a5'
             'vendir-darwin-arm64'      = '6ff67773916bf1587533daf912a24d0fc5c5914e90aa6cd9099b22a480cd0a53'
