@@ -37,7 +37,7 @@ function _resolveModuleNameFromPath {
         throw "Unable to find the extension's module manifest in '$Path'"
     }
     elseif ($moduleManifestPaths.Count -gt 1) {
-        Write-Warning "Found multiple module manifest files in '$Path' - using the first one found ($moduleManifestPath.BaseName)"
+        Write-Warning "Found multiple module manifest files in '$Path' - using the first one found ($($moduleManifestPath.BaseName))"
     }
 
     return $moduleManifestPath.BaseName
