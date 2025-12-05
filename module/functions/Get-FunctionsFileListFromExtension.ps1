@@ -2,27 +2,8 @@
 # Copyright (c) Endjin Limited. All rights reserved.
 # </copyright>
 function Get-FunctionsFileListFromExtension {
-    <#
-        .SYNOPSIS
-        Finds all the function definitions from a specified extension.
-
-        .DESCRIPTION
-        Finds all the files that define functions, whilst excluding any test files using the typical Pester naming convention.
-
-        .PARAMETER FunctionsPath
-        The path to where the scripts with the extension's functions are stored.
-
-        .OUTPUTS
-        System.IO.FileInfo[]
-
-        Returns an array of paths to the files containing the function definitions.
-
-        .EXAMPLE
-        PS:> $functionFiles = Get-FunctionsFileListFromExtension -FunctionsPath "C:\myExtension\functions"
-        PS:> $functionFiles | % { . $_ }
-    #>
-
     [CmdletBinding()]
+    [OutputType([System.IO.FileInfo[]])]
     param (
         [Parameter(Mandatory=$true)]
         [string] $FunctionsPath
