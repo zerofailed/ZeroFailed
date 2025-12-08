@@ -8,6 +8,8 @@ BeforeAll {
 
     # in-module dependencies
     . (Join-Path (Split-Path -Parent $PSCommandPath) 'Get-InstalledExtensionDetails.ps1')
+
+    Set-StrictMode -Version Latest
 }
 
 Describe 'Get-ExtensionFromPowerShellRepository' {
@@ -158,6 +160,7 @@ Describe 'Get-ExtensionFromPowerShellRepository' {
         BeforeAll {
             Mock Save-Module {}
             $name = 'SamplePsModule'
+            $moduleInfo = Find-Module $name
             $mockExtensionManifest = @"
 @{
     PrivateData = @{

@@ -20,7 +20,7 @@ param (
     [string] $LogLevel = "minimal",
 
     [Parameter()]
-    [version] $InvokeBuildModuleVersion = "5.12.1"
+    [version] $InvokeBuildModuleVersion = "5.14.22"
 )
 $ErrorActionPreference = 'Stop'
 $here = Split-Path -Parent $PSCommandPath
