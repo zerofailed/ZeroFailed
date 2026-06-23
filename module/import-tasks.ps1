@@ -45,19 +45,12 @@ else {
     Write-Host "No extensions specified" -f Yellow
 }
 
-# Validate whether extension dependencies are non-conflicting
-# For the moment we'll just log a warning and remove duplicate references, with no regard for versioning - first one wins
-($registeredExtensions | Group-Object -Property Name) |
-    Where-Object { $_.Count -gt 1 } |
-    ForEach-Object {
-        Write-Warning "Multiple versions of extension '$($_.Name)' have been resolved - removing duplicates, will use the first one found: $($_.Group[0] | Select-Object Name,Version,Path | ConvertTo-Json)"
-    }
-$registeredExtensions = $registeredExtensions |
-                            Group-Object -Property Name |
-                                ForEach-Object {
-                                    $_.Group |
-                                    Select-Object -First 1
-                                }
+# Validate whether extension dependencies are non-conflicting: remove duplicate
+# references (first one wins), warning only when the same extension has been
+# resolved to genuinely different versions.
+if ($registeredExtensions.Count -gt 0) {
+    [array]$registeredExtensions = Resolve-ExtensionDuplicates -Extensions $registeredExtensions
+}
 
 #
 # Load the process definition
