@@ -4,7 +4,7 @@ external help file: ZeroFailed-Help.xml
 HelpUri: ''
 Locale: en-GB
 Module Name: ZeroFailed
-ms.date: 12/04/2025
+ms.date: 06/22/2026
 PlatyPS schema version: 2024-05-01
 title: Get-InstalledExtensionDetails
 ---
@@ -42,19 +42,19 @@ the path to the module and the version that was found.
 
 ### EXAMPLE 1
 
-$path,$version = Get-InstalledExtensionDetails -Name "MyExtension"
+$path,$version = Get-InstalledExtensionDetails -Name "MyExtension" -TargetPath "C:/MyProject/.zf"
 
 ### EXAMPLE 2
 
-$path,$version = Get-InstalledExtensionDetails -Name "MyExtension" -Version "1.0.0"
+$path,$version = Get-InstalledExtensionDetails -Name "MyExtension" -TargetPath "C:/MyProject/.zf" -Version "1.0.0"
 
 ### EXAMPLE 3
 
-$path,$version = Get-InstalledExtensionDetails -Name "MyExtension" -Version "1.0.0-beta0001"
+$path,$version = Get-InstalledExtensionDetails -Name "MyExtension" -TargetPath "C:/MyProject/.zf" -Version "1.0.0-beta0001" -PreRelease
 
 ### EXAMPLE 4
 
-$path,$version = Get-InstalledExtensionDetails -Name "MyExtension" -PreRelease
+$path,$version = Get-InstalledExtensionDetails -Name "MyExtension" -TargetPath "C:/MyProject/.zf" -PreRelease
 
 ## PARAMETERS
 
