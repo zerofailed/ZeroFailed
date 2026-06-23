@@ -4,7 +4,7 @@ external help file: ZeroFailed-Help.xml
 HelpUri: ''
 Locale: en-GB
 Module Name: ZeroFailed
-ms.date: 12/04/2025
+ms.date: 06/22/2026
 PlatyPS schema version: 2024-05-01
 title: Register-Extensions
 ---
@@ -75,7 +75,7 @@ $extensionsConfig = @(
         Path = "/myNonExistantExtension/module"             # Incorrect path to a local extension
     }
 )
-PS:> Register-Extensions -ExtensionsConfig $extensionsConfig -DefaultRepository PSGallery -ZfPath "/myproject/.zf"
+PS:> Register-Extensions -ExtensionsConfig $extensionsConfig -DefaultPSRepository PSGallery -ZfPath "/myproject/.zf"
 
 @(
     @{

@@ -4,7 +4,7 @@ external help file: ZeroFailed-Help.xml
 HelpUri: ''
 Locale: en-GB
 Module Name: ZeroFailed
-ms.date: 12/04/2025
+ms.date: 06/22/2026
 PlatyPS schema version: 2024-05-01
 title: Get-ExtensionFromGitRepository
 ---
@@ -35,7 +35,7 @@ It also derives the additional metadata about the extension required by the tool
 
 ### EXAMPLE 1
 
-Get-ExtensionFromGitRepository -Name "MyExtension" -TargetPath "C:/MyProject/.zf" -RepositoryUri "https://github.com/myorg/MyExtension.git"
+Get-ExtensionFromGitRepository -Name "MyExtension" -TargetPath "C:/MyProject/.zf" -RepositoryUri "https://github.com/myorg/MyExtension.git" -GitRef "main"
 Retrieves the 'main' branch version of the "MyExtension" extension from a git repository that uses the default ZF extension folder structure.
 
 ### EXAMPLE 2
