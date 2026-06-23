@@ -7,7 +7,7 @@ This repo is the **core `ZeroFailed` module** — it resolves, downloads and loa
 
 ## Style guides (read first)
 
-Authoritative conventions live in `.knowledge-base/powershell/`:
+When available, authoritative conventions live in `.knowledge-base/powershell/`:
 - `powershell-coding-guidance.md` — function/naming/formatting rules.
 - `powershell-pester-testing-guidance.md` — test structure and patterns.
 
