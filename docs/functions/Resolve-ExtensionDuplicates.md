@@ -4,7 +4,7 @@ external help file: ZeroFailed-Help.xml
 HelpUri: ''
 Locale: en-GB
 Module Name: ZeroFailed
-ms.date: 06/22/2026
+ms.date: 06/23/2026
 PlatyPS schema version: 2024-05-01
 title: Resolve-ExtensionDuplicates
 ---
@@ -84,7 +84,7 @@ This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable
 
 ## OUTPUTS
 
-### System.Collections.Hashtable[]
+### System.Collections.Hashtable
 
 Returns the de-duplicated array of extensions, preserving the original resolution order (the first
 reference to each extension 'Name' is kept).
@@ -94,4 +94,3 @@ reference to each extension 'Name' is kept).
 ## RELATED LINKS
 
 - []()
-
