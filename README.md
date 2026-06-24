@@ -21,6 +21,8 @@ As an example, lets consider a software build process. ZeroFailed enables you to
 
 Examples of these files can be found [here](./examples/). We also have a [collection of sample repositories](https://github.com/search?q=org%3Azerofailed+ZeroFailed.Sample&type=repositories) that demonstrate how to use many of our extensions.
 
+Reference documentation for the functions provided by the core `ZeroFailed` module is available in the [Function Reference](./docs/functions/README.md).
+
 ## Extensions
 
 Extensions are PowerShell modules that follow the conventions below to offer specific features to ZeroFailed processes that consume them.
@@ -36,7 +38,7 @@ An extension will organise its components as follows:
 
 - Shared functions are defined in a `functions` directory
 - Shared InvokeBuild tasks & properties are defined in a `tasks` directory
-- OPTIONAL: Dependencies on other extensions are defined in a `dependencies.psd1` file
+- OPTIONAL: Dependencies on other extensions are declared in the module manifest under the `PrivateData.ZeroFailed.ExtensionDependencies` key (see [Declaring dependencies](#declaring-dependencies) below). A legacy `dependencies.psd1` file is also supported as a fallback.
 - OPTIONAL: 1 or more InvokeBuild process definitions - currently these can reside anywhere within the module, with the onus being on the consumer to reference the required path.
 
 For example:
@@ -52,10 +54,36 @@ For example:
 │   ├── tasksGroupB.tasks.ps1
 │   ├── bigTask.tasks.ps1             (a complex task may be defined in a dedicated code file)
 │   └── someProcess.build.ps1
-├── dependencies.psd1                 (defines any other extensions this one depends on)
-├── MyExtension.psd1
+├── MyExtension.psd1                  (the module manifest, which declares any extension dependencies)
 └── MyExtension.psm1
 ```
+
+### Declaring dependencies
+
+It is common for an extension to depend on other extensions. The preferred way to declare these is in the module manifest (`.psd1`) under the `PrivateData.ZeroFailed.ExtensionDependencies` key. ZeroFailed resolves and installs these dependencies automatically.
+
+The dependencies can be specified using a short-hand syntax (just the extension name, resolved from the default PowerShell repository), a full syntax (a hashtable that can also pin a `Version` or reference a `GitRepository`/`GitRef`), or a mix of the two:
+
+```powershell
+PrivateData = @{
+    ZeroFailed = @{
+        ExtensionDependencies = @(
+            'ZeroFailed.Build.Common'                       # short-hand: latest from the default repository
+            @{
+                Name = 'ZeroFailed.Build.DotNet'            # full: pinned version
+                Version = '1.5.0'
+            }
+            @{
+                Name = 'MyExtension'                        # full: from a git repository
+                GitRepository = 'https://github.com/myorg/myextension'
+                GitRef = 'main'
+            }
+        )
+    }
+}
+```
+
+> A legacy `dependencies.psd1` file at the module root is still supported as a fallback, but the manifest-based approach above is preferred.
 
 ### Using Extensions
 

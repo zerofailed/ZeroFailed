@@ -4,7 +4,7 @@ external help file: ZeroFailed-Help.xml
 HelpUri: ''
 Locale: en-GB
 Module Name: ZeroFailed
-ms.date: 12/04/2025
+ms.date: 06/22/2026
 PlatyPS schema version: 2024-05-01
 title: Get-ExtensionFromPowerShellRepository
 ---
@@ -35,8 +35,8 @@ It also derives the additional metadata about the extension required by the tool
 
 ### EXAMPLE 1
 
-Get-ExtensionFromPowerShellRepository -Name "MyExtension" -Version "1.0.0" -Path "C:/MyProject/.zf"
-Retrieves version 1.0 of the "MyExtension" extension from the default repository (e.g. PSGallery).
+Get-ExtensionFromPowerShellRepository -Name "MyExtension" -Version "1.0.0" -PSRepository "PSGallery" -TargetPath "C:/MyProject/.zf"
+Retrieves version 1.0.0 of the "MyExtension" extension from the PSGallery repository.
 
 ## PARAMETERS
 

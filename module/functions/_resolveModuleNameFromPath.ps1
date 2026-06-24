@@ -2,29 +2,6 @@
 # Copyright (c) Endjin Limited. All rights reserved.
 # </copyright>
 function _resolveModuleNameFromPath {
-    <#
-        .SYNOPSIS
-            Resolves the module name from a given path.
-
-        .DESCRIPTION
-            This function resolves the module name from a given path.
-
-        .PARAMETER Path
-            The path to the root of the module.
-
-        .INPUTS
-            None. You can't pipe objects to _resolveModuleNameFromPath.
-
-        .OUTPUTS
-            System.String.
-
-            The name of the module.
-
-        .EXAMPLE
-        PS:> _resolveModuleNameFromPath -Path c:\myModule
-        myModule
-    #>
-
     [CmdletBinding()]
     param (
         [Parameter(Mandatory=$true)]
