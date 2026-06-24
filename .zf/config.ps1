@@ -54,9 +54,9 @@ task . FullBuild
 task RegisterGitHubPackagesRepository {
     # Register a temporary PSResourceGet repository pointing at the GitHub Packages NuGet feed.
     if (Get-PSResourceRepository -Name $githubPackagesRepositoryName -ErrorAction SilentlyContinue) {
-        Unregister-PSResourceRepository -Name $githubPackagesRepositoryName
+        Unregister-PSResourceRepository -Name $githubPackagesRepositoryName -Verbose
     }
-    Register-PSResourceRepository -Name $githubPackagesRepositoryName -Uri $GitHubPackagesFeedUrl -Trusted
+    Register-PSResourceRepository -Name $githubPackagesRepositoryName -Uri $GitHubPackagesFeedUrl -Trusted -Verbose
 }
 
 
