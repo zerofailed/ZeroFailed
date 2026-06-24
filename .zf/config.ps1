@@ -28,10 +28,15 @@ $PowerShellModulesToPublish = @(
         AliasesToExport = @("ZeroFailed.tasks")
     }
 )
+
+$githubPackagesRepositoryName = 'ZeroFailedGitHubPackages'
+$PowerShellRepository = $githubPackagesRepositoryName
+$GitHubPackagesFeedUrl = 'https://nuget.pkg.github.com/zerofailed/index.json'
+$PSRepositoryApiKey = property ZF_GITHUB_PACKAGES_TOKEN ""
 # Also publish the module(s) above to GitHub Packages, in addition to the PowerShell Gallery.
-$GitHubPackagesFeedUrl = "https://nuget.pkg.github.com/zerofailed/index.json"
-$SkipGitHubPackagesPublish = $false
+$SkipGitHubPackagesPublish = $true
 $GitHubPackagesApiKey = property ZF_GITHUB_PACKAGES_TOKEN ""
+
 $PSMarkdownDocsFlattenOutputPath = $true
 $PSMarkdownDocsOutputPath = './docs/functions'
 $PSMarkdownDocsIncludeModulePage = $false
@@ -44,6 +49,16 @@ $CheckLatestVersion = $true
 
 # Customise the build process
 task . FullBuild
+
+
+task RegisterGitHubPackagesRepository {
+    # Register a temporary PSResourceGet repository pointing at the GitHub Packages NuGet feed.
+    if (Get-PSResourceRepository -Name $githubPackagesRepositoryName -ErrorAction SilentlyContinue) {
+        Unregister-PSResourceRepository -Name $githubPackagesRepositoryName
+    }
+    Register-PSResourceRepository -Name $githubPackagesRepositoryName -Uri $GitHubPackagesFeedUrl -Trusted
+}
+
 
 # Synopsis: Publishes the configured PowerShell module(s) to GitHub Packages, in addition to the
 # PowerShell Gallery publish provided by the ZeroFailed.Build.PowerShell extension. Runs within the
@@ -109,6 +124,6 @@ task PublishPowerShellModulesToGitHubPackages `
 # task PostAnalysis {}
 # task PrePackage {}
 # task PostPackage {}
-# task PrePublish {}
+task PrePublish RegisterGitHubPackagesRepository
 # task PostPublish {}
 # task RunLast {}
