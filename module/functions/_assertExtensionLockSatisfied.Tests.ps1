@@ -84,7 +84,7 @@ Describe '_assertExtensionLockSatisfied' {
             Description = 'the lock file has no resolved version'
             Extension = @{ Name = 'Build' }
             Locked = @{ Name = 'Build'; Resolved = '' }
-            ExpectedProblem = "'Build' has no resolved version in the lock file"
+            ExpectedProblem = "'Build' has no resolved version in the lock file; delete its installed copy, then run in 'Write' mode*"
         }
         @{
             Description = 'an extension resolved to a different version'

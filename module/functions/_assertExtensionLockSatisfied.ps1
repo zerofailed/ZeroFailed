@@ -58,7 +58,7 @@ function _assertExtensionLockSatisfied {
             continue
         }
         elseif (!$lockedEntry['resolved']) {
-            $problems.Add("'$name' has no resolved version in the lock file")
+            $problems.Add("'$name' has no resolved version in the lock file; delete its installed copy, then run in 'Write' mode to re-install it and record its version")
         }
         elseif ($entry.resolved -ne $lockedEntry['resolved']) {
             $problems.Add("'$name' resolved to '$($entry.resolved)', but the lock file has '$($lockedEntry['resolved'])'")
