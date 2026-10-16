@@ -9,7 +9,15 @@ function Register-ExtensionAndDependencies {
         $ExtensionConfig,
 
         [Parameter(Mandatory=$true)]
-        [string] $TargetPath
+        [string] $TargetPath,
+
+        [Parameter()]
+        [AllowNull()]
+        [string] $RequiredBy,
+
+        [Parameter()]
+        [AllowNull()]
+        [System.Collections.IDictionary] $LockedExtensions
     )
 
     [hashtable[]]$processedExtensionConfig = @()
@@ -20,6 +28,7 @@ function Register-ExtensionAndDependencies {
     # Prepare the parameters needed for extension registration
     $splat = $extension.Clone()
     $splat.Remove("Process") | Out-Null
+    $splat.Remove("Enabled") | Out-Null
     $splat.Add("TargetPath", $TargetPath)
 
     # Skip further processing is extension is explicitly disabled
@@ -37,29 +46,55 @@ function Register-ExtensionAndDependencies {
             else {
                 $splat.Add("RepositoryFolderPath", 'module')
             }
-    
+
+            $lockEntry = _newExtensionLockEntry -SourceType 'git' `
+                                                -Source @{ repository = $extension.GitRepository; folderPath = $splat.RepositoryFolderPath } `
+                                                -Requested $splat.GitRef `
+                                                -RequiredBy $RequiredBy
+            $lockedEntry = $LockedExtensions ? $LockedExtensions[$extension.Name] : $null
+            if ($lockedEntry -and $lockedEntry['resolved'] -and (_testExtensionLockEntryMatch -LockEntry $lockedEntry -Entry $lockEntry)) {
+                $splat.Add("LockedCommit", $lockedEntry['resolved'])
+            }
+
             # Call the helper that will install the extension from a Git repository if it's not
             # already installed and provide the resulting additional metadata that we need to use the extension
-            $extension += Get-ExtensionFromGitRepository @splat
+            $result = _getExtensionFromGit @splat
         }
         elseif (!$extension.ContainsKey("Path")) {
             # PowerShell module-based extension
             # Set defaults for any optional configuration settings
             $splat["PSRepository"] = $extension.ContainsKey("PSRepository") ? $extension.PSRepository : $DefaultPSRepository
-            
+
+            $lockEntry = _newExtensionLockEntry -SourceType 'psrepository' `
+                                                -Source @{ repository = $splat.PSRepository; preRelease = [bool]$extension.PreRelease } `
+                                                -Requested $extension.Version `
+                                                -RequiredBy $RequiredBy
+            $lockedEntry = $LockedExtensions ? $LockedExtensions[$extension.Name] : $null
+            if ($lockedEntry -and $lockedEntry['resolved'] -and (_testExtensionLockEntryMatch -LockEntry $lockedEntry -Entry $lockEntry)) {
+                $splat.Add("LockedVersion", $lockedEntry['resolved'])
+            }
+
             # Call the helper that will install the extension from a PowerShell module repository if it's not
             # already installed and provide the resulting additional metadata that we need to use the extension
-            $extension += Get-ExtensionFromPowerShellRepository @splat
-        }
-        elseif ((Test-Path $extension.Path)) {
-            # Local file-system-based extension
-            $extension['Enabled'] = $extension.ContainsKey('Enabled') ? $extension.Enabled : $true
-            Write-Host "USING PATH: $($extension.Name) ($($extension.Path))" -f Cyan
+            $result = _getExtensionFromPSRepository @splat
         }
         else {
+            # Local file-system-based extension, which is used in place
+            $lockEntry = _newExtensionLockEntry -SourceType 'path' -Source @{ path = $extension.Path } -RequiredBy $RequiredBy
+            $result = _getExtensionFromPath -Name $extension.Name -Path $extension.Path
+        }
+
+        # Add the metadata populated by the helper, recording the resolved version separately
+        $lockEntry.resolved = $result.ResolvedVersion
+        $extension.LockEntry = $lockEntry
+        foreach ($key in $result.Keys) {
+            if ($key -ne 'ResolvedVersion') {
+                $extension[$key] = $result[$key]
+            }
+        }
+
+        if ($lockEntry.source.type -eq 'path' -and !$extension.Enabled) {
             # Missing local extension or invalid config
-            Write-Warning "Extension '$($extension.Name)' not found at $($extension.Path) - it has been disabled."
-            $extension['Enabled'] = $false
             continue
         }
     }
@@ -81,7 +116,10 @@ function Register-ExtensionAndDependencies {
     if ($extension.Enabled) {
         foreach ($dependency in $extension.dependencies) {
             Write-Host "Processing dependency: $($dependency.Name)"
-            $processedExtensionConfig += Register-ExtensionAndDependencies -ExtensionConfig $dependency -TargetPath $TargetPath
+            $processedExtensionConfig += Register-ExtensionAndDependencies -ExtensionConfig $dependency `
+                                                                           -TargetPath $TargetPath `
+                                                                           -RequiredBy $extension.Name `
+                                                                           -LockedExtensions $LockedExtensions
         }
     }
     

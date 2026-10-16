@@ -7,13 +7,13 @@ BeforeAll {
     . $PSCommandPath.Replace('.Tests.ps1','.ps1')
 
     # in-module dependencies
-    . (Join-Path (Split-Path -Parent $PSCommandPath) 'Get-ExtensionFromGitRepository.ps1')
-    . (Join-Path (Split-Path -Parent $PSCommandPath) 'Get-ExtensionFromPowerShellRepository.ps1')
     . (Join-Path (Split-Path -Parent $PSCommandPath) 'Get-InstalledExtensionDetails.ps1')
-    . (Join-Path (Split-Path -Parent $PSCommandPath) 'Copy-FolderFromGitRepo.ps1')
     . (Join-Path (Split-Path -Parent $PSCommandPath) '_copyFolderFromGitRepo.ps1')
     . (Join-Path (Split-Path -Parent $PSCommandPath) '_getExtensionFromGit.ps1')
     . (Join-Path (Split-Path -Parent $PSCommandPath) '_getExtensionFromPSRepository.ps1')
+    . (Join-Path (Split-Path -Parent $PSCommandPath) '_getExtensionFromPath.ps1')
+    . (Join-Path (Split-Path -Parent $PSCommandPath) '_newExtensionLockEntry.ps1')
+    . (Join-Path (Split-Path -Parent $PSCommandPath) '_testExtensionLockEntryMatch.ps1')
     . (Join-Path (Split-Path -Parent $PSCommandPath) 'Get-ExtensionDependencies.ps1')
     . (Join-Path (Split-Path -Parent $PSCommandPath) '_resolveModuleNameFromPath.ps1')
     . (Join-Path (Split-Path -Parent $PSCommandPath) 'Resolve-ExtensionMetadata.ps1')
@@ -36,12 +36,12 @@ Describe 'Register-ExtensionAndDependencies' {
 
     Context 'Git-Based Extensions' {
         BeforeAll {
-            Mock Get-ExtensionFromGitRepository {
-                param ($Name, $RepositoryUri, $TargetPath, $GitRef, $RepositoryFolderPath)
+            Mock _getExtensionFromGit {
                 # Return only the additional properties that Register-ExtensionAndDependencies expects to add
                 return @{
                     Path = Join-Path $TargetPath $Name $GitRef
                     Enabled = $true # Ensure Enabled is returned
+                    ResolvedVersion = $LockedCommit ? $LockedCommit : "latest-commit-of-$Name"
                 }
             }
             Mock Import-PowerShellDataFile {
@@ -192,6 +192,120 @@ Describe 'Register-ExtensionAndDependencies' {
                 $result[2].Enabled | Should -Be $true
             }
         }
+
+        Context 'When the extension is explicitly enabled' {
+            It 'Processes the extension' {
+                $extensionConfig = @{
+                    Name = "ZeroFailed.DevOps.Common"
+                    GitRepository = "https://github.com/zerofailed/ZeroFailed.DevOps.Common"
+                    Enabled = $true
+                }
+
+                [array]$result = Register-ExtensionAndDependencies -ExtensionConfig $extensionConfig -TargetPath $targetPath
+
+                $result.Count | Should -Be 1
+                $result[0].Enabled | Should -Be $true
+            }
+        }
+
+        Context 'Lock metadata' {
+            BeforeAll {
+                $extensionConfig = @{
+                    Name = "ZeroFailed.Build.Common"
+                    GitRepository = "https://github.com/zerofailed/ZeroFailed.Build.Common"
+                    GitRef = "refs/heads/main"
+                }
+
+                [array]$result = Register-ExtensionAndDependencies -ExtensionConfig $extensionConfig -TargetPath $targetPath
+            }
+
+            It 'Records how the extension was requested and resolved' {
+                $lockEntry = $result[0].LockEntry
+
+                $lockEntry.source.type | Should -Be 'git'
+                $lockEntry.source.repository | Should -Be 'https://github.com/zerofailed/ZeroFailed.Build.Common'
+                $lockEntry.source.folderPath | Should -Be 'module'
+                $lockEntry.requested | Should -Be 'refs/heads/main'
+                $lockEntry.resolved | Should -Be 'latest-commit-of-ZeroFailed.Build.Common'
+            }
+
+            It 'Records that a configured extension is a direct dependency' {
+                $result[0].LockEntry.direct | Should -Be $true
+                $result[0].LockEntry.requiredBy | Should -BeNullOrEmpty
+            }
+
+            It 'Records which extension requires a dependency' {
+                $result[1].Name | Should -Be 'ZeroFailed.DevOps.Common'
+                $result[1].LockEntry.direct | Should -Be $false
+                $result[1].LockEntry.requiredBy | Should -Be @('ZeroFailed.Build.Common')
+                $result[1].LockEntry.requested | Should -Be 'main'
+            }
+
+            It 'Does not add the resolved version to the extension metadata' {
+                $result[0].ContainsKey('ResolvedVersion') | Should -Be $false
+            }
+        }
+
+        Context 'Locked extensions' {
+            BeforeEach {
+                # Registration adds metadata to the configuration it is given, so each test needs a new one
+                $extensionConfig = @{
+                    Name = "ZeroFailed.Build.Common"
+                    GitRepository = "https://github.com/zerofailed/ZeroFailed.Build.Common"
+                }
+            }
+
+            It 'Installs the locked commit of the extension and its dependencies when the lock file matches the request' {
+                $lockedExtensions = @{
+                    'ZeroFailed.Build.Common' = @{
+                        source = @{ type = 'git'; repository = 'https://github.com/zerofailed/ZeroFailed.Build.Common'; folderPath = 'module' }
+                        requested = 'main'
+                        resolved = 'locked-commit-1'
+                    }
+                    'ZeroFailed.DevOps.Common' = @{
+                        source = @{ type = 'git'; repository = 'https://github.com/zerofailed/ZeroFailed.DevOps.Common'; folderPath = 'module' }
+                        requested = 'main'
+                        resolved = 'locked-commit-2'
+                    }
+                }
+
+                [array]$result = Register-ExtensionAndDependencies -ExtensionConfig $extensionConfig -TargetPath $targetPath -LockedExtensions $lockedExtensions
+
+                $result[0].LockEntry.resolved | Should -Be 'locked-commit-1'
+                $result[1].LockEntry.resolved | Should -Be 'locked-commit-2'
+                Should -Invoke _getExtensionFromGit -Times 1 -ParameterFilter { $Name -eq 'ZeroFailed.Build.Common' -and $LockedCommit -eq 'locked-commit-1' }
+                Should -Invoke _getExtensionFromGit -Times 1 -ParameterFilter { $Name -eq 'ZeroFailed.DevOps.Common' -and $LockedCommit -eq 'locked-commit-2' }
+            }
+
+            It 'Does not use the lock file when the extension was requested differently' {
+                $lockedExtensions = @{
+                    'ZeroFailed.Build.Common' = @{
+                        source = @{ type = 'git'; repository = 'https://github.com/zerofailed/ZeroFailed.Build.Common'; folderPath = 'module' }
+                        requested = 'feature/other'
+                        resolved = 'locked-commit-1'
+                    }
+                }
+
+                [array]$result = Register-ExtensionAndDependencies -ExtensionConfig $extensionConfig -TargetPath $targetPath -LockedExtensions $lockedExtensions
+
+                $result[0].LockEntry.resolved | Should -Be 'latest-commit-of-ZeroFailed.Build.Common'
+                Should -Invoke _getExtensionFromGit -Times 1 -ParameterFilter { $Name -eq 'ZeroFailed.Build.Common' -and !$LockedCommit }
+            }
+
+            It 'Does not use a lock entry that has no resolved commit' {
+                $lockedExtensions = @{
+                    'ZeroFailed.Build.Common' = @{
+                        source = @{ type = 'git'; repository = 'https://github.com/zerofailed/ZeroFailed.Build.Common'; folderPath = 'module' }
+                        requested = 'main'
+                        resolved = $null
+                    }
+                }
+
+                Register-ExtensionAndDependencies -ExtensionConfig $extensionConfig -TargetPath $targetPath -LockedExtensions $lockedExtensions | Out-Null
+
+                Should -Invoke _getExtensionFromGit -Times 1 -ParameterFilter { $Name -eq 'ZeroFailed.Build.Common' -and !$LockedCommit }
+            }
+        }
     }
 
     Context 'PowerShell Module-Based Extensions' {
@@ -260,6 +374,55 @@ Describe 'Register-ExtensionAndDependencies' {
                 Should -Invoke Save-PSResource -Exactly 1
             }
         }
+
+        Context 'Lock metadata' {
+            It 'Records how the extension was requested and resolved' {
+                [array]$result = Register-ExtensionAndDependencies -ExtensionConfig @{ Name = $mockModuleName } -TargetPath $targetPath
+
+                $lockEntry = $result[0].LockEntry
+                $lockEntry.source.type | Should -Be 'psrepository'
+                $lockEntry.source.repository | Should -Be 'PSGallery'
+                $lockEntry.source.preRelease | Should -Be $false
+                $lockEntry.requested | Should -BeNullOrEmpty
+                $lockEntry.resolved | Should -Be $mockModuleVersion
+                $lockEntry.direct | Should -Be $true
+            }
+        }
+
+        Context 'Locked extensions' {
+            BeforeAll {
+                Mock _getExtensionFromPSRepository {
+                    $path = Join-Path $TargetPath $Name '1.0.0'
+                    New-Item -ItemType Directory -Path $path -Force | Out-Null
+                    return @{
+                        Path = $path
+                        Enabled = $true
+                        ResolvedVersion = $LockedVersion ? $LockedVersion : $mockModuleVersion
+                    }
+                }
+                $lockedExtensions = @{
+                    $mockModuleName = @{
+                        source = @{ type = 'psrepository'; repository = 'PSGallery'; preRelease = $false }
+                        requested = $null
+                        resolved = '1.0.0'
+                    }
+                }
+            }
+
+            It 'Installs the locked version when the lock file matches the request' {
+                [array]$result = Register-ExtensionAndDependencies -ExtensionConfig @{ Name = $mockModuleName } -TargetPath $targetPath -LockedExtensions $lockedExtensions
+
+                $result[0].LockEntry.resolved | Should -Be '1.0.0'
+                Should -Invoke _getExtensionFromPSRepository -Times 1 -ParameterFilter { $LockedVersion -eq '1.0.0' }
+            }
+
+            It 'Does not use the lock file when the extension was requested differently' {
+                [array]$result = Register-ExtensionAndDependencies -ExtensionConfig @{ Name = $mockModuleName; PreRelease = $true } -TargetPath $targetPath -LockedExtensions $lockedExtensions
+
+                $result[0].LockEntry.resolved | Should -Be $mockModuleVersion
+                Should -Invoke _getExtensionFromPSRepository -Times 1 -ParameterFilter { !$LockedVersion }
+            }
+        }
     }
 
     Context 'Local File-System-Based Extensions' {
@@ -295,6 +458,15 @@ Describe 'Register-ExtensionAndDependencies' {
                 $result[0].Path | Should -Be $mockExtensionPath
                 $result[0].Enabled | Should -Be $true
                 Should -Invoke Write-Host -Exactly 1
+            }
+
+            It 'Records the path as the source, with no resolved version' {
+                [array]$result = Register-ExtensionAndDependencies -ExtensionConfig @{ Name = $mockExtensionName; Path = $mockExtensionPath } -TargetPath $targetPath
+
+                $result[0].LockEntry.source.type | Should -Be 'path'
+                $result[0].LockEntry.source.path | Should -Be $mockExtensionPath
+                $result[0].LockEntry.requested | Should -BeNullOrEmpty
+                $result[0].LockEntry.resolved | Should -BeNullOrEmpty
             }
         }
     }
