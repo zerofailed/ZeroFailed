@@ -21,7 +21,7 @@ Registers an extension and its dependencies.
 
 ```
 Register-ExtensionAndDependencies [-ExtensionConfig] <Object> [-TargetPath] <string>
- [<CommonParameters>]
+ [[-RequiredBy] <string>] [[-LockedExtensions] <IDictionary>] [<CommonParameters>]
 ```
 
 ## ALIASES
@@ -29,6 +29,12 @@ Register-ExtensionAndDependencies [-ExtensionConfig] <Object> [-TargetPath] <str
 ## DESCRIPTION
 
 A recursive function responsible for registering the specified extension and its dependencies.
+
+Each extension's metadata includes a 'LockEntry' that records how it was requested and resolved (i.e. its source, the
+requested git reference or version, the commit or version that was installed, and which extension required it).
+
+When locked extensions are provided, an extension whose lock entry matches how it is requested is installed at the commit
+or version recorded in the lock entry.
 
 ## EXAMPLES
 
@@ -57,6 +63,50 @@ ParameterSets:
 - Name: (All)
   Position: 0
   IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+### -LockedExtensions
+
+The extensions recorded in the extensions lock file, keyed by name. When omitted, extensions are resolved without using
+a lock file.
+
+```yaml
+Type: System.Collections.IDictionary
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: 3
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+### -RequiredBy
+
+The name of the extension that declared this extension as a dependency. Omit this for an extension that is configured
+directly.
+
+```yaml
+Type: System.String
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: 2
+  IsRequired: false
   ValueFromPipeline: false
   ValueFromPipelineByPropertyName: false
   ValueFromRemainingArguments: false

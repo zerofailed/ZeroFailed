@@ -21,7 +21,7 @@ Validates and registers a set of extensions and their dependencies.
 
 ```
 Register-Extensions [-ExtensionsConfig] <hashtable[]> [-DefaultPSRepository] <string>
- [-ZfPath] <string> [<CommonParameters>]
+ [-ZfPath] <string> [[-LockMode] <string>] [<CommonParameters>]
 ```
 
 ## ALIASES
@@ -32,6 +32,16 @@ This function validates, installs (if necessary) and registers the specified set
 they declare, returning a fully-populated set of metadata for all extensions.
 
 If an extension is considered valid and available, then it will be marked as enabled; otherwise it will be marked as disabled.
+
+The extensions lock file ('<ZfPath>/extensions.lock.json') records the exact version of every installed extension, including
+dependencies. How it is used depends on the lock mode:
+
+- Write (default): extensions are resolved as normal, then the lock file is created or updated.
+- Frozen: each extension is installed at the commit or version in the lock file. An error is thrown if there is no lock file,
+  or if any extension differs from it.
+- Off: the lock file is not used.
+
+Each extension's metadata includes a 'LockEntry' that records how it was requested and resolved.
 
 ## EXAMPLES
 
@@ -173,6 +183,31 @@ ParameterSets:
   ValueFromRemainingArguments: false
 DontShow: false
 AcceptedValues: []
+HelpMessage: ''
+```
+
+### -LockMode
+
+How the extensions lock file is used: 'Write' updates it after resolving the extensions, 'Frozen' installs the versions it
+records and throws an error if any extension differs from it, and 'Off' does not use it. Defaults to 'Write'.
+
+```yaml
+Type: System.String
+DefaultValue: Write
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: 3
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues:
+- Write
+- Frozen
+- Off
 HelpMessage: ''
 ```
 
