@@ -12,10 +12,28 @@ function Register-Extensions {
         [string] $DefaultPSRepository,
 
         [Parameter(Mandatory=$true)]
-        [string] $ZfPath
+        [string] $ZfPath,
+
+        [Parameter()]
+        [ValidateSet('Write', 'Frozen', 'Off')]
+        [string] $LockMode = 'Write'
     )
-    
+
     [hashtable[]]$processedExtensionConfig = @()
+
+    # The lock file records the exact version of every extension that was installed, including dependencies:
+    #  - Write:  extensions are resolved as normal, then the lock file is updated
+    #  - Frozen: the versions in the lock file are installed, and any difference from it is an error
+    #  - Off:    the lock file is not used
+    $lockFilePath = Join-Path $ZfPath 'extensions.lock.json'
+    $lockedExtensions = $null
+    if ($LockMode -eq 'Frozen') {
+        $lockedExtensions = _readExtensionLockFile -Path $lockFilePath
+        if ($null -eq $lockedExtensions) {
+            throw "The extensions lock mode is 'Frozen', but there is no lock file at '$lockFilePath'. Run with the lock mode set to 'Write' to create it."
+        }
+        Write-Host "Using extensions lock file: $lockFilePath"
+    }
 
     # Extensions will be installed under the ZfPath, which by convention
     # is the '.zf' folder in the root of a project.
@@ -39,10 +57,21 @@ function Register-Extensions {
     # Process each configured extension
     for ($i=0; $i -lt $ExtensionsConfig.Length; $i++) {
 
-        $registeredExtensions = Register-ExtensionAndDependencies -ExtensionConfig $ExtensionsConfig[$i] -TargetPath $zfExtensionsPath
-        
+        $registeredExtensions = Register-ExtensionAndDependencies -ExtensionConfig $ExtensionsConfig[$i] `
+                                                                 -TargetPath $zfExtensionsPath `
+                                                                 -LockedExtensions $lockedExtensions
+
         # Persist the fully-populated extension metadata
         $processedExtensionConfig += $registeredExtensions
+    }
+
+    switch ($LockMode) {
+        'Write' {
+            _writeExtensionLockFile -Path $lockFilePath -Extensions $processedExtensionConfig
+        }
+        'Frozen' {
+            _assertExtensionLockSatisfied -Extensions $processedExtensionConfig -LockedExtensions $lockedExtensions -LockFilePath $lockFilePath
+        }
     }
 
     return $processedExtensionConfig

@@ -28,7 +28,11 @@ When available, authoritative conventions live in `.knowledge-base/powershell/`:
   `module/functions/*.ps1` (excluding `*.Tests.ps1`) and exports only functions **not** prefixed with `_`.
 - `module/import-tasks.ps1` (aliased `ZeroFailed.tasks`) is the extension-loading entrypoint: reads `$zerofailedExtensions`
   (or the `ZF_EXTENSIONS` env JSON, which takes precedence), registers + de-dupes extensions, then loads their `tasks/`
-  and `functions/`.
+  and `functions/`. It is dot-sourced into the caller's scope, so it can only call **exported** functions.
+- Each extension source has a private fetcher (`_getExtensionFromGit`, `_getExtensionFromPSRepository`,
+  `_getExtensionFromPath`), called by `Register-ExtensionAndDependencies`. `Register-Extensions` reads/writes the
+  `<ZfPath>/extensions.lock.json` lock file per the lock mode (`Write` default, `Frozen`, `Off`; set by
+  `ZF_EXTENSIONS_LOCK_MODE` or `$zerofailedExtensionsLockMode`). Git installs record their commit in `.zf-source.json`.
 - One public function per file in `module/functions/`, each with a sibling `<Name>.Tests.ps1`. Private functions are
   `_`-prefixed (e.g. `_resolveModuleNameFromPath.ps1`) and not exported.
 - `module/ZeroFailed.module.tests.ps1` enforces conventions per function: copyright header, `[CmdletBinding()]`, `param`,
@@ -56,4 +60,6 @@ When available, authoritative conventions live in `.knowledge-base/powershell/`:
 - `.zf/config.ps1` is the build's control panel: extension list, `$PesterVersion`, `$PesterCodeCoveragePaths`,
   doc/publish settings, and `task . FullBuild`.
 - Don't commit generated/ignored artefacts: `PesterTestResults.xml`, `_codeCoverage/`, `_packages/`, `.zf/extensions/`.
+  Do commit `.zf/extensions.lock.json` (this repo's own extensions lock file).
+- `module/functions/*.ps1` files are stored with CRLF line endings; keep new files consistent.
 - `examples/basic/` shows how a downstream repo consumes the framework (`build.ps1` + `.zf/config.ps1`).

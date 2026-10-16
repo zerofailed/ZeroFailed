@@ -168,6 +168,50 @@ $zerofailedExtensions = @(
 )
 ```
 
+### Locking extension versions
+
+A reference such as `GitRef = "main"`, or a PowerShell module without a `Version`, installs whatever version is newest at the time. The same is true of the dependencies that extensions declare, which you do not control. To make every run use the same versions, ZeroFailed records the exact version of every installed extension, including dependencies, in the lock file `.zf/extensions.lock.json`.
+
+Commit the lock file to your repository.
+
+#### Lock modes
+
+| Mode | What happens |
+| --- | --- |
+| `Write` (default) | Extensions are resolved as normal, then the lock file is created or updated to record what is installed. |
+| `Frozen` | Each extension is installed at the commit or version in the lock file. The run fails if there is no lock file, or if any extension differs from it. The lock file is not changed. |
+| `Off` | The lock file is not used. |
+
+Set the mode with the `ZF_EXTENSIONS_LOCK_MODE` environment variable, or with the `$zerofailedExtensionsLockMode` variable before `ZeroFailed.tasks` is called in `.zf/config.ps1`. The environment variable takes precedence, so a CI/CD pipeline can use `Frozen` without changing the configuration. For example, in a GitHub Actions workflow:
+
+```yaml
+env:
+  ZF_EXTENSIONS_LOCK_MODE: Frozen
+```
+
+#### What the lock file records
+
+For each extension, the lock file records:
+
+| Property | Description |
+| --- | --- |
+| `source` | Where the extension comes from: a git repository and folder, a PowerShell repository, or a local path. |
+| `requested` | The `GitRef` or `Version` in the configuration. |
+| `resolved` | The commit or exact module version that was installed. |
+| `contentHash` | A SHA256 hash of the installed files. Line endings are normalised, so the hash is the same on every platform. |
+| `direct` | Whether the extension is in the configuration, rather than only being a dependency of another extension. |
+| `requiredBy` | The extensions that declare it as a dependency. |
+
+Extensions referenced by a local `Path` are recorded, but not locked, because they are working copies.
+
+#### Updating locked versions
+
+In `Write` mode, an extension that is already installed is used as it is, so the lock file records the versions that you have installed. To update to the newest versions (e.g. the latest commit of `main`), delete the extension's folder in `.zf/extensions`, run again, and commit the updated lock file.
+
+When you change the extensions in the configuration, run once in `Write` mode to update the lock file. Otherwise a `Frozen` run fails because the configuration differs from the lock file.
+
+ZeroFailed records the commit of an extension installed from a git repository in a `.zf-source.json` file in its folder. Extensions installed by earlier versions of ZeroFailed do not have this file, so their commit is unknown. ZeroFailed warns about these, and you can delete their folders to re-install them and record their commits.
+
 
 ## ZeroFailed Process Overview
 

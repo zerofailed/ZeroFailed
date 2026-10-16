@@ -145,8 +145,11 @@ HelpMessage: ''
 ### -Version
 
 The version of the extension, if not specified the latest version available, if any, will be returned.
+When specified, only that exact version is returned, even if a later version is installed.
 When this contains a semantic version with a pre-release tag, then this implies that a pre-release
 version is acceptable. (i.e. as if the '-PreRelease' switch had been specified)
+When the '-PreRelease' switch is specified, a version without a pre-release tag (e.g. '1.0.0') also matches its
+pre-release versions (e.g. '1.0.0-beta0001').
 
 ```yaml
 Type: System.String

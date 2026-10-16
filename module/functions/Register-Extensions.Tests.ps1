@@ -11,8 +11,11 @@ BeforeAll {
     # Mock Write-Host to keep output clean
     function Write-Host {}
 
-    # Define the dependent function so it can be mocked
-    function Register-ExtensionAndDependencies { param($ExtensionConfig, $TargetPath) }
+    # Define the dependent functions so they can be mocked
+    function Register-ExtensionAndDependencies { param($ExtensionConfig, $TargetPath, $RequiredBy, $LockedExtensions) }
+    function _readExtensionLockFile { param($Path) }
+    function _writeExtensionLockFile { param($Path, $Extensions) }
+    function _assertExtensionLockSatisfied { param($Extensions, $LockedExtensions, $LockFilePath) }
 
     # Save original env var to restore later
     $script:originalPSModulePath = $env:PSModulePath
@@ -26,6 +29,12 @@ AfterAll {
 }
 
 Describe 'Register-Extensions' {
+
+    BeforeAll {
+        Mock _readExtensionLockFile {}
+        Mock _writeExtensionLockFile {}
+        Mock _assertExtensionLockSatisfied {}
+    }
 
     Context 'Directory and Environment Setup' {
         It 'Should create the extensions directory if it does not exist' {
@@ -101,9 +110,112 @@ Describe 'Register-Extensions' {
             Register-Extensions -ExtensionsConfig $extensionsConfig -DefaultPSRepository $defaultRepo -ZfPath $zfPath
 
             # Assert
-            Assert-MockCalled 'Register-ExtensionAndDependencies' -ParameterFilter { 
-                $ExtensionConfig.Name -eq 'Extension1' -and 
-                $TargetPath -eq $expectedTargetPath 
+            Assert-MockCalled 'Register-ExtensionAndDependencies' -ParameterFilter {
+                $ExtensionConfig.Name -eq 'Extension1' -and
+                $TargetPath -eq $expectedTargetPath
+            }
+        }
+    }
+
+    Context 'Lock file' {
+        BeforeAll {
+            $zfPath = Join-Path $TestDrive 'zf_lock'
+            $expectedLockFilePath = Join-Path $zfPath 'extensions.lock.json'
+            $extensionsConfig = @(
+                @{ Name = 'Extension1' }
+                @{ Name = 'Extension2' }
+            )
+            $defaultRepo = 'PSGallery'
+
+            Mock 'Register-ExtensionAndDependencies' {
+                return @{ Name = $ExtensionConfig.Name; Enabled = $true }
+            }
+        }
+
+        Context 'When the lock mode is not specified' {
+            BeforeAll {
+                $result = Register-Extensions -ExtensionsConfig $extensionsConfig -DefaultPSRepository $defaultRepo -ZfPath $zfPath
+            }
+
+            It 'Resolves extensions without using the lock file' {
+                Should -Invoke _readExtensionLockFile -Times 0 -Scope Context
+                Should -Invoke 'Register-ExtensionAndDependencies' -Times 2 -Scope Context -ParameterFilter { $null -eq $LockedExtensions }
+            }
+
+            It 'Writes the lock file with every registered extension' {
+                Should -Invoke _writeExtensionLockFile -Times 1 -Scope Context -ParameterFilter {
+                    $Path -eq $expectedLockFilePath -and
+                    $Extensions.Count -eq 2 -and
+                    $Extensions[0].Name -eq 'Extension1' -and
+                    $Extensions[1].Name -eq 'Extension2'
+                }
+            }
+
+            It 'Returns the registered extensions' {
+                $result.Count | Should -Be 2
+            }
+        }
+
+        Context 'When the lock mode is Off' {
+            BeforeAll {
+                $result = Register-Extensions -ExtensionsConfig $extensionsConfig -DefaultPSRepository $defaultRepo -ZfPath $zfPath -LockMode 'Off'
+            }
+
+            It 'Does not read, write or check the lock file' {
+                Should -Invoke _readExtensionLockFile -Times 0 -Scope Context
+                Should -Invoke _writeExtensionLockFile -Times 0 -Scope Context
+                Should -Invoke _assertExtensionLockSatisfied -Times 0 -Scope Context
+            }
+
+            It 'Returns the registered extensions' {
+                $result.Count | Should -Be 2
+            }
+        }
+
+        Context 'When the lock mode is Frozen' {
+            BeforeAll {
+                # Named so the mock does not see a variable of the same name in Register-Extensions
+                $mockLockedExtensions = @{ Extension1 = @{ resolved = '1.0.0' } }
+                Mock _readExtensionLockFile { $mockLockedExtensions }
+
+                $result = Register-Extensions -ExtensionsConfig $extensionsConfig -DefaultPSRepository $defaultRepo -ZfPath $zfPath -LockMode 'Frozen'
+            }
+
+            It 'Reads the lock file' {
+                Should -Invoke _readExtensionLockFile -Times 1 -Scope Context -ParameterFilter { $Path -eq $expectedLockFilePath }
+            }
+
+            It 'Resolves extensions using the lock file' {
+                Should -Invoke 'Register-ExtensionAndDependencies' -Times 2 -Scope Context -ParameterFilter { $LockedExtensions.Extension1.resolved -eq '1.0.0' }
+            }
+
+            It 'Checks the registered extensions against the lock file' {
+                Should -Invoke _assertExtensionLockSatisfied -Times 1 -Scope Context -ParameterFilter {
+                    $Extensions.Count -eq 2 -and
+                    $LockedExtensions.Extension1.resolved -eq '1.0.0' -and
+                    $LockFilePath -eq $expectedLockFilePath
+                }
+            }
+
+            It 'Does not write the lock file' {
+                Should -Invoke _writeExtensionLockFile -Times 0 -Scope Context
+            }
+        }
+
+        Context 'When the lock mode is Frozen and there is no lock file' {
+            It 'Throws an error before resolving any extensions' {
+                Mock _readExtensionLockFile { $null }
+
+                { Register-Extensions -ExtensionsConfig $extensionsConfig -DefaultPSRepository $defaultRepo -ZfPath $zfPath -LockMode 'Frozen' } |
+                    Should -Throw "*lock mode is 'Frozen', but there is no lock file at '$expectedLockFilePath'*"
+                Should -Invoke 'Register-ExtensionAndDependencies' -Times 0 -Scope It
+            }
+        }
+
+        Context 'When the lock mode is not valid' {
+            It 'Throws an error' {
+                { Register-Extensions -ExtensionsConfig $extensionsConfig -DefaultPSRepository $defaultRepo -ZfPath $zfPath -LockMode 'Sometimes' } |
+                    Should -Throw
             }
         }
     }
