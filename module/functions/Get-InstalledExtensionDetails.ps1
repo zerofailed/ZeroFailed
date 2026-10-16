@@ -36,14 +36,18 @@ function Get-InstalledExtensionDetails {
                                         $foundVersion = [semver]"$foundVersion-$preReleaseTag"
                                     }
     
-                                    if ($PreRelease -or ($Version -and $Version -eq "$foundVersion")) {
-                                        # Return all versions as we're either looking for a specific version (in which case
-                                        # we should only have a single result), or we're interested in pre-release versions
-                                        # so no filtering is required.
-                                        $foundVersion
+                                    if ($Version) {
+                                        # A specific version has been requested, so only exact matches are of interest. When
+                                        # pre-release versions are allowed, a version without a pre-release tag (e.g. '1.0.0')
+                                        # also matches its pre-release variants (e.g. '1.0.0-beta0001').
+                                        $baseVersion = "{0}.{1}.{2}" -f $foundVersion.Major, $foundVersion.Minor, $foundVersion.Patch
+                                        if ($Version -eq "$foundVersion" -or ($PreRelease -and $Version -eq $baseVersion)) {
+                                            $foundVersion
+                                        }
                                     }
-                                    elseif (!$foundVersion.PreReleaseLabel) {
-                                        # Otherwise we're only interested in non pre-release versions
+                                    elseif ($PreRelease -or !$foundVersion.PreReleaseLabel) {
+                                        # Without a version constraint we're only interested in pre-release versions
+                                        # when they have been explicitly requested
                                         $foundVersion
                                     }
                                 }
