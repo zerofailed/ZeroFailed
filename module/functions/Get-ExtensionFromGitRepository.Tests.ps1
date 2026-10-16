@@ -9,6 +9,8 @@ BeforeAll {
     # in-module dependencies
     . (Join-Path (Split-Path -Parent $PSCommandPath) 'Get-InstalledExtensionDetails.ps1')
     . (Join-Path (Split-Path -Parent $PSCommandPath) 'Copy-FolderFromGitRepo.ps1')
+    . (Join-Path (Split-Path -Parent $PSCommandPath) '_copyFolderFromGitRepo.ps1')
+    . (Join-Path (Split-Path -Parent $PSCommandPath) '_getExtensionFromGit.ps1')
 }
 
 Describe 'Get-ExtensionFromGitRepository' {
@@ -36,6 +38,9 @@ Describe 'Get-ExtensionFromGitRepository' {
         }
         It "Should install from the correct branch" {
             Split-Path -Leaf $result.Path | Should -Be $gitRef
+        }
+        It "Should only return the metadata it has always returned" {
+            $result.Keys | Sort-Object | Should -Be @('Enabled', 'Path')
         }
         It "Should mark the extension as enabled" {
             $result.Enabled | Should -Be $true

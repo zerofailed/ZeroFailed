@@ -213,12 +213,49 @@ Describe 'Get-InstalledExtensionDetails' {
         $version | Should -Be $expected.Version
     }
 
+    It 'Should find an older installed version when it is explicitly requested and a newer stable version is also installed' {
+        # Act
+        $path,$version = Get-InstalledExtensionDetails -Name 'TestExtension2' -Version '1.9.0' -TargetPath $targetPath
+
+        # Assert
+        $path | Should -Be (Join-Path $targetPath 'TestExtension2' '1.9.0')
+        $version | Should -Be '1.9.0'
+    }
+
+    It 'Should find the requested stable version when pre-release versions are allowed and a newer pre-release version is installed' {
+        # Act
+        $path,$version = Get-InstalledExtensionDetails -Name 'TestExtension2' -Version '2.0.0' -PreRelease -TargetPath $targetPath
+
+        # Assert
+        $path | Should -Be (Join-Path $targetPath 'TestExtension2' '2.0.0')
+        $version | Should -Be '2.0.0'
+    }
+
+    It 'Should find the requested pre-release version when a stable version is also installed' {
+        # Act
+        $path,$version = Get-InstalledExtensionDetails -Name 'TestExtension2' -Version '2.1.0-rc0001' -PreRelease -TargetPath $targetPath
+
+        # Assert
+        $path | Should -Be (Join-Path $targetPath 'TestExtension2' '2.1.0')
+        $version | Should -Be '2.1.0-rc0001'
+    }
+
+    It 'Should return null when the requested version is not installed but other versions are' {
+        # Act
+        $path,$version = Get-InstalledExtensionDetails -Name 'TestExtension2' -Version '3.0.0' -TargetPath $targetPath
+
+        # Assert
+        $path | Should -BeNullOrEmpty
+        $version | Should -BeNullOrEmpty
+    }
+
     It 'Should return null when no installed extension is found (without version constraints)' {
         # Act
         $path,$version = Get-InstalledExtensionDetails -Name 'NonExistentModule' -TargetPath $targetPath
 
         # Assert
-        $result | Should -BeNullOrEmpty
+        $path | Should -BeNullOrEmpty
+        $version | Should -BeNullOrEmpty
     }
 
     It 'Should return null when no installed extension is found (with version constraint)' {
@@ -226,7 +263,8 @@ Describe 'Get-InstalledExtensionDetails' {
         $path,$version = Get-InstalledExtensionDetails -Name 'NonExistentModule' -Version "1.0.0" -TargetPath $targetPath
 
         # Assert
-        $result | Should -BeNullOrEmpty
+        $path | Should -BeNullOrEmpty
+        $version | Should -BeNullOrEmpty
     }
 
     It 'Should return null when only a pre-release version is installed and a stable version is requested (without version constraints)' {
@@ -234,7 +272,8 @@ Describe 'Get-InstalledExtensionDetails' {
         $path,$version = Get-InstalledExtensionDetails -Name 'TestPreRelExtension' -TargetPath $targetPath
 
         # Assert
-        $result | Should -BeNullOrEmpty
+        $path | Should -BeNullOrEmpty
+        $version | Should -BeNullOrEmpty
     }
 
     It 'Should return null when only a pre-release version is installed and a stable version is requested (with version constraints)' {
@@ -242,6 +281,7 @@ Describe 'Get-InstalledExtensionDetails' {
         $path,$version = Get-InstalledExtensionDetails -Name 'TestPreRelExtension' -Version "1.0.0" -TargetPath $targetPath
 
         # Assert
-        $result | Should -BeNullOrEmpty
+        $path | Should -BeNullOrEmpty
+        $version | Should -BeNullOrEmpty
     }
 }
