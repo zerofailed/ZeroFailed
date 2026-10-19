@@ -51,6 +51,11 @@ function _getExtensionLockEntries {
             resolved = $lockEntry.resolved
         }
 
+        # A git minimum version also records the release tag that it resolved to
+        if ($lockEntry.Contains('resolvedRef') -and $lockEntry.resolvedRef) {
+            $entry.resolvedRef = $lockEntry.resolvedRef
+        }
+
         # Local extensions are working copies, so their content is not locked
         if ($lockEntry.source.type -ne 'path') {
             $entry.contentHash = _getExtensionContentHash -Path $extension.Path

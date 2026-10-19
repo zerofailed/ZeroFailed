@@ -39,12 +39,18 @@ Describe 'Register-ExtensionAndDependencies' {
     Context 'Git-Based Extensions' {
         BeforeAll {
             Mock _getExtensionFromGit {
-                # Return only the additional properties that Register-ExtensionAndDependencies expects to add
-                return @{
-                    Path = Join-Path $TargetPath $Name $GitRef
+                # Return only the additional properties that Register-ExtensionAndDependencies expects to add,
+                # resolving a minimum version to the release tag of that version
+                $ref = $GitRef ? $GitRef : "refs/tags/$MinimumVersion"
+                $result = @{
+                    Path = Join-Path $TargetPath $Name $ref
                     Enabled = $true # Ensure Enabled is returned
                     ResolvedVersion = $LockedCommit ? $LockedCommit : "latest-commit-of-$Name"
                 }
+                if ($MinimumVersion) {
+                    $result.ResolvedRef = $ref
+                }
+                return $result
             }
             Mock Import-PowerShellDataFile {
                 param($Path)
@@ -310,6 +316,56 @@ Describe 'Register-ExtensionAndDependencies' {
 
                 Should -Invoke _getExtensionFromGit -Times 1 -ParameterFilter { $Name -eq 'ZeroFailed.Build.Common' -and !$LockedCommit }
                 Should -Invoke Write-Host -Times 0 -ParameterFilter { $Object -like 'Using locked*' }
+            }
+        }
+
+        Context 'Minimum versions' {
+            BeforeEach {
+                $extensionConfig = @{
+                    Name = 'ZeroFailed.DevOps.Common'
+                    GitRepository = 'https://github.com/zerofailed/ZeroFailed.DevOps.Common'
+                    MinimumVersion = '1.4.0'
+                }
+                $lockEntry = @{
+                    source = @{ type = 'git'; repository = 'https://github.com/zerofailed/ZeroFailed.DevOps.Common'; folderPath = 'module' }
+                    requested = '[1.4.0,2.0.0)'
+                    resolved = 'locked-commit'
+                    resolvedRef = 'refs/tags/1.5.0'
+                }
+            }
+
+            It 'Records a minimum version as its range, and the release tag that it resolved to' {
+                [array]$result = Register-ExtensionAndDependencies -ExtensionConfig $extensionConfig -TargetPath $targetPath
+
+                $result[0].LockEntry.requested | Should -Be '[1.4.0,2.0.0)'
+                $result[0].LockEntry.resolvedRef | Should -Be 'refs/tags/1.4.0'
+                $result[0].ContainsKey('ResolvedRef') | Should -Be $false
+                Should -Invoke _getExtensionFromGit -Times 1 -ParameterFilter { $MinimumVersion -eq '1.4.0' -and !$GitRef -and !$LockedCommit }
+            }
+
+            It 'Installs the locked commit of the release tag in the lock file' {
+                [array]$result = Register-ExtensionAndDependencies -ExtensionConfig $extensionConfig -TargetPath $targetPath -LockedExtensions @{ 'ZeroFailed.DevOps.Common' = $lockEntry }
+
+                $result[0].LockEntry.resolved | Should -Be 'locked-commit'
+                $result[0].LockEntry.resolvedRef | Should -Be 'refs/tags/1.5.0'
+                Should -Invoke _getExtensionFromGit -Times 1 -ParameterFilter { $GitRef -eq 'refs/tags/1.5.0' -and $LockedCommit -eq 'locked-commit' }
+                Should -Invoke Write-Host -Times 1 -ParameterFilter { $Object -eq 'Using locked commit for extension ZeroFailed.DevOps.Common: locked-commit' }
+            }
+
+            It 'Does not use a lock entry that has no release tag' {
+                $lockEntry.Remove('resolvedRef')
+
+                Register-ExtensionAndDependencies -ExtensionConfig $extensionConfig -TargetPath $targetPath -LockedExtensions @{ 'ZeroFailed.DevOps.Common' = $lockEntry } | Out-Null
+
+                Should -Invoke _getExtensionFromGit -Times 1 -ParameterFilter { !$GitRef -and !$LockedCommit }
+            }
+
+            It 'Does not use a lock entry for a git reference' {
+                $lockEntry.requested = 'main'
+
+                Register-ExtensionAndDependencies -ExtensionConfig $extensionConfig -TargetPath $targetPath -LockedExtensions @{ 'ZeroFailed.DevOps.Common' = $lockEntry } | Out-Null
+
+                Should -Invoke _getExtensionFromGit -Times 1 -ParameterFilter { !$GitRef -and !$LockedCommit }
             }
         }
     }

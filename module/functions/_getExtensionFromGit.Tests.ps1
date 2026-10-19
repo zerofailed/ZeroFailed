@@ -9,14 +9,21 @@ BeforeAll {
     # in-module dependencies
     . (Join-Path (Split-Path -Parent $PSCommandPath) 'Get-InstalledExtensionDetails.ps1')
     . (Join-Path (Split-Path -Parent $PSCommandPath) '_copyFolderFromGitRepo.ps1')
+    . (Join-Path (Split-Path -Parent $PSCommandPath) '_getExtensionVersionRange.ps1')
+    . (Join-Path (Split-Path -Parent $PSCommandPath) '_testExtensionVersionInRange.ps1')
+    . (Join-Path (Split-Path -Parent $PSCommandPath) '_getVersionFromGitTag.ps1')
+    . (Join-Path (Split-Path -Parent $PSCommandPath) '_getGitTagVersions.ps1')
 
     Set-StrictMode -Version Latest
 
-    # Creates the minimum folder structure of an installed extension
-    function newInstalledExtension([string] $Path, [string] $Name, [string] $Commit) {
+    # Creates the minimum folder structure of an installed extension, optionally recording the release tag it came from
+    function newInstalledExtension([string] $Path, [string] $Name, [string] $Commit, [string] $Ref, [string] $Repository) {
         New-Item -ItemType Directory -Path $Path -Force | Out-Null
         Set-Content -Path (Join-Path $Path "$Name.psd1") -Value "@{ ModuleVersion = '1.0.0' }"
-        if ($Commit) {
+        if ($Ref) {
+            @{ repository = $Repository; folderPath = 'module'; ref = $Ref; commit = $Commit } | ConvertTo-Json | Set-Content -Path (Join-Path $Path '.zf-source.json')
+        }
+        elseif ($Commit) {
             @{ commit = $Commit } | ConvertTo-Json | Set-Content -Path (Join-Path $Path '.zf-source.json')
         }
     }
@@ -66,6 +73,17 @@ Describe '_getExtensionFromGit' {
             $sourceInfo.folderPath | Should -Be 'module'
             $sourceInfo.ref | Should -Be 'main'
             $sourceInfo.commit | Should -Be 'latest-commit'
+        }
+
+        It 'Does not return a release tag' {
+            $result.ContainsKey('ResolvedRef') | Should -Be $false
+        }
+    }
+
+    Context 'When neither a git reference nor a minimum version is requested' {
+        It 'Throws an error' {
+            { _getExtensionFromGit -Name $name -RepositoryUri $repo -TargetPath $targetPath } |
+                Should -Throw "A 'GitRef' or 'MinimumVersion' is required to install extension $name from $repo repository"
         }
     }
 
@@ -132,6 +150,79 @@ Describe '_getExtensionFromGit' {
 
             $result.ResolvedVersion | Should -Be 'locked-commit'
             Should -Invoke _copyFolderFromGitRepo -Times 1 -ParameterFilter { $Commit -eq 'locked-commit' }
+        }
+    }
+
+    Context 'When a minimum version is requested' {
+        BeforeAll {
+            # Simulate a repository with release tags, including some outside the range
+            Mock _getGitTagVersions {
+                foreach ($tag in '1.3.0', '1.4.0', 'v1.6.1', '1.7.0-beta.1', '2.0.0') {
+                    @{ Ref = "refs/tags/$tag"; Version = [semver]$tag.TrimStart('v') }
+                }
+            }
+        }
+
+        It 'Installs the newest release tag in the range' {
+            $result = _getExtensionFromGit -Name $name -RepositoryUri $repo -TargetPath $targetPath -MinimumVersion '1.4.0'
+
+            $result.Path | Should -Be (Join-Path $targetPath $name 'refs-tags-v1.6.1')
+            $result.ResolvedRef | Should -Be 'refs/tags/v1.6.1'
+            $result.ResolvedVersion | Should -Be 'latest-commit'
+            Should -Invoke _copyFolderFromGitRepo -Times 1 -ParameterFilter { $GitRef -eq 'refs/tags/v1.6.1' -and !$Commit }
+            (Get-Content -Raw (Join-Path $result.Path '.zf-source.json') | ConvertFrom-Json).ref | Should -Be 'refs/tags/v1.6.1'
+        }
+
+        It 'Includes pre-release tags in the range when they are requested' {
+            $result = _getExtensionFromGit -Name $name -RepositoryUri $repo -TargetPath $targetPath -MinimumVersion '1.4.0' -PreRelease
+
+            $result.ResolvedRef | Should -Be 'refs/tags/1.7.0-beta.1'
+        }
+
+        It 'Uses an installed release in the range without listing the tags' {
+            newInstalledExtension -Path (Join-Path $targetPath $name 'refs-tags-1.5.0') -Name $name -Commit 'installed-commit' -Ref 'refs/tags/1.5.0' -Repository "$repo/"
+
+            $result = _getExtensionFromGit -Name $name -RepositoryUri $repo -TargetPath $targetPath -MinimumVersion '1.4.0'
+
+            $result.Path | Should -Be (Join-Path $targetPath $name 'refs-tags-1.5.0')
+            $result.ResolvedRef | Should -Be 'refs/tags/1.5.0'
+            $result.ResolvedVersion | Should -Be 'installed-commit'
+            Should -Invoke _getGitTagVersions -Times 0
+            Should -Invoke _copyFolderFromGitRepo -Times 0
+        }
+
+        It 'Ignores installed releases from another repository, or outside the range' {
+            newInstalledExtension -Path (Join-Path $targetPath $name 'refs-tags-1.5.0') -Name $name -Commit 'other-commit' -Ref 'refs/tags/1.5.0' -Repository 'https://github.com/other/ZeroFailed.Build.Test'
+            newInstalledExtension -Path (Join-Path $targetPath $name 'refs-tags-2.0.0') -Name $name -Commit 'major-commit' -Ref 'refs/tags/2.0.0' -Repository $repo
+
+            $result = _getExtensionFromGit -Name $name -RepositoryUri $repo -TargetPath $targetPath -MinimumVersion '1.4.0'
+
+            $result.ResolvedRef | Should -Be 'refs/tags/v1.6.1'
+            Should -Invoke _getGitTagVersions -Times 1
+        }
+
+        It 'Throws when no release tag is in the range' {
+            $expectedMessage = "No release of extension $name in $repo repository matches [3.0.0,4.0.0)."
+
+            { _getExtensionFromGit -Name $name -RepositoryUri $repo -TargetPath $targetPath -MinimumVersion '3.0' } |
+                Should -Throw -ExpectedMessage "$([WildcardPattern]::Escape($expectedMessage))*"
+        }
+
+        It 'Throws when the release tags cannot be listed' {
+            Mock _getGitTagVersions { throw 'git ls-remote failed' }
+
+            { _getExtensionFromGit -Name $name -RepositoryUri $repo -TargetPath $targetPath -MinimumVersion '1.4.0' } |
+                Should -Throw "Failed to list the release tags of extension $name from $repo repository: git ls-remote failed"
+        }
+
+        It 'Installs the locked commit of the release tag in the lock file, without listing the tags' {
+            $result = _getExtensionFromGit -Name $name -RepositoryUri $repo -TargetPath $targetPath -MinimumVersion '1.4.0' -GitRef 'refs/tags/1.4.0' -LockedCommit 'locked-commit'
+
+            $result.Path | Should -Be (Join-Path $targetPath $name 'refs-tags-1.4.0')
+            $result.ResolvedRef | Should -Be 'refs/tags/1.4.0'
+            $result.ResolvedVersion | Should -Be 'locked-commit'
+            Should -Invoke _getGitTagVersions -Times 0
+            Should -Invoke _copyFolderFromGitRepo -Times 1 -ParameterFilter { $GitRef -eq 'refs/tags/1.4.0' -and $Commit -eq 'locked-commit' }
         }
     }
 
