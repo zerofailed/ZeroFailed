@@ -16,6 +16,7 @@ BeforeAll {
     function _readExtensionLockFile { param($Path) }
     function _writeExtensionLockFile { param($Path, $Extensions) }
     function _assertExtensionLockSatisfied { param($Extensions, $LockedExtensions, $LockFilePath) }
+    function _resolveExtensionVersionRanges { param($Extensions) }
 
     # Save original env var to restore later
     $script:originalPSModulePath = $env:PSModulePath
@@ -34,6 +35,7 @@ Describe 'Register-Extensions' {
         Mock _readExtensionLockFile {}
         Mock _writeExtensionLockFile {}
         Mock _assertExtensionLockSatisfied {}
+        Mock _resolveExtensionVersionRanges { $Extensions }
     }
 
     Context 'Directory and Environment Setup' {
@@ -153,6 +155,25 @@ Describe 'Register-Extensions' {
 
             It 'Returns the registered extensions' {
                 $result.Count | Should -Be 2
+            }
+
+            It 'Reconciles the versions of the registered extensions before writing the lock file' {
+                Should -Invoke _resolveExtensionVersionRanges -Times 1 -Scope Context -ParameterFilter {
+                    $Extensions.Count -eq 2 -and
+                    $Extensions[0].Name -eq 'Extension1' -and
+                    $Extensions[1].Name -eq 'Extension2'
+                }
+            }
+        }
+
+        Context 'When versions are reconciled' {
+            It 'Writes the lock file, and returns, the reconciled extensions' {
+                Mock _resolveExtensionVersionRanges { @($Extensions[1], $Extensions[0]) }
+
+                $result = Register-Extensions -ExtensionsConfig $extensionsConfig -DefaultPSRepository $defaultRepo -ZfPath $zfPath
+
+                $result[0].Name | Should -Be 'Extension2'
+                Should -Invoke _writeExtensionLockFile -Times 1 -Scope It -ParameterFilter { $Extensions[0].Name -eq 'Extension2' }
             }
         }
 
