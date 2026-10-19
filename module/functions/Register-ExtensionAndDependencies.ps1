@@ -53,6 +53,7 @@ function Register-ExtensionAndDependencies {
                                                 -RequiredBy $RequiredBy
             $lockedEntry = $LockedExtensions ? $LockedExtensions[$extension.Name] : $null
             if ($lockedEntry -and $lockedEntry['resolved'] -and (_testExtensionLockEntryMatch -LockEntry $lockedEntry -Entry $lockEntry)) {
+                Write-Host "Using locked commit for extension $($extension.Name): $($lockedEntry['resolved'])" -f Cyan
                 $splat.Add("LockedCommit", $lockedEntry['resolved'])
             }
 
@@ -71,6 +72,7 @@ function Register-ExtensionAndDependencies {
                                                 -RequiredBy $RequiredBy
             $lockedEntry = $LockedExtensions ? $LockedExtensions[$extension.Name] : $null
             if ($lockedEntry -and $lockedEntry['resolved'] -and (_testExtensionLockEntryMatch -LockEntry $lockedEntry -Entry $lockEntry)) {
+                Write-Host "Using locked version for extension $($extension.Name): v$($lockedEntry['resolved'])" -f Cyan
                 $splat.Add("LockedVersion", $lockedEntry['resolved'])
             }
 

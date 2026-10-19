@@ -275,6 +275,8 @@ Describe 'Register-ExtensionAndDependencies' {
                 $result[1].LockEntry.resolved | Should -Be 'locked-commit-2'
                 Should -Invoke _getExtensionFromGit -Times 1 -ParameterFilter { $Name -eq 'ZeroFailed.Build.Common' -and $LockedCommit -eq 'locked-commit-1' }
                 Should -Invoke _getExtensionFromGit -Times 1 -ParameterFilter { $Name -eq 'ZeroFailed.DevOps.Common' -and $LockedCommit -eq 'locked-commit-2' }
+                Should -Invoke Write-Host -Times 1 -ParameterFilter { $Object -eq 'Using locked commit for extension ZeroFailed.Build.Common: locked-commit-1' }
+                Should -Invoke Write-Host -Times 1 -ParameterFilter { $Object -eq 'Using locked commit for extension ZeroFailed.DevOps.Common: locked-commit-2' }
             }
 
             It 'Does not use the lock file when the extension was requested differently' {
@@ -290,6 +292,7 @@ Describe 'Register-ExtensionAndDependencies' {
 
                 $result[0].LockEntry.resolved | Should -Be 'latest-commit-of-ZeroFailed.Build.Common'
                 Should -Invoke _getExtensionFromGit -Times 1 -ParameterFilter { $Name -eq 'ZeroFailed.Build.Common' -and !$LockedCommit }
+                Should -Invoke Write-Host -Times 0 -ParameterFilter { $Object -like 'Using locked*' }
             }
 
             It 'Does not use a lock entry that has no resolved commit' {
@@ -304,6 +307,7 @@ Describe 'Register-ExtensionAndDependencies' {
                 Register-ExtensionAndDependencies -ExtensionConfig $extensionConfig -TargetPath $targetPath -LockedExtensions $lockedExtensions | Out-Null
 
                 Should -Invoke _getExtensionFromGit -Times 1 -ParameterFilter { $Name -eq 'ZeroFailed.Build.Common' -and !$LockedCommit }
+                Should -Invoke Write-Host -Times 0 -ParameterFilter { $Object -like 'Using locked*' }
             }
         }
     }
@@ -414,6 +418,7 @@ Describe 'Register-ExtensionAndDependencies' {
 
                 $result[0].LockEntry.resolved | Should -Be '1.0.0'
                 Should -Invoke _getExtensionFromPSRepository -Times 1 -ParameterFilter { $LockedVersion -eq '1.0.0' }
+                Should -Invoke Write-Host -Times 1 -ParameterFilter { $Object -eq "Using locked version for extension $($mockModuleName): v1.0.0" }
             }
 
             It 'Does not use the lock file when the extension was requested differently' {
@@ -421,6 +426,7 @@ Describe 'Register-ExtensionAndDependencies' {
 
                 $result[0].LockEntry.resolved | Should -Be $mockModuleVersion
                 Should -Invoke _getExtensionFromPSRepository -Times 1 -ParameterFilter { !$LockedVersion }
+                Should -Invoke Write-Host -Times 0 -ParameterFilter { $Object -like 'Using locked*' }
             }
         }
     }
