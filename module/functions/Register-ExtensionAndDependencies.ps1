@@ -48,10 +48,15 @@ function Register-ExtensionAndDependencies {
                 $splat.Add("RepositoryFolderPath", 'module')
             }
 
-            # A minimum version is recorded as its range, so that it is distinct from a git reference
+            # A minimum version is recorded as its range, so that it is distinct from a git reference, along with
+            # whether it includes pre-release tags
+            $source = @{ repository = $extension.GitRepository; folderPath = $splat.RepositoryFolderPath }
+            if ($hasMinimumVersion) {
+                $source.preRelease = [bool]$extension['PreRelease']
+            }
             $requested = $hasMinimumVersion ? (_getExtensionVersionRange -MinimumVersion $extension.MinimumVersion).Text : $splat.GitRef
             $lockEntry = _newExtensionLockEntry -SourceType 'git' `
-                                                -Source @{ repository = $extension.GitRepository; folderPath = $splat.RepositoryFolderPath } `
+                                                -Source $source `
                                                 -Requested $requested `
                                                 -RequiredBy $RequiredBy
             $lockedEntry = $LockedExtensions ? $LockedExtensions[$extension.Name] : $null

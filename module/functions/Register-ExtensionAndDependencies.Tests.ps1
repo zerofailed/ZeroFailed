@@ -327,7 +327,7 @@ Describe 'Register-ExtensionAndDependencies' {
                     MinimumVersion = '1.4.0'
                 }
                 $lockEntry = @{
-                    source = @{ type = 'git'; repository = 'https://github.com/zerofailed/ZeroFailed.DevOps.Common'; folderPath = 'module' }
+                    source = @{ type = 'git'; repository = 'https://github.com/zerofailed/ZeroFailed.DevOps.Common'; folderPath = 'module'; preRelease = $false }
                     requested = '[1.4.0,2.0.0)'
                     resolved = 'locked-commit'
                     resolvedRef = 'refs/tags/1.5.0'
@@ -341,6 +341,24 @@ Describe 'Register-ExtensionAndDependencies' {
                 $result[0].LockEntry.resolvedRef | Should -Be 'refs/tags/1.4.0'
                 $result[0].ContainsKey('ResolvedRef') | Should -Be $false
                 Should -Invoke _getExtensionFromGit -Times 1 -ParameterFilter { $MinimumVersion -eq '1.4.0' -and !$GitRef -and !$LockedCommit }
+            }
+
+            It 'Records whether a minimum version includes pre-release tags' {
+                $extensionConfig.PreRelease = $true
+
+                [array]$result = Register-ExtensionAndDependencies -ExtensionConfig $extensionConfig -TargetPath $targetPath -LockedExtensions @{ 'ZeroFailed.DevOps.Common' = $lockEntry }
+
+                $result[0].LockEntry.source.preRelease | Should -Be $true
+                Should -Invoke _getExtensionFromGit -Times 1 -ParameterFilter { $PreRelease -and !$LockedCommit }
+            }
+
+            It 'Does not record pre-release tags for a git reference' {
+                [array]$result = Register-ExtensionAndDependencies -ExtensionConfig @{
+                    Name = 'ZeroFailed.DevOps.Common'
+                    GitRepository = 'https://github.com/zerofailed/ZeroFailed.DevOps.Common'
+                } -TargetPath $targetPath
+
+                $result[0].LockEntry.source.Contains('preRelease') | Should -Be $false
             }
 
             It 'Installs the locked commit of the release tag in the lock file' {
