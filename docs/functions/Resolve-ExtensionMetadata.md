@@ -30,6 +30,9 @@ Resolve-ExtensionMetadata [-Value] <Object> [<CommonParameters>]
 This function resolves extension metadata from a string or hashtable configuration.
 The function supports both simple and object-based syntax.
 
+An error is thrown if 'MinimumVersion' is combined with 'Version', 'GitRef' or 'Path', because a minimum version selects
+from a range of released versions.
+
 ## EXAMPLES
 
 ### EXAMPLE 1
@@ -61,6 +64,14 @@ Resolve-ExtensionMetadata -Value @{Name="MyExtension"; Version="1.0.0"}
 @{
     Name = "MyExtension"
     Version = "1.0.0"
+}
+
+### EXAMPLE 5
+
+Resolve-ExtensionMetadata -Value @{Name="MyExtension"; MinimumVersion="1.4.0"}
+@{
+    Name = "MyExtension"
+    MinimumVersion = "1.4.0"
 }
 
 ## PARAMETERS

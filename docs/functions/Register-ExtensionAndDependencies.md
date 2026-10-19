@@ -33,6 +33,12 @@ A recursive function responsible for registering the specified extension and its
 Each extension's metadata includes a 'LockEntry' that records how it was requested and resolved (i.e. its source, the
 requested git reference or version, the commit or version that was installed, and which extension required it).
 
+An extension can request a 'MinimumVersion' instead of a 'Version' or 'GitRef'. It is installed at the newest release from
+that version up to, but not including, the next major version: a module version from a PowerShell repository, or a git tag
+named after a semantic version (e.g. '1.4.2' or 'v1.4.2'). An installed release in that range is used as it is. Its lock
+entry records the range (e.g. '[1.4.0,2.0.0)') as the requested version and, for a git repository, the release tag as
+'resolvedRef'.
+
 When locked extensions are provided, an extension whose lock entry matches how it is requested is installed at the commit
 or version recorded in the lock entry.
 

@@ -43,6 +43,13 @@ dependencies. How it is used depends on the lock mode:
 
 Each extension's metadata includes a 'LockEntry' that records how it was requested and resolved.
 
+When several extensions require the same extension and at least one of them uses a 'MinimumVersion', the version that is
+used must be in every range that they require. The first one registered is used if it is. Otherwise:
+
+- If the first one comes from the configuration, it is used, and a warning names each range that it is not in.
+- Otherwise, the newest registered version that is in every range is used in its place.
+- If no version is in every range, an error is thrown.
+
 ## EXAMPLES
 
 ### EXAMPLE 1
@@ -60,6 +67,10 @@ $extensionsConfig = @(
         PreRelease = $true
     }
     @{
+        Name = "RangedPublicExtension"                      # Extension available via PS Gallery, newest version from 1.4.0, below 2.0.0
+        MinimumVersion = "1.4.0"
+    }
+    @{
         Name = "PublicExtension"                            # Extension available via a Git repo, using the 'main' branch
         GitRepository = "https://github.com/myorg/PublicExtension"
     }
@@ -67,6 +78,11 @@ $extensionsConfig = @(
         Name = "PublicExtension"                            # Extension available via a Git repo, using a tagged version
         GitRepository = "https://github.com/myorg/PublicExtension"
         GitRef = "refs/tags/1.0.0"
+    }
+    @{
+        Name = "RangedGitExtension"                         # Extension available via a Git repo, newest release tag from 1.4.0, below 2.0.0
+        GitRepository = "https://github.com/myorg/RangedGitExtension"
+        MinimumVersion = "1.4.0"
     }
     @{
         Name = "PublicExtension"                            # Extension available via a Git repo, using a custom branch
@@ -107,6 +123,12 @@ PS:> Register-Extensions -ExtensionsConfig $extensionsConfig -DefaultPSRepositor
         Enabled = $true
     }
     @{
+        Name = "RangedPublicExtension"                      # Extension available via PS Gallery, newest version from 1.4.0, below 2.0.0
+        MinimumVersion = "1.4.0"
+        Path = "/myproject/.zf/extensions/RangedPublicExtension/1.6.1"
+        Enabled = $true
+    }
+    @{
         Name = "PublicExtension"                            # Extension available via a Git repo, using the 'main' branch
         Version = "main"
         Path = "/myproject/.zf/extensions/PublicExtension/main"
@@ -116,6 +138,12 @@ PS:> Register-Extensions -ExtensionsConfig $extensionsConfig -DefaultPSRepositor
         Name = "PublicExtension"                            # Extension available via a Git repo, using a tagged version
         Version = "refs/tags/1.0.0"
         Path = "/myproject/.zf/extensions/PublicExtension/refs-tags-1.0.0"
+        Enabled = $true
+    }
+    @{
+        Name = "RangedGitExtension"                         # Extension available via a Git repo, newest release tag from 1.4.0, below 2.0.0
+        MinimumVersion = "1.4.0"
+        Path = "/myproject/.zf/extensions/RangedGitExtension/refs-tags-v1.6.1"
         Enabled = $true
     }
     @{
