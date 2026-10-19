@@ -18,8 +18,14 @@ function _getExtensionFromGit {
         [Parameter(Mandatory)]
         [string] $TargetPath,
 
-        [Parameter(Mandatory)]
+        [Parameter()]
         [string] $GitRef,
+
+        [Parameter()]
+        [string] $MinimumVersion,
+
+        [Parameter()]
+        [switch] $PreRelease,
 
         [Parameter()]
         [string] $LockedCommit
@@ -27,6 +33,55 @@ function _getExtensionFromGit {
 
     # Records where an installed extension came from, so that later runs know which commit is installed
     $sourceInfoFileName = '.zf-source.json'
+
+    # A minimum version installs the newest release tag in its range, up to the next major version. An installed
+    # release in the range is used as it is, so the tags are only listed when none is installed.
+    if ($MinimumVersion -and !$GitRef) {
+        $range = _getExtensionVersionRange -MinimumVersion $MinimumVersion
+
+        $installedRelease = Get-ChildItem -Path (Join-Path $TargetPath $Name) -Directory -ErrorAction Ignore |
+                                ForEach-Object {
+                                    $sourceInfoPath = Join-Path $_.FullName $sourceInfoFileName
+                                    if (Test-Path $sourceInfoPath) {
+                                        $sourceInfo = Get-Content -Raw -Path $sourceInfoPath | ConvertFrom-Json -AsHashtable
+                                        # Ignore the case of the repository URL, as well as any trailing '/', as the lock file does
+                                        $isSameSource = "$($sourceInfo['repository'])".TrimEnd('/') -eq $RepositoryUri.OriginalString.TrimEnd('/') -and
+                                                        "$($sourceInfo['folderPath'])" -eq $RepositoryFolderPath
+                                        $version = _getVersionFromGitTag -Ref "$($sourceInfo['ref'])"
+                                        if ($isSameSource -and $version -and (_testExtensionVersionInRange -Version $version -Range $range -PreRelease:$PreRelease)) {
+                                            @{ Ref = $sourceInfo['ref']; Version = $version }
+                                        }
+                                    }
+                                } |
+                                Sort-Object -Property { $_.Version } -Descending |
+                                Select-Object -First 1
+
+        if ($installedRelease) {
+            $GitRef = $installedRelease.Ref
+        }
+        else {
+            try {
+                $availableReleases = @(_getGitTagVersions -RepoUrl $RepositoryUri.OriginalString)
+            }
+            catch {
+                throw "Failed to list the release tags of extension $Name from $RepositoryUri repository: $($_.Exception.Message)"
+            }
+
+            $availableRelease = $availableReleases |
+                                    Where-Object { _testExtensionVersionInRange -Version $_.Version -Range $range -PreRelease:$PreRelease } |
+                                    Sort-Object -Property { $_.Version } -Descending |
+                                    Select-Object -First 1
+            if (!$availableRelease) {
+                throw ("No release of extension $Name in $RepositoryUri repository matches $($range.Text). " +
+                       "Releases are tags named after a semantic version, e.g. '$($range.Minimum)' or 'v$($range.Minimum)'.")
+            }
+            $GitRef = $availableRelease.Ref
+        }
+        Write-Verbose "Extension '$Name' $($range.Text) resolved to '$GitRef'"
+    }
+    elseif (!$GitRef) {
+        throw "A 'GitRef' or 'MinimumVersion' is required to install extension $Name from $RepositoryUri repository"
+    }
 
     # Check whether module is already installed
     $safeGitRef = $GitRef.Replace('/', '-')
@@ -99,6 +154,11 @@ function _getExtensionFromGit {
         Path = $existingExtensionPath
         Enabled = $true
         ResolvedVersion = $installedCommit
+    }
+
+    # Record which release tag a minimum version resolved to, so that the lock file can install it again
+    if ($MinimumVersion) {
+        $additionalMetadata.ResolvedRef = $GitRef
     }
 
     return $additionalMetadata

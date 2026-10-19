@@ -14,6 +14,8 @@ BeforeAll {
     . (Join-Path (Split-Path -Parent $PSCommandPath) '_getExtensionFromPath.ps1')
     . (Join-Path (Split-Path -Parent $PSCommandPath) '_newExtensionLockEntry.ps1')
     . (Join-Path (Split-Path -Parent $PSCommandPath) '_testExtensionLockEntryMatch.ps1')
+    . (Join-Path (Split-Path -Parent $PSCommandPath) '_getExtensionVersionRange.ps1')
+    . (Join-Path (Split-Path -Parent $PSCommandPath) '_testExtensionVersionInRange.ps1')
     . (Join-Path (Split-Path -Parent $PSCommandPath) 'Get-ExtensionDependencies.ps1')
     . (Join-Path (Split-Path -Parent $PSCommandPath) '_resolveModuleNameFromPath.ps1')
     . (Join-Path (Split-Path -Parent $PSCommandPath) 'Resolve-ExtensionMetadata.ps1')
@@ -37,12 +39,18 @@ Describe 'Register-ExtensionAndDependencies' {
     Context 'Git-Based Extensions' {
         BeforeAll {
             Mock _getExtensionFromGit {
-                # Return only the additional properties that Register-ExtensionAndDependencies expects to add
-                return @{
-                    Path = Join-Path $TargetPath $Name $GitRef
+                # Return only the additional properties that Register-ExtensionAndDependencies expects to add,
+                # resolving a minimum version to the release tag of that version
+                $ref = $GitRef ? $GitRef : "refs/tags/$MinimumVersion"
+                $result = @{
+                    Path = Join-Path $TargetPath $Name $ref
                     Enabled = $true # Ensure Enabled is returned
                     ResolvedVersion = $LockedCommit ? $LockedCommit : "latest-commit-of-$Name"
                 }
+                if ($MinimumVersion) {
+                    $result.ResolvedRef = $ref
+                }
+                return $result
             }
             Mock Import-PowerShellDataFile {
                 param($Path)
@@ -310,6 +318,74 @@ Describe 'Register-ExtensionAndDependencies' {
                 Should -Invoke Write-Host -Times 0 -ParameterFilter { $Object -like 'Using locked*' }
             }
         }
+
+        Context 'Minimum versions' {
+            BeforeEach {
+                $extensionConfig = @{
+                    Name = 'ZeroFailed.DevOps.Common'
+                    GitRepository = 'https://github.com/zerofailed/ZeroFailed.DevOps.Common'
+                    MinimumVersion = '1.4.0'
+                }
+                $lockEntry = @{
+                    source = @{ type = 'git'; repository = 'https://github.com/zerofailed/ZeroFailed.DevOps.Common'; folderPath = 'module'; preRelease = $false }
+                    requested = '[1.4.0,2.0.0)'
+                    resolved = 'locked-commit'
+                    resolvedRef = 'refs/tags/1.5.0'
+                }
+            }
+
+            It 'Records a minimum version as its range, and the release tag that it resolved to' {
+                [array]$result = Register-ExtensionAndDependencies -ExtensionConfig $extensionConfig -TargetPath $targetPath
+
+                $result[0].LockEntry.requested | Should -Be '[1.4.0,2.0.0)'
+                $result[0].LockEntry.resolvedRef | Should -Be 'refs/tags/1.4.0'
+                $result[0].ContainsKey('ResolvedRef') | Should -Be $false
+                Should -Invoke _getExtensionFromGit -Times 1 -ParameterFilter { $MinimumVersion -eq '1.4.0' -and !$GitRef -and !$LockedCommit }
+            }
+
+            It 'Records whether a minimum version includes pre-release tags' {
+                $extensionConfig.PreRelease = $true
+
+                [array]$result = Register-ExtensionAndDependencies -ExtensionConfig $extensionConfig -TargetPath $targetPath -LockedExtensions @{ 'ZeroFailed.DevOps.Common' = $lockEntry }
+
+                $result[0].LockEntry.source.preRelease | Should -Be $true
+                Should -Invoke _getExtensionFromGit -Times 1 -ParameterFilter { $PreRelease -and !$LockedCommit }
+            }
+
+            It 'Does not record pre-release tags for a git reference' {
+                [array]$result = Register-ExtensionAndDependencies -ExtensionConfig @{
+                    Name = 'ZeroFailed.DevOps.Common'
+                    GitRepository = 'https://github.com/zerofailed/ZeroFailed.DevOps.Common'
+                } -TargetPath $targetPath
+
+                $result[0].LockEntry.source.Contains('preRelease') | Should -Be $false
+            }
+
+            It 'Installs the locked commit of the release tag in the lock file' {
+                [array]$result = Register-ExtensionAndDependencies -ExtensionConfig $extensionConfig -TargetPath $targetPath -LockedExtensions @{ 'ZeroFailed.DevOps.Common' = $lockEntry }
+
+                $result[0].LockEntry.resolved | Should -Be 'locked-commit'
+                $result[0].LockEntry.resolvedRef | Should -Be 'refs/tags/1.5.0'
+                Should -Invoke _getExtensionFromGit -Times 1 -ParameterFilter { $GitRef -eq 'refs/tags/1.5.0' -and $LockedCommit -eq 'locked-commit' }
+                Should -Invoke Write-Host -Times 1 -ParameterFilter { $Object -eq 'Using locked commit for extension ZeroFailed.DevOps.Common: locked-commit' }
+            }
+
+            It 'Does not use a lock entry that has no release tag' {
+                $lockEntry.Remove('resolvedRef')
+
+                Register-ExtensionAndDependencies -ExtensionConfig $extensionConfig -TargetPath $targetPath -LockedExtensions @{ 'ZeroFailed.DevOps.Common' = $lockEntry } | Out-Null
+
+                Should -Invoke _getExtensionFromGit -Times 1 -ParameterFilter { !$GitRef -and !$LockedCommit }
+            }
+
+            It 'Does not use a lock entry for a git reference' {
+                $lockEntry.requested = 'main'
+
+                Register-ExtensionAndDependencies -ExtensionConfig $extensionConfig -TargetPath $targetPath -LockedExtensions @{ 'ZeroFailed.DevOps.Common' = $lockEntry } | Out-Null
+
+                Should -Invoke _getExtensionFromGit -Times 1 -ParameterFilter { !$GitRef -and !$LockedCommit }
+            }
+        }
     }
 
     Context 'PowerShell Module-Based Extensions' {
@@ -427,6 +503,39 @@ Describe 'Register-ExtensionAndDependencies' {
                 $result[0].LockEntry.resolved | Should -Be $mockModuleVersion
                 Should -Invoke _getExtensionFromPSRepository -Times 1 -ParameterFilter { !$LockedVersion }
                 Should -Invoke Write-Host -Times 0 -ParameterFilter { $Object -like 'Using locked*' }
+            }
+
+            It 'Records a minimum version as its range' {
+                [array]$result = Register-ExtensionAndDependencies -ExtensionConfig @{ Name = $mockModuleName; MinimumVersion = '1.0' } -TargetPath $targetPath
+
+                $result[0].LockEntry.requested | Should -Be '[1.0.0,2.0.0)'
+                Should -Invoke _getExtensionFromPSRepository -Times 1 -ParameterFilter { $MinimumVersion -eq '1.0' -and !$LockedVersion }
+            }
+
+            It 'Installs the locked version of a minimum version when the lock file matches the request' {
+                $rangeLockedExtensions = @{
+                    $mockModuleName = @{
+                        source = @{ type = 'psrepository'; repository = 'PSGallery'; preRelease = $false }
+                        requested = '[1.0.0,2.0.0)'
+                        resolved = '1.0.0'
+                    }
+                }
+
+                Register-ExtensionAndDependencies -ExtensionConfig @{ Name = $mockModuleName; MinimumVersion = '1.0' } -TargetPath $targetPath -LockedExtensions $rangeLockedExtensions | Out-Null
+
+                Should -Invoke _getExtensionFromPSRepository -Times 1 -ParameterFilter { $MinimumVersion -eq '1.0' -and $LockedVersion -eq '1.0.0' }
+            }
+
+            It 'Does not use a lock entry for the exact version when a minimum version is requested' {
+                Register-ExtensionAndDependencies -ExtensionConfig @{ Name = $mockModuleName; MinimumVersion = '1.0.0' } -TargetPath $targetPath -LockedExtensions @{
+                    $mockModuleName = @{
+                        source = @{ type = 'psrepository'; repository = 'PSGallery'; preRelease = $false }
+                        requested = '1.0.0'
+                        resolved = '1.0.0'
+                    }
+                } | Out-Null
+
+                Should -Invoke _getExtensionFromPSRepository -Times 1 -ParameterFilter { !$LockedVersion }
             }
         }
     }

@@ -33,6 +33,9 @@ When available, authoritative conventions live in `.knowledge-base/powershell/`:
   `_getExtensionFromPath`), called by `Register-ExtensionAndDependencies`. `Register-Extensions` reads/writes the
   `<ZfPath>/extensions.lock.json` lock file per the lock mode (`Write` default, `Frozen`, `Off`; set by
   `ZF_EXTENSIONS_LOCK_MODE` or `$zerofailedExtensionsLockMode`). Git installs record their commit in `.zf-source.json`.
+- `MinimumVersion` (in place of `Version`/`GitRef`) selects the newest release below the next major version
+  (`_getExtensionVersionRange`); for git, releases are semver tags (`_getGitTagVersions`). `Register-Extensions` then calls
+  `_resolveExtensionVersionRanges`, which reorders duplicates so the first occurrence of each name satisfies every range.
 - One public function per file in `module/functions/`, each with a sibling `<Name>.Tests.ps1`. Private functions are
   `_`-prefixed (e.g. `_resolveModuleNameFromPath.ps1`) and not exported.
 - `module/ZeroFailed.module.tests.ps1` enforces conventions per function: copyright header, `[CmdletBinding()]`, `param`,

@@ -76,6 +76,16 @@ Describe '_getExtensionLockEntries' {
         $entry.contentHash | Should -Be (_getExtensionContentHash -Path $extension.Path)
     }
 
+    It 'Records the release tag that a git minimum version resolved to' {
+        $extension = newRegisteredExtension -Name 'Alpha' -Resolved 'abc123'
+        $extension.LockEntry.resolvedRef = 'refs/tags/1.4.2'
+
+        $result = _getExtensionLockEntries -Extensions @($extension)
+
+        @($result['Alpha'].Keys) | Should -Be @('source', 'requested', 'resolved', 'resolvedRef', 'contentHash', 'direct', 'requiredBy')
+        $result['Alpha'].resolvedRef | Should -Be 'refs/tags/1.4.2'
+    }
+
     It 'Does not record a content hash for local extensions' {
         $extension = newRegisteredExtension -Name 'Local' -Type 'path' -Resolved ''
 

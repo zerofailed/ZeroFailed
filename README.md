@@ -62,7 +62,7 @@ For example:
 
 It is common for an extension to depend on other extensions. The preferred way to declare these is in the module manifest (`.psd1`) under the `PrivateData.ZeroFailed.ExtensionDependencies` key. ZeroFailed resolves and installs these dependencies automatically.
 
-The dependencies can be specified using a short-hand syntax (just the extension name, resolved from the default PowerShell repository), a full syntax (a hashtable that can also pin a `Version` or reference a `GitRepository`/`GitRef`), or a mix of the two:
+The dependencies can be specified using a short-hand syntax (just the extension name, resolved from the default PowerShell repository), a full syntax (a hashtable that can also pin a `Version`, set a `MinimumVersion`, or reference a `GitRepository`/`GitRef`), or a mix of the two:
 
 ```powershell
 PrivateData = @{
@@ -84,6 +84,43 @@ PrivateData = @{
 ```
 
 > A legacy `dependencies.psd1` file at the module root is still supported as a fallback, but the manifest-based approach above is preferred.
+
+A dependency on `main`, or on the latest version, can change at any time. To get fixes without breaking changes, depend on released versions with a `MinimumVersion`.
+
+### Minimum versions
+
+`MinimumVersion` installs the newest release of an extension that is at least that version, but below the next major version. A new major version can contain breaking changes, so ZeroFailed does not install it automatically. For example, `MinimumVersion = '1.4.0'` accepts `1.4.0`, `1.4.3` and `1.9.0`, but not `2.0.0`. Use `MinimumVersion` in place of `Version` or `GitRef`, not with them.
+
+You can use `MinimumVersion` in your configuration and in the dependencies that an extension declares:
+
+```powershell
+@{
+    Name = 'ZeroFailed.Build.Common'                        # from the default PowerShell repository
+    MinimumVersion = '1.4.0'
+}
+@{
+    Name = 'MyExtension'                                    # from the release tags of a git repository
+    GitRepository = 'https://github.com/myorg/myextension'
+    MinimumVersion = '1.4.0'
+}
+```
+
+These rules decide which versions are in the range:
+
+- Before version 1.0.0, the first part that is not zero sets the limit. For example, `MinimumVersion = '0.3.1'` accepts versions below `0.4.0`.
+- ZeroFailed installs a pre-release version only when you also set `PreRelease = $true`.
+- In a git repository, a release is a tag named after a full semantic version (for example, `1.4.2` or `v1.4.2`). The `v` prefix is optional. ZeroFailed ignores other tags, such as `v1`.
+- If a release in the range is already installed, ZeroFailed uses it. To update to the newest release, delete the extension's folder in `.zf/extensions`, then run again.
+
+#### When several extensions require the same extension
+
+ZeroFailed installs one version of each extension, so that version must be in every range that the extensions require:
+
+- If your configuration includes the extension, ZeroFailed uses the version from your configuration. It shows a warning when that version is outside a range that another extension requires.
+- Otherwise, ZeroFailed uses the newest version that is in every range. For example, an installed `1.3.0` meets "1.2.0 or later", but another extension requires "1.5.0 or later". ZeroFailed installs the newest `1.x` release for the second extension, and uses it for both.
+- If no version is in every range, the run fails. For example, two extensions can require different major versions. To choose a version yourself, add the extension to your configuration.
+
+When ZeroFailed uses a newer copy in place of an older installed copy, it still registers the dependencies that only the older copy declares. To remove them, delete the older copy's folder in `.zf/extensions`, then run again.
 
 ### Using Extensions
 
@@ -123,6 +160,8 @@ $zerofailedExtensions = @(
 )
 ```
 
+To get newer releases without breaking changes, use `MinimumVersion` in place of `Version`. See [Minimum versions](#minimum-versions).
+
 #### Advanced Syntax - Git Repository
 
 It is also possible to reference extensions that are available via public git repositories.
@@ -130,6 +169,7 @@ It is also possible to reference extensions that are available via public git re
 This shows the different syntax options:
 * Omitting the `GitRef` property will default to the `main` branch
 * The full range of git references can be used to select specific a branch, tag or commit
+* Using `MinimumVersion` in place of `GitRef` installs the newest release tag in a range (see [Minimum versions](#minimum-versions))
 
 ```
 $zerofailedExtensions = @(
@@ -170,7 +210,7 @@ $zerofailedExtensions = @(
 
 ### Locking extension versions
 
-A reference such as `GitRef = "main"`, or a PowerShell module without a `Version`, installs whatever version is newest at the time. The same is true of the dependencies that extensions declare, which you do not control. To make every run use the same versions, ZeroFailed records the exact version of every installed extension, including dependencies, in the lock file `.zf/extensions.lock.json`.
+A reference such as `GitRef = "main"`, or a PowerShell module without a `Version`, installs whatever version is newest at the time. A `MinimumVersion` installs the newest release in its range. The same is true of the dependencies that extensions declare, which you do not control. To make every run use the same versions, ZeroFailed records the exact version of every installed extension, including dependencies, in the lock file `.zf/extensions.lock.json`.
 
 Commit the lock file to your repository.
 
@@ -195,9 +235,10 @@ For each extension, the lock file records:
 
 | Property | Description |
 | --- | --- |
-| `source` | Where the extension comes from: a git repository and folder, a PowerShell repository, or a local path. |
-| `requested` | The `GitRef` or `Version` in the configuration. |
+| `source` | Where the extension comes from: a git repository and folder, a PowerShell repository, or a local path. For a PowerShell repository, or a git `MinimumVersion`, it also records whether pre-release versions are allowed. |
+| `requested` | The `GitRef` or `Version` in the configuration, or the range of a `MinimumVersion` (for example, `[1.4.0,2.0.0)`). |
 | `resolved` | The commit or exact module version that was installed. |
+| `resolvedRef` | For a git `MinimumVersion`, the release tag that was installed (for example, `refs/tags/1.4.2`). |
 | `contentHash` | A SHA256 hash of the installed files. Line endings are normalised, so the hash is the same on every platform. |
 | `direct` | Whether the extension is in the configuration, rather than only being a dependency of another extension. |
 | `requiredBy` | The extensions that declare it as a dependency. |

@@ -37,8 +37,9 @@ function Register-ExtensionAndDependencies {
             # Git-based extension
             $splat.Remove("GitRepository")
             $splat.Add("RepositoryUri", $extension.GitRepository)
-            # Set defaults for any optional configuration settings
-            if (!$extension.ContainsKey("GitRef")) { $splat.Add("GitRef", 'main') }
+            # Set defaults for any optional configuration settings (a minimum version is resolved to a release tag instead)
+            $hasMinimumVersion = $extension.ContainsKey("MinimumVersion")
+            if (!$extension.ContainsKey("GitRef") -and !$hasMinimumVersion) { $splat.Add("GitRef", 'main') }
             if ($extension.ContainsKey("GitRepositoryFolderPath")) {
                 $splat.Remove("GitRepositoryFolderPath")
                 $splat.Add("RepositoryFolderPath", $extension.GitRepositoryFolderPath)
@@ -47,14 +48,26 @@ function Register-ExtensionAndDependencies {
                 $splat.Add("RepositoryFolderPath", 'module')
             }
 
+            # A minimum version is recorded as its range, so that it is distinct from a git reference, along with
+            # whether it includes pre-release tags
+            $source = @{ repository = $extension.GitRepository; folderPath = $splat.RepositoryFolderPath }
+            if ($hasMinimumVersion) {
+                $source.preRelease = [bool]$extension['PreRelease']
+            }
+            $requested = $hasMinimumVersion ? (_getExtensionVersionRange -MinimumVersion $extension.MinimumVersion).Text : $splat.GitRef
             $lockEntry = _newExtensionLockEntry -SourceType 'git' `
-                                                -Source @{ repository = $extension.GitRepository; folderPath = $splat.RepositoryFolderPath } `
-                                                -Requested $splat.GitRef `
+                                                -Source $source `
+                                                -Requested $requested `
                                                 -RequiredBy $RequiredBy
             $lockedEntry = $LockedExtensions ? $LockedExtensions[$extension.Name] : $null
-            if ($lockedEntry -and $lockedEntry['resolved'] -and (_testExtensionLockEntryMatch -LockEntry $lockedEntry -Entry $lockEntry)) {
+            # A locked minimum version also needs the release tag that it resolved to
+            if ($lockedEntry -and $lockedEntry['resolved'] -and (!$hasMinimumVersion -or $lockedEntry['resolvedRef']) -and
+                    (_testExtensionLockEntryMatch -LockEntry $lockedEntry -Entry $lockEntry)) {
                 Write-Host "Using locked commit for extension $($extension.Name): $($lockedEntry['resolved'])" -f Cyan
                 $splat.Add("LockedCommit", $lockedEntry['resolved'])
+                if ($hasMinimumVersion) {
+                    $splat.Add("GitRef", $lockedEntry['resolvedRef'])
+                }
             }
 
             # Call the helper that will install the extension from a Git repository if it's not
@@ -66,9 +79,11 @@ function Register-ExtensionAndDependencies {
             # Set defaults for any optional configuration settings
             $splat["PSRepository"] = $extension.ContainsKey("PSRepository") ? $extension.PSRepository : $DefaultPSRepository
 
+            # A minimum version is recorded as its range, so that it is distinct from the same exact version
+            $requested = $extension.ContainsKey("MinimumVersion") ? (_getExtensionVersionRange -MinimumVersion $extension.MinimumVersion).Text : $extension.Version
             $lockEntry = _newExtensionLockEntry -SourceType 'psrepository' `
                                                 -Source @{ repository = $splat.PSRepository; preRelease = [bool]$extension.PreRelease } `
-                                                -Requested $extension.Version `
+                                                -Requested $requested `
                                                 -RequiredBy $RequiredBy
             $lockedEntry = $LockedExtensions ? $LockedExtensions[$extension.Name] : $null
             if ($lockedEntry -and $lockedEntry['resolved'] -and (_testExtensionLockEntryMatch -LockEntry $lockedEntry -Entry $lockEntry)) {
@@ -86,11 +101,14 @@ function Register-ExtensionAndDependencies {
             $result = _getExtensionFromPath -Name $extension.Name -Path $extension.Path
         }
 
-        # Add the metadata populated by the helper, recording the resolved version separately
+        # Add the metadata populated by the helper, recording the resolved version (and release tag) separately
         $lockEntry.resolved = $result.ResolvedVersion
+        if ($result.ContainsKey('ResolvedRef')) {
+            $lockEntry.resolvedRef = $result.ResolvedRef
+        }
         $extension.LockEntry = $lockEntry
         foreach ($key in $result.Keys) {
-            if ($key -ne 'ResolvedVersion') {
+            if ($key -notin 'ResolvedVersion', 'ResolvedRef') {
                 $extension[$key] = $result[$key]
             }
         }

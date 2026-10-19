@@ -65,6 +65,9 @@ function Register-Extensions {
         $processedExtensionConfig += $registeredExtensions
     }
 
+    # When several extensions require the same extension with a minimum version, use a version that satisfies all of them
+    $processedExtensionConfig = _resolveExtensionVersionRanges -Extensions $processedExtensionConfig
+
     switch ($LockMode) {
         'Write' {
             _writeExtensionLockFile -Path $lockFilePath -Extensions $processedExtensionConfig
