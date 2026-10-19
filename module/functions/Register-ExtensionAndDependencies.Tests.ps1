@@ -14,6 +14,8 @@ BeforeAll {
     . (Join-Path (Split-Path -Parent $PSCommandPath) '_getExtensionFromPath.ps1')
     . (Join-Path (Split-Path -Parent $PSCommandPath) '_newExtensionLockEntry.ps1')
     . (Join-Path (Split-Path -Parent $PSCommandPath) '_testExtensionLockEntryMatch.ps1')
+    . (Join-Path (Split-Path -Parent $PSCommandPath) '_getExtensionVersionRange.ps1')
+    . (Join-Path (Split-Path -Parent $PSCommandPath) '_testExtensionVersionInRange.ps1')
     . (Join-Path (Split-Path -Parent $PSCommandPath) 'Get-ExtensionDependencies.ps1')
     . (Join-Path (Split-Path -Parent $PSCommandPath) '_resolveModuleNameFromPath.ps1')
     . (Join-Path (Split-Path -Parent $PSCommandPath) 'Resolve-ExtensionMetadata.ps1')
@@ -427,6 +429,39 @@ Describe 'Register-ExtensionAndDependencies' {
                 $result[0].LockEntry.resolved | Should -Be $mockModuleVersion
                 Should -Invoke _getExtensionFromPSRepository -Times 1 -ParameterFilter { !$LockedVersion }
                 Should -Invoke Write-Host -Times 0 -ParameterFilter { $Object -like 'Using locked*' }
+            }
+
+            It 'Records a minimum version as its range' {
+                [array]$result = Register-ExtensionAndDependencies -ExtensionConfig @{ Name = $mockModuleName; MinimumVersion = '1.0' } -TargetPath $targetPath
+
+                $result[0].LockEntry.requested | Should -Be '[1.0.0,2.0.0)'
+                Should -Invoke _getExtensionFromPSRepository -Times 1 -ParameterFilter { $MinimumVersion -eq '1.0' -and !$LockedVersion }
+            }
+
+            It 'Installs the locked version of a minimum version when the lock file matches the request' {
+                $rangeLockedExtensions = @{
+                    $mockModuleName = @{
+                        source = @{ type = 'psrepository'; repository = 'PSGallery'; preRelease = $false }
+                        requested = '[1.0.0,2.0.0)'
+                        resolved = '1.0.0'
+                    }
+                }
+
+                Register-ExtensionAndDependencies -ExtensionConfig @{ Name = $mockModuleName; MinimumVersion = '1.0' } -TargetPath $targetPath -LockedExtensions $rangeLockedExtensions | Out-Null
+
+                Should -Invoke _getExtensionFromPSRepository -Times 1 -ParameterFilter { $MinimumVersion -eq '1.0' -and $LockedVersion -eq '1.0.0' }
+            }
+
+            It 'Does not use a lock entry for the exact version when a minimum version is requested' {
+                Register-ExtensionAndDependencies -ExtensionConfig @{ Name = $mockModuleName; MinimumVersion = '1.0.0' } -TargetPath $targetPath -LockedExtensions @{
+                    $mockModuleName = @{
+                        source = @{ type = 'psrepository'; repository = 'PSGallery'; preRelease = $false }
+                        requested = '1.0.0'
+                        resolved = '1.0.0'
+                    }
+                } | Out-Null
+
+                Should -Invoke _getExtensionFromPSRepository -Times 1 -ParameterFilter { !$LockedVersion }
             }
         }
     }

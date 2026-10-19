@@ -14,6 +14,9 @@ function Get-InstalledExtensionDetails {
         [Parameter(ParameterSetName='Version')]
         [string] $Version,
 
+        [Parameter(ParameterSetName='Version')]
+        [string] $MinimumVersion,
+
         [Parameter(Mandatory=$true, ParameterSetName='GitRef')]
         [string] $GitRefAsFolderName,
 
@@ -21,7 +24,12 @@ function Get-InstalledExtensionDetails {
         [switch] $PreRelease
     )
 
-    # New logic to query whether a given extension is already installed, now that we are installing into the 
+    # A minimum version accepts any installed version in its range, up to the next major version
+    if ($MinimumVersion -and !$Version) {
+        $range = _getExtensionVersionRange -MinimumVersion $MinimumVersion
+    }
+
+    # New logic to query whether a given extension is already installed, now that we are installing into the
     # project directory we can't use the Get-*PSResource cmdlets
     $existingVersion = Get-ChildItem -Path (Join-Path $TargetPath $Name) -Directory -ErrorAction Ignore |
                             ForEach-Object {
@@ -42,6 +50,11 @@ function Get-InstalledExtensionDetails {
                                         # also matches its pre-release variants (e.g. '1.0.0-beta0001').
                                         $baseVersion = "{0}.{1}.{2}" -f $foundVersion.Major, $foundVersion.Minor, $foundVersion.Patch
                                         if ($Version -eq "$foundVersion" -or ($PreRelease -and $Version -eq $baseVersion)) {
+                                            $foundVersion
+                                        }
+                                    }
+                                    elseif ($MinimumVersion) {
+                                        if (_testExtensionVersionInRange -Version $foundVersion -Range $range -PreRelease:$PreRelease) {
                                             $foundVersion
                                         }
                                     }

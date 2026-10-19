@@ -8,6 +8,8 @@ BeforeAll {
 
     # in-module dependencies
     . (Join-Path (Split-Path -Parent $PSCommandPath) 'Get-InstalledExtensionDetails.ps1')
+    . (Join-Path (Split-Path -Parent $PSCommandPath) '_getExtensionVersionRange.ps1')
+    . (Join-Path (Split-Path -Parent $PSCommandPath) '_testExtensionVersionInRange.ps1')
 
     # Needed to create mock PSResourceInfo objects
     Import-Module Microsoft.PowerShell.PSResourceGet
@@ -115,6 +117,80 @@ Describe '_getExtensionFromPSRepository' {
 
             $result.ContainsKey('Version') | Should -Be $false
             $result.ResolvedVersion | Should -Be '1.0.0'
+        }
+    }
+
+    Context 'When a minimum version is requested' {
+        BeforeAll {
+            # Simulate a repository with several versions, in no particular order, including some outside the range
+            Mock Find-PSResource -ParameterFilter { $Version -and $Version.StartsWith('[') } {
+                foreach ($availableVersion in '1.4.0', '1.6.0', '1.5.2', '1.7.0-beta.1', '2.0.0') {
+                    $baseVersion,$preReleaseTag = $availableVersion -split '-', 2
+                    New-MockObject -Type 'Microsoft.PowerShell.PSResourceGet.UtilClasses.PSResourceInfo' -Properties @{
+                        Name = $Name
+                        Version = [version]$baseVersion
+                        Prerelease = $preReleaseTag
+                        Repository = 'PSGallery'
+                    }
+                }
+            }
+        }
+
+        It 'Installs the newest version in the range' {
+            $result = _getExtensionFromPSRepository -Name $name -PSRepository 'PSGallery' -TargetPath $targetPath -MinimumVersion '1.4.0'
+
+            $result.Path | Should -Be (Join-Path $targetPath $name '1.6.0')
+            $result.Enabled | Should -Be $true
+            $result.ResolvedVersion | Should -Be '1.6.0'
+            Should -Invoke Find-PSResource -Times 1 -ParameterFilter { $Version -eq '[1.4.0,2.0.0)' -and !$Prerelease }
+        }
+
+        It 'Includes pre-release versions in the range when they are requested' {
+            $result = _getExtensionFromPSRepository -Name $name -PSRepository 'PSGallery' -TargetPath $targetPath -MinimumVersion '1.4.0' -PreRelease
+
+            $result.Path | Should -Be (Join-Path $targetPath $name '1.7.0')
+            $result.ResolvedVersion | Should -Be '1.7.0-beta.1'
+        }
+
+        It 'Uses an installed version in the range without checking the repository' {
+            newInstalledExtension -TargetPath $targetPath -Name $name -Version '1.5.0'
+
+            $result = _getExtensionFromPSRepository -Name $name -PSRepository 'PSGallery' -TargetPath $targetPath -MinimumVersion '1.4.0'
+
+            $result.ResolvedVersion | Should -Be '1.5.0'
+            Should -Invoke Find-PSResource -Times 0
+        }
+
+        It 'Ignores installed versions outside the range' {
+            newInstalledExtension -TargetPath $targetPath -Name $name -Version '1.3.0'
+            newInstalledExtension -TargetPath $targetPath -Name $name -Version '2.0.0'
+
+            $result = _getExtensionFromPSRepository -Name $name -PSRepository 'PSGallery' -TargetPath $targetPath -MinimumVersion '1.4.0'
+
+            $result.ResolvedVersion | Should -Be '1.6.0'
+            Should -Invoke Find-PSResource -Times 1
+        }
+
+        It 'Disables the extension when no version is in the range' {
+            $result = _getExtensionFromPSRepository -Name $name -PSRepository 'PSGallery' -TargetPath $targetPath -MinimumVersion '3.0.0'
+
+            $result.Enabled | Should -Be $false
+            $result.ResolvedVersion | Should -BeNullOrEmpty
+            Should -Invoke Write-Warning -Times 1 -ParameterFilter { $Message -like 'SKIPPED*' }
+        }
+
+        It 'Installs the locked version instead of the newest version in the range' {
+            $result = _getExtensionFromPSRepository -Name $name -PSRepository 'PSGallery' -TargetPath $targetPath -MinimumVersion '1.4.0' -LockedVersion '1.4.0'
+
+            $result.Path | Should -Be (Join-Path $targetPath $name '1.4.0')
+            $result.ResolvedVersion | Should -Be '1.4.0'
+            Should -Invoke Find-PSResource -Times 1 -ParameterFilter { $Version -eq '1.4.0' }
+        }
+
+        It 'Does not overwrite the minimum version in the returned metadata' {
+            $result = _getExtensionFromPSRepository -Name $name -PSRepository 'PSGallery' -TargetPath $targetPath -MinimumVersion '1.4.0'
+
+            $result.ContainsKey('Version') | Should -Be $false
         }
     }
 

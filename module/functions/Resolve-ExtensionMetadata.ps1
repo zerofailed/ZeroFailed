@@ -41,6 +41,15 @@ function Resolve-ExtensionMetadata {
         throw "Invalid extension configuration syntax."
     }
 
+    # A minimum version selects from a range of released versions, so it cannot be combined with a specific version
+    if ($extension.ContainsKey("MinimumVersion")) {
+        foreach ($key in "Version", "GitRef", "Path") {
+            if ($extension.ContainsKey($key)) {
+                throw "Invalid extension configuration for '$($extension.Name)': 'MinimumVersion' cannot be used with '$key'."
+            }
+        }
+    }
+
     Write-Verbose "Resolved extension metadata: $($extension | ConvertTo-Json)"
     return $extension
 }

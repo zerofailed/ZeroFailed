@@ -66,9 +66,11 @@ function Register-ExtensionAndDependencies {
             # Set defaults for any optional configuration settings
             $splat["PSRepository"] = $extension.ContainsKey("PSRepository") ? $extension.PSRepository : $DefaultPSRepository
 
+            # A minimum version is recorded as its range, so that it is distinct from the same exact version
+            $requested = $extension.ContainsKey("MinimumVersion") ? (_getExtensionVersionRange -MinimumVersion $extension.MinimumVersion).Text : $extension.Version
             $lockEntry = _newExtensionLockEntry -SourceType 'psrepository' `
                                                 -Source @{ repository = $splat.PSRepository; preRelease = [bool]$extension.PreRelease } `
-                                                -Requested $extension.Version `
+                                                -Requested $requested `
                                                 -RequiredBy $RequiredBy
             $lockedEntry = $LockedExtensions ? $LockedExtensions[$extension.Name] : $null
             if ($lockedEntry -and $lockedEntry['resolved'] -and (_testExtensionLockEntryMatch -LockEntry $lockedEntry -Entry $lockEntry)) {
