@@ -4,7 +4,7 @@ external help file: ZeroFailed-Help.xml
 HelpUri: ''
 Locale: en-GB
 Module Name: ZeroFailed
-ms.date: 06/22/2026
+ms.date: 10/20/2026
 PlatyPS schema version: 2024-05-01
 title: Register-Extensions
 ---
@@ -33,18 +33,18 @@ they declare, returning a fully-populated set of metadata for all extensions.
 
 If an extension is considered valid and available, then it will be marked as enabled; otherwise it will be marked as disabled.
 
-The extensions lock file ('<ZfPath>/extensions.lock.json') records the exact version of every installed extension, including
-dependencies. How it is used depends on the lock mode:
+The extensions lock file ('<ZfPath>/extensions.lock.json') records the exact version of every installed extension, including dependencies.
+How it is used depends on the lock mode:
 
 - Write (default): extensions are resolved as normal, then the lock file is created or updated.
-- Frozen: each extension is installed at the commit or version in the lock file. An error is thrown if there is no lock file,
-  or if any extension differs from it.
+- Frozen: each extension is installed at the commit or version in the lock file, and an error is thrown if there is no lock file or if any extension differs from it.
 - Off: the lock file is not used.
 
 Each extension's metadata includes a 'LockEntry' that records how it was requested and resolved.
 
-When several extensions require the same extension and at least one of them uses a 'MinimumVersion', the version that is
-used must be in every range that they require. The first one registered is used if it is. Otherwise:
+When several extensions require the same extension and at least one of them uses a 'MinimumVersion', the version that is used must be in every range that they require.
+The first one registered is used if it is.
+Otherwise:
 
 - If the first one comes from the configuration, it is used, and a warning names each range that it is not in.
 - Otherwise, the newest registered version that is in every range is used in its place.
@@ -174,7 +174,8 @@ PS:> Register-Extensions -ExtensionsConfig $extensionsConfig -DefaultPSRepositor
 
 ### -DefaultPSRepository
 
-The default PowerShell repository to use when installing those types of extensions. Defaults to 'PSGallery'.
+The default PowerShell repository to use when installing those types of extensions.
+Defaults to 'PSGallery'.
 
 ```yaml
 Type: System.String
@@ -216,8 +217,8 @@ HelpMessage: ''
 
 ### -LockMode
 
-How the extensions lock file is used: 'Write' updates it after resolving the extensions, 'Frozen' installs the versions it
-records and throws an error if any extension differs from it, and 'Off' does not use it. Defaults to 'Write'.
+How the extensions lock file is used: 'Write' updates it after resolving the extensions, 'Frozen' installs the versions it records and throws an error if any extension differs from it, and 'Off' does not use it.
+Defaults to 'Write'.
 
 ```yaml
 Type: System.String
@@ -241,8 +242,7 @@ HelpMessage: ''
 
 ### -ZfPath
 
-The path to the '.zf' storage directory (e.g.
-where extensions will be installed).
+The path to the '.zf' storage directory, where extensions will be installed.
 
 ```yaml
 Type: System.String

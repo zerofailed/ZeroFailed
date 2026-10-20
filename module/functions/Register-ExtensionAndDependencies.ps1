@@ -2,8 +2,48 @@
 # Copyright (c) Endjin Limited. All rights reserved.
 # </copyright>
 function Register-ExtensionAndDependencies {
+    <#
+        .SYNOPSIS
+        Registers an extension and its dependencies.
+
+        .DESCRIPTION
+        A recursive function responsible for registering the specified extension and its dependencies.
+
+        Each extension's metadata includes a 'LockEntry' that records how it was requested and resolved: its source, the requested git reference or version, the commit or version that was installed, and which extension required it.
+
+        An extension can request a 'MinimumVersion' instead of a 'Version' or 'GitRef'.
+        It is installed at the newest release from that version up to, but not including, the next major version: a module version from a PowerShell repository, or a git tag named after a semantic version (for example, '1.4.2' or 'v1.4.2').
+        An installed release in that range is used as it is.
+        Its lock entry records the range (for example, '[1.4.0,2.0.0)') as the requested version and, for a git repository, the release tag as 'resolvedRef'.
+
+        When locked extensions are provided, an extension whose lock entry matches how it is requested is installed at the commit or version recorded in the lock entry.
+
+        .PARAMETER ExtensionConfig
+        A hashtable containing the initial extension metadata provided by the user.
+        This parameter is mandatory.
+
+        .PARAMETER TargetPath
+        The path to the folder where ZeroFailed extensions are installed (typically '.zf/extensions').
+        This parameter is mandatory.
+
+        .PARAMETER RequiredBy
+        The name of the extension that declared this extension as a dependency.
+        Omit this for an extension that is configured directly.
+
+        .PARAMETER LockedExtensions
+        The extensions recorded in the extensions lock file, keyed by name.
+        When omitted, extensions are resolved without using a lock file.
+
+        .EXAMPLE
+        PS:> $extensionConfig = @{
+            Name = "MyExtension"
+            Path = "C:\Extensions\MyExtension"
+            Repository = "https://example.com/extensions"
+        }
+        PS:>Register-ExtensionAndDependencies -ExtensionConfig $extensionConfig -TargetPath "$PWD/.zf/extensions"
+    #>
     [CmdletBinding()]
-    [OutputType([hashtable[]])]
+    [OutputType([hashtable])]
     param (
         [Parameter(Mandatory=$true)]
         $ExtensionConfig,

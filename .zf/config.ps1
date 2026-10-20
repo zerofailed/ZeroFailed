@@ -39,6 +39,7 @@ $GitHubPackagesApiKey = property ZF_GITHUB_PACKAGES_TOKEN ""
 $PSMarkdownDocsFlattenOutputPath = $true
 $PSMarkdownDocsOutputPath = './docs/functions'
 $PSMarkdownDocsIncludeModulePage = $false
+$PSMarkdownDocsLocale = 'en-GB'
 $CreateGitHubRelease = $true
 $GitHubReleaseArtefacts = @()
 $SkipZeroFailedModuleVersionCheck = $true
