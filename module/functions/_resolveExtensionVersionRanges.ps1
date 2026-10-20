@@ -33,7 +33,8 @@ function _resolveExtensionVersionRanges {
         $lockEntry = $extension.LockEntry
         if ($extension.ContainsKey('MinimumVersion')) {
             $range = _getExtensionVersionRange -MinimumVersion $extension.MinimumVersion
-            @{ Text = $range.Text; Range = $range; Exact = $null }
+            $preRelease = [bool]$extension['PreRelease']
+            @{ Text = "$($range.Text)$($preRelease ? ', including pre-release versions' : '')"; Range = $range; PreRelease = $preRelease; Exact = $null }
         }
         elseif ($lockEntry.requested) {
             $exact = $null
@@ -55,8 +56,8 @@ function _resolveExtensionVersionRanges {
             return $false
         }
         if ($requirement.Range) {
-            # Pre-release versions are only installed when they are requested, but they are still in the range
-            return (_testExtensionVersionInRange -Version $version -Range $requirement.Range -PreRelease)
+            # A pre-release version only satisfies a minimum version that includes pre-release versions
+            return (_testExtensionVersionInRange -Version $version -Range $requirement.Range -PreRelease:$requirement.PreRelease)
         }
         return ($version -eq $requirement.Exact)
     }

@@ -142,6 +142,45 @@ Describe '_resolveExtensionVersionRanges' {
         Should -Invoke Write-Warning -Times 0
     }
 
+    It 'Uses a version without a pre-release label in place of a pre-release that another extension does not include' {
+        $preReleaseExtension = newRegisteredExtension -RequiredBy 'DotNet' -MinimumVersion '1.4' -Resolved '1.6.0-beta.1'
+        $preReleaseExtension.PreRelease = $true
+        $extensions = @(
+            $preReleaseExtension
+            newRegisteredExtension -RequiredBy 'PowerShell' -MinimumVersion '1.4' -Resolved '1.5.0'
+        )
+
+        $result = _resolveExtensionVersionRanges -Extensions $extensions
+
+        $result[0].Path | Should -Be 'Common-1.5.0'
+    }
+
+    It 'Keeps a pre-release when every extension includes pre-release versions' {
+        $extensions = @(
+            newRegisteredExtension -RequiredBy 'DotNet' -MinimumVersion '1.4' -Resolved '1.6.0-beta.1'
+            newRegisteredExtension -RequiredBy 'PowerShell' -MinimumVersion '1.4' -Resolved '1.5.0'
+        )
+        $extensions | ForEach-Object { $_.PreRelease = $true }
+
+        $result = _resolveExtensionVersionRanges -Extensions $extensions
+
+        $result[0].Path | Should -Be 'Common-1.6.0-beta.1'
+    }
+
+    It 'Throws when only a pre-release satisfies every range, and one extension does not include pre-release versions' {
+        $preReleaseExtension = newRegisteredExtension -RequiredBy 'DotNet' -MinimumVersion '1.6' -Resolved '1.7.0-beta.1'
+        $preReleaseExtension.PreRelease = $true
+        $extensions = @(
+            $preReleaseExtension
+            newRegisteredExtension -RequiredBy 'PowerShell' -MinimumVersion '1.4' -Resolved '1.5.0'
+        )
+        $expectedMessage = "No version of extension 'Common' satisfies every extension that requires it:`n" +
+                           "  - 'DotNet' requires [1.6.0,2.0.0), including pre-release versions (resolved to 1.7.0-beta.1)`n" +
+                           "  - 'PowerShell' requires [1.4.0,2.0.0) (resolved to 1.5.0)`n"
+
+        { _resolveExtensionVersionRanges -Extensions $extensions } | Should -Throw -ExpectedMessage "$([WildcardPattern]::Escape($expectedMessage))*"
+    }
+
     It 'Throws when no version satisfies every requirement' {
         $extensions = @(
             newRegisteredExtension -RequiredBy 'DotNet' -MinimumVersion '1.2' -Resolved '1.6.0'

@@ -114,7 +114,7 @@ These rules decide which versions are in the range:
 
 #### When several extensions require the same extension
 
-ZeroFailed installs one version of each extension, so that version must be in every range that the extensions require:
+ZeroFailed installs one version of each extension, so that version must be in every range that the extensions require. A pre-release version is in a range only when that extension sets `PreRelease = $true`.
 
 - If your configuration includes the extension, ZeroFailed uses the version from your configuration, wherever you list it. It shows a warning when that version is outside a range that another extension requires.
 - Otherwise, ZeroFailed uses the newest version that is in every range. For example, an installed `1.3.0` meets "1.2.0 or later", but another extension requires "1.5.0 or later". ZeroFailed installs the newest `1.x` release for the second extension, and uses it for both.

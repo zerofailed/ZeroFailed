@@ -42,7 +42,8 @@ How it is used depends on the lock mode:
 
 Each extension's metadata includes a 'LockEntry' that records how it was requested and resolved.
 
-When several extensions require the same extension and at least one of them uses a 'MinimumVersion', the version that is used must be in every range that they require:
+When several extensions require the same extension and at least one of them uses a 'MinimumVersion', the version that is used must be in every range that they require.
+A pre-release version is only in the range of a 'MinimumVersion' that also sets 'PreRelease'.
 
 - If the configuration includes the extension, that version is used, wherever it is listed, and a warning names each range that it is not in.
 - Otherwise, the first one registered is used if it is in every range.
