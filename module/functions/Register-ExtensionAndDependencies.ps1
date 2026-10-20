@@ -9,6 +9,8 @@ function Register-ExtensionAndDependencies {
         .DESCRIPTION
         A recursive function responsible for registering the specified extension and its dependencies.
 
+        A local extension whose path does not exist is not registered: a warning is written, and nothing is returned for it.
+
         Each extension's metadata includes a 'LockEntry' that records how it was requested and resolved: its source, the requested git reference or version, the commit or version that was installed, and which extension required it.
 
         An extension can request a 'MinimumVersion' instead of a 'Version' or 'GitRef'.
@@ -164,8 +166,9 @@ function Register-ExtensionAndDependencies {
         }
 
         if ($lockEntry.source.type -eq 'path' -and !$extension.Enabled) {
-            # Missing local extension or invalid config
-            continue
+            # Missing local extension or invalid config, which is not registered, so that another extension with the same
+            # name can be used in its place
+            return
         }
 
         # When the lock file is used, check the installed extension before any of its code runs, as finding its tasks
@@ -200,10 +203,11 @@ function Register-ExtensionAndDependencies {
     if ($extension.Enabled) {
         foreach ($dependency in $extension.dependencies) {
             Write-Host "Processing dependency: $($dependency.Name)"
-            $processedExtensionConfig += Register-ExtensionAndDependencies -ExtensionConfig $dependency `
-                                                                           -TargetPath $TargetPath `
-                                                                           -RequiredBy $extension.Name `
-                                                                           -LockedExtensions $LockedExtensions
+            # A dependency that is not registered returns nothing
+            $processedExtensionConfig += @(Register-ExtensionAndDependencies -ExtensionConfig $dependency `
+                                                                             -TargetPath $TargetPath `
+                                                                             -RequiredBy $extension.Name `
+                                                                             -LockedExtensions $LockedExtensions)
         }
     }
     
