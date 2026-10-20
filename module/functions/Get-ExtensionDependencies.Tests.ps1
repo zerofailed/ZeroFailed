@@ -323,4 +323,32 @@ Describe 'Get-ExtensionDependencies' {
             }
         }
     }
+    Context 'ZF configuration that is not a hashtable' {
+        BeforeAll {
+            # As published in ZeroFailed.Build.Python 1.0.6
+            $mockModuleManifest = @{
+                RootModule = "an-extension"
+                PrivateData = @{
+                    PSData = @{
+                        ExternalModuleDependencies = @()
+                    }
+                    ZeroFailed = 'System.Collections.Hashtable'
+                }
+            }
+            Mock Import-PowerShellDataFile { $mockModuleManifest }
+            Mock Write-Warning {}
+
+            [array]$deps = Get-ExtensionDependencies $extensionConfig
+        }
+        AfterAll {}
+
+        It 'Should resolve no dependencies' {
+            $deps.Count | Should -Be 0
+        }
+        It 'Should log a warning that the dependencies cannot be read' {
+            Should -Invoke Write-Warning -Times 1 -Exactly -Scope Context -ParameterFilter {
+                $Message -like "The 'ZeroFailed' configuration in the module manifest of extension 'fake-extension' is not a hashtable*'System.Collections.Hashtable'*"
+            }
+        }
+    }
 }

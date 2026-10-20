@@ -45,7 +45,13 @@ function Get-ExtensionDependencies {
     if ($extensionModuleManifest.ContainsKey("PrivateData") -and `
             $extensionModuleManifest.PrivateData.ContainsKey($ZF_PRIVATEDATA_KEY_NAME)
     ) {
-        if ($extensionModuleManifest.PrivateData.$ZF_PRIVATEDATA_KEY_NAME.ContainsKey($ZF_EXTENSION_DEPENDENCIES_KEY_NAME)) {
+        if ($extensionModuleManifest.PrivateData.$ZF_PRIVATEDATA_KEY_NAME -isnot [System.Collections.IDictionary]) {
+            # A publishing problem can write the configuration as text (e.g. 'System.Collections.Hashtable'), so its
+            # dependencies are unknown
+            Write-Warning ("The '$ZF_PRIVATEDATA_KEY_NAME' configuration in the module manifest of extension '$($Extension.Name)' is not a hashtable, so its dependencies cannot be read: " +
+                           "'$($extensionModuleManifest.PrivateData.$ZF_PRIVATEDATA_KEY_NAME)'. The extension developer should correct the module manifest.")
+        }
+        elseif ($extensionModuleManifest.PrivateData.$ZF_PRIVATEDATA_KEY_NAME.ContainsKey($ZF_EXTENSION_DEPENDENCIES_KEY_NAME)) {
             Write-Verbose "Reading dependencies from module manifest"
             $dependenciesConfig = $extensionModuleManifest.PrivateData.$ZF_PRIVATEDATA_KEY_NAME.$ZF_EXTENSION_DEPENDENCIES_KEY_NAME
         }
