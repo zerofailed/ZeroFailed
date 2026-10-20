@@ -21,13 +21,14 @@ function Register-Extensions {
 
         Each extension's metadata includes a 'LockEntry' that records how it was requested and resolved.
 
-        When several extensions require the same extension and at least one of them uses a 'MinimumVersion', the version that is used must be in every range that they require.
-        The first one registered is used if it is.
-        Otherwise:
+        When several extensions require the same extension and at least one of them uses a 'MinimumVersion', the version that is used must be in every range that they require:
 
-        - If the first one comes from the configuration, it is used, and a warning names each range that it is not in.
+        - If the configuration includes the extension, that version is used, wherever it is listed, and a warning names each range that it is not in.
+        - Otherwise, the first one registered is used if it is in every range.
         - Otherwise, the newest registered version that is in every range is used in its place.
         - If no version is in every range, an error is thrown.
+
+        Without a 'MinimumVersion', the first one registered is used.
 
         .PARAMETER ExtensionsConfig
         An array of extension configuration objects.

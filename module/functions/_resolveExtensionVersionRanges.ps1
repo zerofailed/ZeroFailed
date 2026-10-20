@@ -97,6 +97,17 @@ function _resolveExtensionVersionRanges {
             continue
         }
 
+        # The configuration can choose a version that the extensions requiring it do not, which takes precedence. Its
+        # occurrence is not first when an extension listed before it requires the same extension, as registration is
+        # depth-first, so move it to the front.
+        $directIndex = $indices | Where-Object { $resolved[$_].ContainsKey('LockEntry') -and $resolved[$_].LockEntry.direct } | Select-Object -First 1
+        if ($null -ne $directIndex -and $directIndex -ne $indices[0]) {
+            $direct = $resolved[$directIndex]
+            $resolved[$directIndex] = $first
+            $resolved[$indices[0]] = $direct
+            $first = $direct
+        }
+
         # Later steps use the first occurrence of each extension, so it must satisfy every requirement
         $firstVersion = & $getVersion $first
         $unsatisfied = @($requirements | Where-Object { !(& $satisfies $firstVersion $_.Requirement) })
@@ -104,7 +115,6 @@ function _resolveExtensionVersionRanges {
             continue
         }
 
-        # The configuration can choose a version that the extensions requiring it do not, which takes precedence
         if ($first.LockEntry.direct) {
             Write-Warning ("Extension '$name'$($firstVersion ? " $firstVersion" : '') is used because it is in the configuration, but " +
                            (($unsatisfied | ForEach-Object { "$(& $describeRequirer $_.Extension) requires $($_.Requirement.Text)" }) -join '; '))

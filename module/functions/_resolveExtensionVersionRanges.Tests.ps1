@@ -115,6 +115,33 @@ Describe '_resolveExtensionVersionRanges' {
         }
     }
 
+    It 'Uses an occurrence from the configuration that is not first, with a warning' {
+        $extensions = @(
+            newRegisteredExtension -Name 'PowerShell' -Requested '1.0.0' -Resolved '1.0.0'
+            newRegisteredExtension -RequiredBy 'PowerShell' -MinimumVersion '1.5' -Resolved '1.6.0'
+            newRegisteredExtension -Requested '1.3.0' -Resolved '1.3.0'
+        )
+
+        $result = _resolveExtensionVersionRanges -Extensions $extensions
+
+        @($result | ForEach-Object { $_.Path }) | Should -Be @('PowerShell-1.0.0', 'Common-1.3.0', 'Common-1.6.0')
+        Should -Invoke Write-Warning -Times 1 -ParameterFilter {
+            $Message -eq "Extension 'Common' 1.3.0 is used because it is in the configuration, but 'PowerShell' requires [1.5.0,2.0.0)"
+        }
+    }
+
+    It 'Uses an occurrence from the configuration that is not first, even when the first one satisfies every requirement' {
+        $extensions = @(
+            newRegisteredExtension -RequiredBy 'PowerShell' -MinimumVersion '1.5' -Resolved '1.7.0'
+            newRegisteredExtension -MinimumVersion '1.5' -Resolved '1.6.0'
+        )
+
+        $result = _resolveExtensionVersionRanges -Extensions $extensions
+
+        $result[0].Path | Should -Be 'Common-1.6.0'
+        Should -Invoke Write-Warning -Times 0
+    }
+
     It 'Throws when no version satisfies every requirement' {
         $extensions = @(
             newRegisteredExtension -RequiredBy 'DotNet' -MinimumVersion '1.2' -Resolved '1.6.0'

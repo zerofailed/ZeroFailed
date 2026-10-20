@@ -116,9 +116,11 @@ These rules decide which versions are in the range:
 
 ZeroFailed installs one version of each extension, so that version must be in every range that the extensions require:
 
-- If your configuration includes the extension, ZeroFailed uses the version from your configuration. It shows a warning when that version is outside a range that another extension requires.
+- If your configuration includes the extension, ZeroFailed uses the version from your configuration, wherever you list it. It shows a warning when that version is outside a range that another extension requires.
 - Otherwise, ZeroFailed uses the newest version that is in every range. For example, an installed `1.3.0` meets "1.2.0 or later", but another extension requires "1.5.0 or later". ZeroFailed installs the newest `1.x` release for the second extension, and uses it for both.
 - If no version is in every range, the run fails. For example, two extensions can require different major versions. To choose a version yourself, add the extension to your configuration.
+
+These rules apply only when at least one extension uses `MinimumVersion`. Otherwise, ZeroFailed uses the first one that it registers. It registers each extension in your configuration, in order, followed by that extension's dependencies. To choose a version in that case, list the extension in your configuration before the extensions that require it.
 
 When ZeroFailed uses a newer copy in place of an older installed copy, it still registers the dependencies that only the older copy declares. To remove them, delete the older copy's folder in `.zf/extensions`, then run again.
 
