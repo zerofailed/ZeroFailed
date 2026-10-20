@@ -30,6 +30,8 @@ Register-ExtensionAndDependencies [-ExtensionConfig] <Object> [-TargetPath] <str
 
 A recursive function responsible for registering the specified extension and its dependencies.
 
+A local extension whose path does not exist is not registered: a warning is written, and nothing is returned for it.
+
 Each extension's metadata includes a 'LockEntry' that records how it was requested and resolved: its source, the requested git reference or version, the commit or version that was installed, and which extension required it.
 
 An extension can request a 'MinimumVersion' instead of a 'Version' or 'GitRef'.

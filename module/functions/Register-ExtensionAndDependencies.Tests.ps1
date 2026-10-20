@@ -711,7 +711,12 @@ Describe 'Register-ExtensionAndDependencies' {
         }
 
         Context 'Local extension path does not exist' {
-            It 'Should disable the extension and write a warning' {
+            BeforeAll {
+                Mock Get-ExtensionDependencies {}
+                Mock Get-ExtensionAvailableTasks {}
+            }
+
+            It 'Should not register the extension, and write a warning' {
                 $missingExtension = 'missingZfExtension'
                 $missingPath = Join-Path $TestDrive $missingExtension
                 $extensionConfig = @{
@@ -721,15 +726,26 @@ Describe 'Register-ExtensionAndDependencies' {
 
                 [array]$result = Register-ExtensionAndDependencies -ExtensionConfig $extensionConfig -TargetPath $targetPath
 
-                $result.Count | Should -Be 1
-                $result[0].Name | Should -Be $missingExtension
-                $result[0].Enabled | Should -Be $false
+                $result.Count | Should -Be 0
                 Should -Invoke Write-Warning -Exactly 1 -ParameterFilter {
-                    $_.ToString() -like "Extension 'TestmockExtensionName' not found at $invalidPath - it has been disabled.*"
+                    $Message -eq "Extension '$missingExtension' not found at $missingPath - it has been disabled."
                 }
                 Should -Not -Invoke Get-ExtensionDependencies
                 Should -Not -Invoke Get-ExtensionAvailableTasks
-                Should -Not -Invoke Register-ExtensionAndDependencies -ParameterFilter { $ExtensionConfig.Name -ne $missingExtension }
+            }
+
+            It 'Should return to the caller, rather than ending a loop that the caller is running' {
+                $missingPath = Join-Path $TestDrive 'missingZfExtension'
+
+                # 'continue' in the function would skip the rest of this loop's body
+                $completedIterations = 0
+                foreach ($i in 1..2) {
+                    $result = @(Register-ExtensionAndDependencies -ExtensionConfig @{ Name = 'missingZfExtension'; Path = $missingPath } -TargetPath $targetPath)
+                    $completedIterations++
+                }
+
+                $completedIterations | Should -Be 2
+                $result.Count | Should -Be 0
             }
         }
 

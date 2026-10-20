@@ -217,9 +217,10 @@ function Register-Extensions {
     # Process each configured extension
     for ($i=0; $i -lt $ExtensionsConfig.Length; $i++) {
 
-        $registeredExtensions = Register-ExtensionAndDependencies -ExtensionConfig $ExtensionsConfig[$i] `
-                                                                 -TargetPath $zfExtensionsPath `
-                                                                 -LockedExtensions $lockedExtensions
+        # An extension that is not registered (a missing local extension) returns nothing
+        $registeredExtensions = @(Register-ExtensionAndDependencies -ExtensionConfig $ExtensionsConfig[$i] `
+                                                                   -TargetPath $zfExtensionsPath `
+                                                                   -LockedExtensions $lockedExtensions)
 
         # Persist the fully-populated extension metadata
         $processedExtensionConfig += $registeredExtensions
