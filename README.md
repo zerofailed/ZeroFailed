@@ -253,6 +253,8 @@ In `Write` mode, an extension that is already installed is used as it is, so the
 
 When you change the extensions in the configuration, run once in `Write` mode to update the lock file. Otherwise a `Frozen` run fails because the configuration differs from the lock file.
 
+A `MinimumVersion` uses the locked version when it comes from the same source and is in the range, even when the lock file records a different `requested` range. Several extensions can require the same extension with different minimum versions, and the lock file records only one of them. So a `Frozen` run treats a `MinimumVersion` as different from the lock file only when the locked version is outside its range.
+
 ZeroFailed records the commit of an extension installed from a git repository in a `.zf-source.json` file in its folder. Extensions installed by earlier versions of ZeroFailed do not have this file, so their commit is unknown. ZeroFailed warns about these, and you can delete their folders to re-install them and record their commits.
 
 

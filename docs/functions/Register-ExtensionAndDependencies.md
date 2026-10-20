@@ -38,6 +38,7 @@ An installed release in that range is used as it is.
 Its lock entry records the range (for example, '[1.4.0,2.0.0)') as the requested version and, for a git repository, the release tag as 'resolvedRef'.
 
 When locked extensions are provided, an extension whose lock entry matches how it is requested is installed at the commit or version recorded in the lock entry.
+For a 'MinimumVersion', the lock entry matches when it has the same source and its version is in the range, whatever range it records as requested.
 
 ## EXAMPLES
 

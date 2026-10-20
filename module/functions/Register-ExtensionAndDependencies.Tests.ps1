@@ -16,6 +16,7 @@ BeforeAll {
     . (Join-Path (Split-Path -Parent $PSCommandPath) '_testExtensionLockEntryMatch.ps1')
     . (Join-Path (Split-Path -Parent $PSCommandPath) '_getExtensionVersionRange.ps1')
     . (Join-Path (Split-Path -Parent $PSCommandPath) '_testExtensionVersionInRange.ps1')
+    . (Join-Path (Split-Path -Parent $PSCommandPath) '_getVersionFromGitTag.ps1')
     . (Join-Path (Split-Path -Parent $PSCommandPath) 'Get-ExtensionDependencies.ps1')
     . (Join-Path (Split-Path -Parent $PSCommandPath) '_resolveModuleNameFromPath.ps1')
     . (Join-Path (Split-Path -Parent $PSCommandPath) 'Resolve-ExtensionMetadata.ps1')
@@ -346,10 +347,54 @@ Describe 'Register-ExtensionAndDependencies' {
             It 'Records whether a minimum version includes pre-release tags' {
                 $extensionConfig.PreRelease = $true
 
-                [array]$result = Register-ExtensionAndDependencies -ExtensionConfig $extensionConfig -TargetPath $targetPath -LockedExtensions @{ 'ZeroFailed.DevOps.Common' = $lockEntry }
+                [array]$result = Register-ExtensionAndDependencies -ExtensionConfig $extensionConfig -TargetPath $targetPath
 
                 $result[0].LockEntry.source.preRelease | Should -Be $true
                 Should -Invoke _getExtensionFromGit -Times 1 -ParameterFilter { $PreRelease -and !$LockedCommit }
+            }
+
+            It 'Installs the locked release tag when it was locked for a different minimum version that it is in the range of' {
+                $lockEntry.requested = '[1.5.0,2.0.0)'
+
+                Register-ExtensionAndDependencies -ExtensionConfig $extensionConfig -TargetPath $targetPath -LockedExtensions @{ 'ZeroFailed.DevOps.Common' = $lockEntry } | Out-Null
+
+                Should -Invoke _getExtensionFromGit -Times 1 -ParameterFilter { $GitRef -eq 'refs/tags/1.5.0' -and $LockedCommit -eq 'locked-commit' }
+            }
+
+            It 'Installs the locked release tag when it was locked for an exact git reference that is in the range' {
+                $lockEntry.requested = 'refs/tags/v1.6.0'
+                $lockEntry.Remove('resolvedRef')
+
+                Register-ExtensionAndDependencies -ExtensionConfig $extensionConfig -TargetPath $targetPath -LockedExtensions @{ 'ZeroFailed.DevOps.Common' = $lockEntry } | Out-Null
+
+                Should -Invoke _getExtensionFromGit -Times 1 -ParameterFilter { $GitRef -eq 'refs/tags/v1.6.0' -and $LockedCommit -eq 'locked-commit' }
+            }
+
+            It 'Installs a locked release tag without a pre-release label when pre-release tags are included' {
+                $extensionConfig.PreRelease = $true
+
+                Register-ExtensionAndDependencies -ExtensionConfig $extensionConfig -TargetPath $targetPath -LockedExtensions @{ 'ZeroFailed.DevOps.Common' = $lockEntry } | Out-Null
+
+                Should -Invoke _getExtensionFromGit -Times 1 -ParameterFilter { $GitRef -eq 'refs/tags/1.5.0' -and $LockedCommit -eq 'locked-commit' }
+            }
+
+            It 'Does not use a locked release tag that is <Description>' -ForEach @(
+                @{ Description = 'outside the range'; ResolvedRef = 'refs/tags/2.0.0' }
+                @{ Description = 'a pre-release, when pre-release tags are not included'; ResolvedRef = 'refs/tags/1.6.0-beta.1' }
+            ) {
+                $lockEntry.resolvedRef = $ResolvedRef
+
+                Register-ExtensionAndDependencies -ExtensionConfig $extensionConfig -TargetPath $targetPath -LockedExtensions @{ 'ZeroFailed.DevOps.Common' = $lockEntry } | Out-Null
+
+                Should -Invoke _getExtensionFromGit -Times 1 -ParameterFilter { !$GitRef -and !$LockedCommit }
+            }
+
+            It 'Does not use a locked release tag from a different repository' {
+                $lockEntry.source.repository = 'https://github.com/myorg/ZeroFailed.DevOps.Common'
+
+                Register-ExtensionAndDependencies -ExtensionConfig $extensionConfig -TargetPath $targetPath -LockedExtensions @{ 'ZeroFailed.DevOps.Common' = $lockEntry } | Out-Null
+
+                Should -Invoke _getExtensionFromGit -Times 1 -ParameterFilter { !$GitRef -and !$LockedCommit }
             }
 
             It 'Does not record pre-release tags for a git reference' {
@@ -378,8 +423,9 @@ Describe 'Register-ExtensionAndDependencies' {
                 Should -Invoke _getExtensionFromGit -Times 1 -ParameterFilter { !$GitRef -and !$LockedCommit }
             }
 
-            It 'Does not use a lock entry for a git reference' {
+            It 'Does not use a lock entry for a git branch' {
                 $lockEntry.requested = 'main'
+                $lockEntry.Remove('resolvedRef')
 
                 Register-ExtensionAndDependencies -ExtensionConfig $extensionConfig -TargetPath $targetPath -LockedExtensions @{ 'ZeroFailed.DevOps.Common' = $lockEntry } | Out-Null
 
@@ -526,12 +572,28 @@ Describe 'Register-ExtensionAndDependencies' {
                 Should -Invoke _getExtensionFromPSRepository -Times 1 -ParameterFilter { $MinimumVersion -eq '1.0' -and $LockedVersion -eq '1.0.0' }
             }
 
-            It 'Does not use a lock entry for the exact version when a minimum version is requested' {
+            It 'Installs the locked version of a minimum version when it was locked for a request that it is in the range of' {
                 Register-ExtensionAndDependencies -ExtensionConfig @{ Name = $mockModuleName; MinimumVersion = '1.0.0' } -TargetPath $targetPath -LockedExtensions @{
                     $mockModuleName = @{
-                        source = @{ type = 'psrepository'; repository = 'PSGallery'; preRelease = $false }
+                        source = @{ type = 'psrepository'; repository = 'PSGallery'; preRelease = $true }
                         requested = '1.0.0'
                         resolved = '1.0.0'
+                    }
+                } | Out-Null
+
+                Should -Invoke _getExtensionFromPSRepository -Times 1 -ParameterFilter { $LockedVersion -eq '1.0.0' }
+            }
+
+            It 'Does not use the locked version of a minimum version when it is <Description>' -ForEach @(
+                @{ Description = 'outside the range'; Resolved = '2.0.0'; Repository = 'PSGallery' }
+                @{ Description = 'a pre-release, when pre-release versions are not included'; Resolved = '1.1.0-beta1'; Repository = 'PSGallery' }
+                @{ Description = 'from a different repository'; Resolved = '1.1.0'; Repository = 'MyRepository' }
+            ) {
+                Register-ExtensionAndDependencies -ExtensionConfig @{ Name = $mockModuleName; MinimumVersion = '1.0.0' } -TargetPath $targetPath -LockedExtensions @{
+                    $mockModuleName = @{
+                        source = @{ type = 'psrepository'; repository = $Repository; preRelease = $true }
+                        requested = '[1.0.0,2.0.0)'
+                        resolved = $Resolved
                     }
                 } | Out-Null
 

@@ -17,6 +17,7 @@ function Register-ExtensionAndDependencies {
         Its lock entry records the range (for example, '[1.4.0,2.0.0)') as the requested version and, for a git repository, the release tag as 'resolvedRef'.
 
         When locked extensions are provided, an extension whose lock entry matches how it is requested is installed at the commit or version recorded in the lock entry.
+        For a 'MinimumVersion', the lock entry matches when it has the same source and its version is in the range, whatever range it records as requested.
 
         .PARAMETER ExtensionConfig
         A hashtable containing the initial extension metadata provided by the user.
@@ -100,13 +101,13 @@ function Register-ExtensionAndDependencies {
                                                 -Requested $requested `
                                                 -RequiredBy $RequiredBy
             $lockedEntry = $LockedExtensions ? $LockedExtensions[$extension.Name] : $null
-            # A locked minimum version also needs the release tag that it resolved to
-            if ($lockedEntry -and $lockedEntry['resolved'] -and (!$hasMinimumVersion -or $lockedEntry['resolvedRef']) -and
-                    (_testExtensionLockEntryMatch -LockEntry $lockedEntry -Entry $lockEntry)) {
+            if ($lockedEntry -and $lockedEntry['resolved'] -and
+                    (_testExtensionLockEntryMatch -LockEntry $lockedEntry -Entry $lockEntry -MinimumVersion $extension['MinimumVersion'] -PreRelease:([bool]$extension['PreRelease']))) {
                 Write-Host "Using locked commit for extension $($extension.Name): $($lockedEntry['resolved'])" -f Cyan
                 $splat.Add("LockedCommit", $lockedEntry['resolved'])
+                # A minimum version is installed from the locked release tag
                 if ($hasMinimumVersion) {
-                    $splat.Add("GitRef", $lockedEntry['resolvedRef'])
+                    $splat.Add("GitRef", ($lockedEntry['resolvedRef'] ? $lockedEntry['resolvedRef'] : $lockedEntry['requested']))
                 }
             }
 
@@ -120,13 +121,14 @@ function Register-ExtensionAndDependencies {
             $splat["PSRepository"] = $extension.ContainsKey("PSRepository") ? $extension.PSRepository : $DefaultPSRepository
 
             # A minimum version is recorded as its range, so that it is distinct from the same exact version
-            $requested = $extension.ContainsKey("MinimumVersion") ? (_getExtensionVersionRange -MinimumVersion $extension.MinimumVersion).Text : $extension.Version
+            $requested = $extension.ContainsKey("MinimumVersion") ? (_getExtensionVersionRange -MinimumVersion $extension.MinimumVersion).Text : $extension['Version']
             $lockEntry = _newExtensionLockEntry -SourceType 'psrepository' `
-                                                -Source @{ repository = $splat.PSRepository; preRelease = [bool]$extension.PreRelease } `
+                                                -Source @{ repository = $splat.PSRepository; preRelease = [bool]$extension['PreRelease'] } `
                                                 -Requested $requested `
                                                 -RequiredBy $RequiredBy
             $lockedEntry = $LockedExtensions ? $LockedExtensions[$extension.Name] : $null
-            if ($lockedEntry -and $lockedEntry['resolved'] -and (_testExtensionLockEntryMatch -LockEntry $lockedEntry -Entry $lockEntry)) {
+            if ($lockedEntry -and $lockedEntry['resolved'] -and
+                    (_testExtensionLockEntryMatch -LockEntry $lockedEntry -Entry $lockEntry -MinimumVersion $extension['MinimumVersion'] -PreRelease:([bool]$extension['PreRelease']))) {
                 Write-Host "Using locked version for extension $($extension.Name): v$($lockedEntry['resolved'])" -f Cyan
                 $splat.Add("LockedVersion", $lockedEntry['resolved'])
             }
