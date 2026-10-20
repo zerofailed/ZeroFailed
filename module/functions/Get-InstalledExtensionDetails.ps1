@@ -2,8 +2,56 @@
 # Copyright (c) Endjin Limited. All rights reserved.
 # </copyright>
 function Get-InstalledExtensionDetails {
+    <#
+        .SYNOPSIS
+        Retrieves the details of an installed extension.
+
+        .DESCRIPTION
+        Searches the local system for an installed version of the PowerShell module representing the specified extension, and returns
+        the path to the module and the version that was found.
+
+        .PARAMETER Name
+        The name of the extension, which is also the name of the PowerShell module.
+
+        .PARAMETER TargetPath
+        The path to the folder where ZeroFailed extensions are installed (typically '.zf/extensions').
+
+        .PARAMETER Version
+        The version of the extension, if not specified the latest version available, if any, will be returned.
+        When specified, only that exact version is returned, even if a later version is installed.
+        When this contains a semantic version with a pre-release tag, then this implies that a pre-release version is acceptable, as if the '-PreRelease' switch had been specified.
+        When the '-PreRelease' switch is specified, a version without a pre-release tag (for example, '1.0.0') also matches its pre-release versions (for example, '1.0.0-beta0001').
+
+        .PARAMETER MinimumVersion
+        The lowest version of the extension to return.
+        The newest installed version from this version up to, but not including, the next major version is returned: for example, '1.4.0' matches '1.9.2', but not '2.0.0'.
+        Before version 1.0.0, the limit is the next change to the first part that is not zero: for example, '0.3.1' matches versions below '0.4.0'.
+        Pre-release versions only match when the '-PreRelease' switch is specified.
+        When '-Version' is also specified, this parameter is ignored.
+
+        .PARAMETER GitRefAsFolderName
+        The extension version as represented by the GitRef, modified to be safe for use as a filesystem directory name.
+
+        .PARAMETER PreRelease
+        Indicates whether to include pre-release versions in the search.
+
+        .EXAMPLE
+        PS:> $path,$version = Get-InstalledExtensionDetails -Name "MyExtension" -TargetPath "C:/MyProject/.zf"
+
+        .EXAMPLE
+        PS:> $path,$version = Get-InstalledExtensionDetails -Name "MyExtension" -TargetPath "C:/MyProject/.zf" -Version "1.0.0"
+
+        .EXAMPLE
+        PS:> $path,$version = Get-InstalledExtensionDetails -Name "MyExtension" -TargetPath "C:/MyProject/.zf" -Version "1.0.0-beta0001" -PreRelease
+
+        .EXAMPLE
+        PS:> $path,$version = Get-InstalledExtensionDetails -Name "MyExtension" -TargetPath "C:/MyProject/.zf" -PreRelease
+
+        .EXAMPLE
+        PS:> $path,$version = Get-InstalledExtensionDetails -Name "MyExtension" -TargetPath "C:/MyProject/.zf" -MinimumVersion "1.4.0"
+    #>
     [CmdletBinding(DefaultParameterSetName='Version')]
-    [OutputType([string[]])]
+    [OutputType([string])]
     param (
         [Parameter(Mandatory=$true)]
         [string] $Name,

@@ -4,7 +4,7 @@ external help file: ZeroFailed-Help.xml
 HelpUri: ''
 Locale: en-GB
 Module Name: ZeroFailed
-ms.date: 06/22/2026
+ms.date: 10/20/2026
 PlatyPS schema version: 2024-05-01
 title: Get-InstalledExtensionDetails
 ---
@@ -85,11 +85,11 @@ HelpMessage: ''
 
 ### -MinimumVersion
 
-The lowest version of the extension to return. The newest installed version from this version up to, but not
-including, the next major version is returned (e.g. '1.4.0' matches '1.9.2', but not '2.0.0'). Before version 1.0.0,
-the limit is the next change to the first part that is not zero (e.g. '0.3.1' matches versions below '0.4.0').
-Pre-release versions only match when the '-PreRelease' switch is specified. When '-Version' is also specified,
-this parameter is ignored.
+The lowest version of the extension to return.
+The newest installed version from this version up to, but not including, the next major version is returned: for example, '1.4.0' matches '1.9.2', but not '2.0.0'.
+Before version 1.0.0, the limit is the next change to the first part that is not zero: for example, '0.3.1' matches versions below '0.4.0'.
+Pre-release versions only match when the '-PreRelease' switch is specified.
+When '-Version' is also specified, this parameter is ignored.
 
 ```yaml
 Type: System.String
@@ -175,10 +175,8 @@ HelpMessage: ''
 
 The version of the extension, if not specified the latest version available, if any, will be returned.
 When specified, only that exact version is returned, even if a later version is installed.
-When this contains a semantic version with a pre-release tag, then this implies that a pre-release
-version is acceptable. (i.e. as if the '-PreRelease' switch had been specified)
-When the '-PreRelease' switch is specified, a version without a pre-release tag (e.g. '1.0.0') also matches its
-pre-release versions (e.g. '1.0.0-beta0001').
+When this contains a semantic version with a pre-release tag, then this implies that a pre-release version is acceptable, as if the '-PreRelease' switch had been specified.
+When the '-PreRelease' switch is specified, a version without a pre-release tag (for example, '1.0.0') also matches its pre-release versions (for example, '1.0.0-beta0001').
 
 ```yaml
 Type: System.String
