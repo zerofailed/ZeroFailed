@@ -78,7 +78,7 @@ Describe '_copyFolderFromGitRepo' {
         # Serve it as a bare repository via a 'file://' URL, so that git uses its network protocol
         $bareRepo = Join-Path $TestDrive 'fixture.git'
         invokeFixtureGit clone --bare --quiet $sourceRepo $bareRepo | Out-Null
-        $repoUrl = ([uri]$bareRepo).AbsoluteUri
+        $repoUrl = [uri]::new($bareRepo, [UriKind]::Absolute).AbsoluteUri
 
         $targetPath = Join-Path $TestDrive 'extensions'
 

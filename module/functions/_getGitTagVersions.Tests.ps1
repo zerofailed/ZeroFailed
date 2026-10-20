@@ -41,7 +41,7 @@ Describe '_getGitTagVersions' {
         # Serve it as a bare repository via a 'file://' URL, so that git uses its network protocol
         $bareRepo = Join-Path $TestDrive 'fixture.git'
         invokeFixtureGit clone --bare --quiet $sourceRepo $bareRepo | Out-Null
-        $repoUrl = ([uri]$bareRepo).AbsoluteUri
+        $repoUrl = [uri]::new($bareRepo, [UriKind]::Absolute).AbsoluteUri
 
         Mock Write-Verbose {}
     }
@@ -55,7 +55,7 @@ Describe '_getGitTagVersions' {
     }
 
     It 'Throws when the tags cannot be listed' {
-        $missingRepoUrl = ([uri](Join-Path $TestDrive 'missing.git')).AbsoluteUri
+        $missingRepoUrl = [uri]::new((Join-Path $TestDrive 'missing.git'), [UriKind]::Absolute).AbsoluteUri
 
         { _getGitTagVersions -RepoUrl $missingRepoUrl } | Should -Throw "git ls-remote --tags --refs $missingRepoUrl failed*"
     }
