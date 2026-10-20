@@ -8,7 +8,15 @@ function _resolveExtensionVersionRanges {
     param (
         [Parameter(Mandatory)]
         [AllowEmptyCollection()]
-        [hashtable[]] $Extensions
+        [hashtable[]] $Extensions,
+
+        # Where to install a version that satisfies every requirement, when no registered version does
+        [Parameter(Mandatory)]
+        [string] $TargetPath,
+
+        [Parameter()]
+        [AllowNull()]
+        [System.Collections.IDictionary] $LockedExtensions
     )
 
     # The version that an extension resolved to, when it is known (i.e. not a git branch or commit, or a local path)
@@ -33,7 +41,8 @@ function _resolveExtensionVersionRanges {
         $lockEntry = $extension.LockEntry
         if ($extension.ContainsKey('MinimumVersion')) {
             $range = _getExtensionVersionRange -MinimumVersion $extension.MinimumVersion
-            @{ Text = $range.Text; Range = $range; Exact = $null }
+            $preRelease = [bool]$extension['PreRelease']
+            @{ Text = "$($range.Text)$($preRelease ? ', including pre-release versions' : '')"; Range = $range; PreRelease = $preRelease; Exact = $null }
         }
         elseif ($lockEntry.requested) {
             $exact = $null
@@ -55,8 +64,8 @@ function _resolveExtensionVersionRanges {
             return $false
         }
         if ($requirement.Range) {
-            # Pre-release versions are only installed when they are requested, but they are still in the range
-            return (_testExtensionVersionInRange -Version $version -Range $requirement.Range -PreRelease)
+            # A pre-release version only satisfies a minimum version that includes pre-release versions
+            return (_testExtensionVersionInRange -Version $version -Range $requirement.Range -PreRelease:$requirement.PreRelease)
         }
         return ($version -eq $requirement.Exact)
     }
@@ -65,6 +74,56 @@ function _resolveExtensionVersionRanges {
         param ($extension)
         $extension.LockEntry.direct ? 'The configuration' : "'$($extension.LockEntry.requiredBy -join "', '")'"
     }
+
+    # The source of an extension, ignoring whether pre-release versions are included, as the lock file compares it
+    $describeSource = {
+        param ($extension)
+        $source = $extension.LockEntry.source
+        "$($source.type)|$("$($source['repository'])".TrimEnd('/').ToLowerInvariant())|$($source['folderPath'])"
+    }
+
+    # Installs the newest version in every range, when they overlap and every extension requires the same source. Every
+    # range ends at the next breaking change (e.g. the next major version), so overlapping ranges overlap in the range of
+    # the highest minimum version. Returns the registered extension and its dependencies.
+    $registerVersionInEveryRange = {
+        param ($name, $requirements)
+        if ($requirements | Where-Object { !$_.Requirement.Range }) {
+            return
+        }
+        if (@($requirements | ForEach-Object { & $describeSource $_.Extension } | Select-Object -Unique).Count -gt 1) {
+            return
+        }
+
+        $highest = $requirements | Sort-Object -Property { $_.Requirement.Range.Minimum } -Descending | Select-Object -First 1
+        $minimum = $highest.Requirement.Range.Minimum
+        $range = _getExtensionVersionRange -MinimumVersion "$minimum"
+        if ($requirements | Where-Object { $_.Requirement.Range.Maximum -ne $range.Maximum }) {
+            return
+        }
+
+        $source = $highest.Extension.LockEntry.source
+        $config = @{ Name = $name; MinimumVersion = "$minimum" }
+        if ($source.type -eq 'git') {
+            $config.GitRepository = $source.repository
+            $config.GitRepositoryFolderPath = $source.folderPath
+        }
+        else {
+            $config.PSRepository = $source.repository
+        }
+        # A pre-release version is only in every range when every extension includes pre-release versions
+        if (!($requirements | Where-Object { !$_.Requirement.PreRelease })) {
+            $config.PreRelease = $true
+        }
+
+        Write-Host "Installing a version of extension '$name' that satisfies every extension that requires it: $($range.Text)" -f Cyan
+        Register-ExtensionAndDependencies -ExtensionConfig $config `
+                                          -TargetPath $TargetPath `
+                                          -RequiredBy ($highest.Extension.LockEntry.requiredBy | Select-Object -First 1) `
+                                          -LockedExtensions $LockedExtensions
+    }
+
+    # Whether an extension was installed, whose dependencies may also need to be reconciled
+    $installedAny = $false
 
     # Find every occurrence of each extension, in the order that they were registered
     $resolved = [System.Collections.Generic.List[hashtable]]::new($Extensions)
@@ -97,6 +156,17 @@ function _resolveExtensionVersionRanges {
             continue
         }
 
+        # The configuration can choose a version that the extensions requiring it do not, which takes precedence. Its
+        # occurrence is not first when an extension listed before it requires the same extension, as registration is
+        # depth-first, so move it to the front.
+        $directIndex = $indices | Where-Object { $resolved[$_].ContainsKey('LockEntry') -and $resolved[$_].LockEntry.direct } | Select-Object -First 1
+        if ($null -ne $directIndex -and $directIndex -ne $indices[0]) {
+            $direct = $resolved[$directIndex]
+            $resolved[$directIndex] = $first
+            $resolved[$indices[0]] = $direct
+            $first = $direct
+        }
+
         # Later steps use the first occurrence of each extension, so it must satisfy every requirement
         $firstVersion = & $getVersion $first
         $unsatisfied = @($requirements | Where-Object { !(& $satisfies $firstVersion $_.Requirement) })
@@ -104,7 +174,6 @@ function _resolveExtensionVersionRanges {
             continue
         }
 
-        # The configuration can choose a version that the extensions requiring it do not, which takes precedence
         if ($first.LockEntry.direct) {
             Write-Warning ("Extension '$name'$($firstVersion ? " $firstVersion" : '') is used because it is in the configuration, but " +
                            (($unsatisfied | ForEach-Object { "$(& $describeRequirer $_.Extension) requires $($_.Requirement.Text)" }) -join '; '))
@@ -125,6 +194,28 @@ function _resolveExtensionVersionRanges {
                     Sort-Object -Property { $_.Version } -Descending |
                     Select-Object -First 1
 
+        # Otherwise, a version that was not registered may satisfy every requirement (e.g. when an installed copy
+        # satisfies one minimum version, and a pre-release satisfies another that includes pre-release versions)
+        $installError = $null
+        if (!$best) {
+            try {
+                $registered = @(& $registerVersionInEveryRange $name $requirements)
+            }
+            catch {
+                $installError = $_.Exception.Message
+                $registered = @()
+            }
+            if ($registered.Count -gt 0 -and $registered[0].Enabled) {
+                $version = & $getVersion $registered[0]
+                if ($version -and !($requirements | Where-Object { !(& $satisfies $version $_.Requirement) })) {
+                    $installedAny = $true
+                    $indices.Add($resolved.Count)
+                    $resolved.AddRange([hashtable[]]$registered)
+                    $best = @{ Extension = $registered[0]; Version = $version }
+                }
+            }
+        }
+
         if (!$best) {
             $details = $requirements | ForEach-Object {
                 $version = & $getVersion $_.Extension
@@ -132,6 +223,7 @@ function _resolveExtensionVersionRanges {
             }
             throw ("No version of extension '$name' satisfies every extension that requires it:`n" +
                    ($details -join "`n") + "`n" +
+                   ($installError ? "A version in every range could not be installed: $installError`n" : '') +
                    "They may need different major versions. To use one version for all of them, add '$name' to the configuration.")
         }
 
@@ -139,6 +231,11 @@ function _resolveExtensionVersionRanges {
         $bestIndex = $indices | Where-Object { [object]::ReferenceEquals($resolved[$_], $best.Extension) } | Select-Object -First 1
         $resolved[$bestIndex] = $first
         $resolved[$indices[0]] = $best.Extension
+    }
+
+    # The dependencies of an installed extension are registered after it, so reconcile them too
+    if ($installedAny) {
+        return _resolveExtensionVersionRanges -Extensions $resolved.ToArray() -TargetPath $TargetPath -LockedExtensions $LockedExtensions
     }
 
     return $resolved.ToArray()

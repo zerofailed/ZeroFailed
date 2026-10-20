@@ -110,15 +110,18 @@ These rules decide which versions are in the range:
 - Before version 1.0.0, the first part that is not zero sets the limit. For example, `MinimumVersion = '0.3.1'` accepts versions below `0.4.0`.
 - ZeroFailed installs a pre-release version only when you also set `PreRelease = $true`.
 - In a git repository, a release is a tag named after a full semantic version (for example, `1.4.2` or `v1.4.2`). The `v` prefix is optional. ZeroFailed ignores other tags, such as `v1`.
+- ZeroFailed reads only the tags in the git repository. It does not use GitHub Releases (or the release features of other git hosts). A tag without a GitHub Release is used, a draft GitHub Release that has no tag yet is not used, and the GitHub "pre-release" setting is ignored. Only a pre-release label in the tag name, such as `1.5.0-beta.1`, makes a version a pre-release.
 - If a release in the range is already installed, ZeroFailed uses it. To update to the newest release, delete the extension's folder in `.zf/extensions`, then run again.
 
 #### When several extensions require the same extension
 
-ZeroFailed installs one version of each extension, so that version must be in every range that the extensions require:
+ZeroFailed installs one version of each extension, so that version must be in every range that the extensions require. A pre-release version is in a range only when that extension sets `PreRelease = $true`.
 
-- If your configuration includes the extension, ZeroFailed uses the version from your configuration. It shows a warning when that version is outside a range that another extension requires.
-- Otherwise, ZeroFailed uses the newest version that is in every range. For example, an installed `1.3.0` meets "1.2.0 or later", but another extension requires "1.5.0 or later". ZeroFailed installs the newest `1.x` release for the second extension, and uses it for both.
+- If your configuration includes the extension, ZeroFailed uses the version from your configuration, wherever you list it. It shows a warning when that version is outside a range that another extension requires.
+- Otherwise, ZeroFailed uses the newest version that is in every range. For example, an installed `1.3.0` meets "1.2.0 or later", but another extension requires "1.5.0 or later". ZeroFailed installs the newest `1.x` release for the second extension, and uses it for both. If none of the versions that the extensions resolved to is in every range, ZeroFailed installs the newest release that is. For example, one extension allows pre-release versions and resolves to `1.7.0-beta.1`, and another does not and uses an installed `1.5.0`. If both require "1.4.0 or later", ZeroFailed uses `1.5.0`. If the first requires "1.6.0 or later", ZeroFailed installs the newest `1.x` release from `1.6.0` without a pre-release label.
 - If no version is in every range, the run fails. For example, two extensions can require different major versions. To choose a version yourself, add the extension to your configuration.
+
+These rules apply only when at least one extension uses `MinimumVersion`. Otherwise, ZeroFailed uses the first one that it registers. It registers each extension in your configuration, in order, followed by that extension's dependencies. To choose a version in that case, list the extension in your configuration before the extensions that require it.
 
 When ZeroFailed uses a newer copy in place of an older installed copy, it still registers the dependencies that only the older copy declares. To remove them, delete the older copy's folder in `.zf/extensions`, then run again.
 

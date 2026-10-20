@@ -22,12 +22,14 @@ function Register-Extensions {
         Each extension's metadata includes a 'LockEntry' that records how it was requested and resolved.
 
         When several extensions require the same extension and at least one of them uses a 'MinimumVersion', the version that is used must be in every range that they require.
-        The first one registered is used if it is.
-        Otherwise:
+        A pre-release version is only in the range of a 'MinimumVersion' that also sets 'PreRelease'.
 
-        - If the first one comes from the configuration, it is used, and a warning names each range that it is not in.
+        - If the configuration includes the extension, that version is used, wherever it is listed, and a warning names each range that it is not in.
+        - Otherwise, the first one registered is used if it is in every range.
         - Otherwise, the newest registered version that is in every range is used in its place.
         - If no version is in every range, an error is thrown.
+
+        Without a 'MinimumVersion', the first one registered is used.
 
         .PARAMETER ExtensionsConfig
         An array of extension configuration objects.
@@ -224,7 +226,10 @@ function Register-Extensions {
     }
 
     # When several extensions require the same extension with a minimum version, use a version that satisfies all of them
-    $processedExtensionConfig = _resolveExtensionVersionRanges -Extensions $processedExtensionConfig
+    # (an empty result is kept as an empty array, e.g. when every extension is a missing local extension)
+    $processedExtensionConfig = @(_resolveExtensionVersionRanges -Extensions $processedExtensionConfig `
+                                                                 -TargetPath $zfExtensionsPath `
+                                                                 -LockedExtensions $lockedExtensions)
 
     switch ($LockMode) {
         'Write' {

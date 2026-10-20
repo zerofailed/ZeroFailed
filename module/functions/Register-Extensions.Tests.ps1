@@ -16,7 +16,7 @@ BeforeAll {
     function _readExtensionLockFile { param($Path) }
     function _writeExtensionLockFile { param($Path, $Extensions) }
     function _assertExtensionLockSatisfied { param($Extensions, $LockedExtensions, $LockFilePath) }
-    function _resolveExtensionVersionRanges { param($Extensions) }
+    function _resolveExtensionVersionRanges { param($Extensions, $TargetPath, $LockedExtensions) }
 
     # Save original env var to restore later
     $script:originalPSModulePath = $env:PSModulePath
@@ -161,7 +161,9 @@ Describe 'Register-Extensions' {
                 Should -Invoke _resolveExtensionVersionRanges -Times 1 -Scope Context -ParameterFilter {
                     $Extensions.Count -eq 2 -and
                     $Extensions[0].Name -eq 'Extension1' -and
-                    $Extensions[1].Name -eq 'Extension2'
+                    $Extensions[1].Name -eq 'Extension2' -and
+                    $TargetPath -eq (Join-Path $zfPath 'extensions') -and
+                    $null -eq $LockedExtensions
                 }
             }
         }
@@ -174,6 +176,21 @@ Describe 'Register-Extensions' {
 
                 $result[0].Name | Should -Be 'Extension2'
                 Should -Invoke _writeExtensionLockFile -Times 1 -Scope It -ParameterFilter { $Extensions[0].Name -eq 'Extension2' }
+            }
+        }
+
+        Context 'When no extensions are registered' {
+            It 'Writes the lock file with an empty set of extensions (<LockMode>)' -ForEach @(
+                @{ LockMode = 'Write'; Helper = '_writeExtensionLockFile' }
+                @{ LockMode = 'Frozen'; Helper = '_assertExtensionLockSatisfied' }
+            ) {
+                # A local extension whose path does not exist is not registered
+                Mock 'Register-ExtensionAndDependencies' {}
+                Mock _readExtensionLockFile { @{} }
+
+                Register-Extensions -ExtensionsConfig $extensionsConfig -DefaultPSRepository $defaultRepo -ZfPath $zfPath -LockMode $LockMode
+
+                Should -Invoke $Helper -Times 1 -Scope It -ParameterFilter { $null -ne $Extensions -and $Extensions.Count -eq 0 }
             }
         }
 
@@ -216,6 +233,10 @@ Describe 'Register-Extensions' {
                     $LockedExtensions.Extension1.resolved -eq '1.0.0' -and
                     $LockFilePath -eq $expectedLockFilePath
                 }
+            }
+
+            It 'Reconciles the versions of the registered extensions using the lock file' {
+                Should -Invoke _resolveExtensionVersionRanges -Times 1 -Scope Context -ParameterFilter { $LockedExtensions.Extension1.resolved -eq '1.0.0' }
             }
 
             It 'Does not write the lock file' {

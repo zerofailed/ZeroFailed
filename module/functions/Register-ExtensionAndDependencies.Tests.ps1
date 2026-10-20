@@ -447,6 +447,60 @@ Describe 'Register-ExtensionAndDependencies' {
                 Should -Invoke _getExtensionFromGit -Times 1 -ParameterFilter { !$GitRef -and !$LockedCommit }
             }
 
+            Context 'When declared by an extension that is referenced by a git branch' {
+                BeforeEach {
+                    Mock Import-PowerShellDataFile -ParameterFilter { $Path.EndsWith('ZeroFailed.Build.Common.psd1') } {
+                        @{
+                            RootModule = 'ZeroFailed.Build.Common'
+                            PrivateData = @{
+                                ZeroFailed = @{
+                                    ExtensionDependencies = @(
+                                        @{
+                                            Name = 'ZeroFailed.DevOps.Common'
+                                            GitRepository = 'https://github.com/zerofailed/ZeroFailed.DevOps.Common'
+                                            MinimumVersion = '1.4.0'
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    $parentConfig = @{
+                        Name = 'ZeroFailed.Build.Common'
+                        GitRepository = 'https://github.com/zerofailed/ZeroFailed.Build.Common'
+                        GitRef = 'main'
+                    }
+                }
+
+                It 'Resolves the dependency to a release tag in its range, rather than to the branch of the extension' {
+                    [array]$result = Register-ExtensionAndDependencies -ExtensionConfig $parentConfig -TargetPath $targetPath
+
+                    $result.Count | Should -Be 2
+                    $result[1].Name | Should -Be 'ZeroFailed.DevOps.Common'
+                    $result[1].LockEntry.requested | Should -Be '[1.4.0,2.0.0)'
+                    $result[1].LockEntry.resolvedRef | Should -Be 'refs/tags/1.4.0'
+                    $result[1].LockEntry.requiredBy | Should -Be @('ZeroFailed.Build.Common')
+                    Should -Invoke _getExtensionFromGit -Times 1 -ParameterFilter { $Name -eq 'ZeroFailed.Build.Common' -and $GitRef -eq 'main' }
+                    Should -Invoke _getExtensionFromGit -Times 1 -ParameterFilter { $Name -eq 'ZeroFailed.DevOps.Common' -and $MinimumVersion -eq '1.4.0' -and !$GitRef }
+                }
+
+                It 'Installs the locked commit of the extension and the locked release tag of the dependency' {
+                    $lockedExtensions = @{
+                        'ZeroFailed.Build.Common' = @{
+                            source = @{ type = 'git'; repository = 'https://github.com/zerofailed/ZeroFailed.Build.Common'; folderPath = 'module' }
+                            requested = 'main'
+                            resolved = 'locked-main-commit'
+                        }
+                        'ZeroFailed.DevOps.Common' = $lockEntry
+                    }
+
+                    Register-ExtensionAndDependencies -ExtensionConfig $parentConfig -TargetPath $targetPath -LockedExtensions $lockedExtensions | Out-Null
+
+                    Should -Invoke _getExtensionFromGit -Times 1 -ParameterFilter { $Name -eq 'ZeroFailed.Build.Common' -and $GitRef -eq 'main' -and $LockedCommit -eq 'locked-main-commit' }
+                    Should -Invoke _getExtensionFromGit -Times 1 -ParameterFilter { $Name -eq 'ZeroFailed.DevOps.Common' -and $GitRef -eq 'refs/tags/1.5.0' -and $LockedCommit -eq 'locked-commit' }
+                }
+            }
+
             It 'Does not use a locked release tag from a different repository' {
                 $lockEntry.source.repository = 'https://github.com/myorg/ZeroFailed.DevOps.Common'
 
