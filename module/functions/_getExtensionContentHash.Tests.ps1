@@ -26,6 +26,14 @@ BeforeAll {
         return $folder
     }
 
+    # Creates a link to a folder: a junction on Windows (which needs no extra rights), otherwise a symbolic link. The links
+    # are recorded, so that they can be removed before the test drive is, as its clean-up follows a link that loops.
+    $script:folderLinks = [System.Collections.Generic.List[string]]::new()
+    function newFolderLink([string] $Path, [string] $Target) {
+        New-Item -ItemType ($IsWindows ? 'Junction' : 'SymbolicLink') -Path $Path -Target $Target | Out-Null
+        $script:folderLinks.Add($Path)
+    }
+
     function getSha256([byte[]] $Bytes) {
         [Convert]::ToHexString([System.Security.Cryptography.SHA256]::HashData($Bytes)).ToLowerInvariant()
     }
@@ -60,6 +68,43 @@ Describe '_getExtensionContentHash' {
         $changed = newFolder $Files
 
         _getExtensionContentHash -Path $changed | Should -Not -Be (_getExtensionContentHash -Path $original)
+    }
+
+    Context 'A linked folder' {
+        BeforeEach {
+            $linkedFolder = newFolder @{ 'b.ps1' = "y`n" }
+            $folder = newFolder @{ 'a.txt' = "x`n" }
+            newFolderLink -Path (Join-Path $folder 'tasks') -Target $linkedFolder
+        }
+
+        AfterEach {
+            # Removing a link does not remove the folder that it links to
+            foreach ($link in $script:folderLinks) {
+                Remove-Item -LiteralPath $link -Force
+            }
+            $script:folderLinks.Clear()
+        }
+
+        It 'Includes the files in the linked folder, as if they were in the extension' {
+            $expected = newFolder @{ 'a.txt' = "x`n"; 'tasks/b.ps1' = "y`n" }
+
+            _getExtensionContentHash -Path $folder | Should -Be (_getExtensionContentHash -Path $expected)
+        }
+
+        It 'Returns a different hash when a file in the linked folder changes' {
+            $original = _getExtensionContentHash -Path $folder
+
+            [IO.File]::WriteAllText((Join-Path $linkedFolder 'b.ps1'), "changed`n")
+
+            _getExtensionContentHash -Path $folder | Should -Not -Be $original
+        }
+
+        It 'Includes the files in a folder that links to itself only once' {
+            newFolderLink -Path (Join-Path $linkedFolder 'loop') -Target $linkedFolder
+            $expected = newFolder @{ 'a.txt' = "x`n"; 'tasks/b.ps1' = "y`n" }
+
+            _getExtensionContentHash -Path $folder | Should -Be (_getExtensionContentHash -Path $expected)
+        }
     }
 
     It 'Ignores the line endings of text files' {

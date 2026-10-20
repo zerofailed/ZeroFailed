@@ -22,7 +22,9 @@ function _getExtensionContentHash {
     try {
         # Build a manifest of every file's relative path and hash, sorted so the order files are found in does not matter
         $manifestLines = [System.Collections.Generic.List[string]]::new()
-        foreach ($file in (Get-ChildItem -LiteralPath $rootPath -File -Recurse -Force)) {
+        # Follow links (symbolic links and junctions), as the files in a linked folder are loaded like any others, so the
+        # hash must include them. A link to a folder that has already been visited (a loop) is skipped.
+        foreach ($file in (Get-ChildItem -LiteralPath $rootPath -File -Recurse -Force -FollowSymlink -WarningAction SilentlyContinue)) {
             $relativePath = [IO.Path]::GetRelativePath($rootPath, $file.FullName).Replace('\', '/')
             if ($relativePath -in $excludedFiles) {
                 continue

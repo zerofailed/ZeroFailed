@@ -10,6 +10,9 @@ BeforeAll {
     . (Join-Path (Split-Path -Parent $PSCommandPath) '_getExtensionLockEntries.ps1')
     . (Join-Path (Split-Path -Parent $PSCommandPath) '_getExtensionContentHash.ps1')
     . (Join-Path (Split-Path -Parent $PSCommandPath) '_testExtensionLockEntryMatch.ps1')
+    . (Join-Path (Split-Path -Parent $PSCommandPath) '_getExtensionVersionRange.ps1')
+    . (Join-Path (Split-Path -Parent $PSCommandPath) '_testExtensionVersionInRange.ps1')
+    . (Join-Path (Split-Path -Parent $PSCommandPath) '_getVersionFromGitTag.ps1')
 
     Set-StrictMode -Version Latest
 
@@ -153,5 +156,28 @@ Describe '_assertExtensionLockSatisfied' {
 
         { _assertExtensionLockSatisfied -Extensions $extensions -LockedExtensions $locked -LockFilePath $lockFilePath } | Should -Not -Throw
         Should -Invoke Write-Warning -Times 1 -Scope It -ParameterFilter { $Message -like '*no longer used: Removed' }
+    }
+
+    Context 'Minimum versions' {
+        BeforeEach {
+            # Another extension that required the same extension with a different minimum version was locked
+            $locked = @{ 'Common' = newLockedExtension -Name 'Common' -Requested '[1.5.0,2.0.0)' -Resolved 'commit16' }
+            $locked.Common.resolvedRef = 'refs/tags/1.6.0'
+        }
+
+        It 'Succeeds when the locked release tag is in the range of the minimum version' {
+            $extension = newRegisteredExtension -Name 'Common' -Requested '[1.2.0,2.0.0)' -Resolved 'commit16'
+            $extension.MinimumVersion = '1.2.0'
+
+            { _assertExtensionLockSatisfied -Extensions @($extension) -LockedExtensions $locked -LockFilePath $lockFilePath } | Should -Not -Throw
+        }
+
+        It 'Fails when the locked release tag is not in the range of the minimum version' {
+            $extension = newRegisteredExtension -Name 'Common' -Requested '[1.7.0,2.0.0)' -Resolved 'commit17'
+            $extension.MinimumVersion = '1.7.0'
+
+            { _assertExtensionLockSatisfied -Extensions @($extension) -LockedExtensions $locked -LockFilePath $lockFilePath } |
+                Should -Throw "*'Common' is requested as '``[1.7.0,2.0.0)' from git *, but the lock file has '``[1.5.0,2.0.0)' from git *"
+        }
     }
 }

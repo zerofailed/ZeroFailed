@@ -46,11 +46,12 @@ function _assertExtensionLockSatisfied {
     foreach ($name in $entries.Keys) {
         $entry = $entries[$name]
         $lockedEntry = $LockedExtensions[$name]
+        $extension = $firstByName[$name]
 
         if ($null -eq $lockedEntry) {
             $problems.Add("'$name' is not in the lock file")
         }
-        elseif (!(_testExtensionLockEntryMatch -LockEntry $lockedEntry -Entry $entry)) {
+        elseif (!(_testExtensionLockEntryMatch -LockEntry $lockedEntry -Entry $entry -MinimumVersion $extension['MinimumVersion'] -PreRelease:([bool]$extension['PreRelease']))) {
             $problems.Add("'$name' is requested as $(& $describeRequest $entry), but the lock file has $(& $describeRequest $lockedEntry)")
         }
         elseif ($entry.source.type -eq 'path') {

@@ -219,7 +219,7 @@ Commit the lock file to your repository.
 | Mode | What happens |
 | --- | --- |
 | `Write` (default) | Extensions are resolved as normal, then the lock file is created or updated to record what is installed. |
-| `Frozen` | Each extension is installed at the commit or version in the lock file. The run fails if there is no lock file, or if any extension differs from it. The lock file is not changed. |
+| `Frozen` | Each extension is installed at the commit or version in the lock file. The run fails if there is no lock file, or if any extension differs from it. ZeroFailed checks each extension's content against the lock file before it runs any of the extension's code. The lock file is not changed. |
 | `Off` | The lock file is not used. |
 
 Set the mode with the `ZF_EXTENSIONS_LOCK_MODE` environment variable, or with the `$zerofailedExtensionsLockMode` variable before `ZeroFailed.tasks` is called in `.zf/config.ps1`. The environment variable takes precedence, so a CI/CD pipeline can use `Frozen` without changing the configuration. For example, in a GitHub Actions workflow:
@@ -250,6 +250,8 @@ Extensions referenced by a local `Path` are recorded, but not locked, because th
 In `Write` mode, an extension that is already installed is used as it is, so the lock file records the versions that you have installed. To update to the newest versions (e.g. the latest commit of `main`), delete the extension's folder in `.zf/extensions`, run again, and commit the updated lock file.
 
 When you change the extensions in the configuration, run once in `Write` mode to update the lock file. Otherwise a `Frozen` run fails because the configuration differs from the lock file.
+
+A `MinimumVersion` uses the locked version when it comes from the same source and is in the range, even when the lock file records a different `requested` range. Several extensions can require the same extension with different minimum versions, and the lock file records only one of them. So a `Frozen` run treats a `MinimumVersion` as different from the lock file only when the locked version is outside its range.
 
 ZeroFailed records the commit of an extension installed from a git repository in a `.zf-source.json` file in its folder. Extensions installed by earlier versions of ZeroFailed do not have this file, so their commit is unknown. ZeroFailed warns about these, and you can delete their folders to re-install them and record their commits.
 
