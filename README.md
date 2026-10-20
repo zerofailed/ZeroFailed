@@ -221,7 +221,7 @@ Commit the lock file to your repository.
 | Mode | What happens |
 | --- | --- |
 | `Write` (default) | Extensions are resolved as normal, then the lock file is created or updated to record what is installed. |
-| `Frozen` | Each extension is installed at the commit or version in the lock file. The run fails if there is no lock file, or if any extension differs from it. The lock file is not changed. |
+| `Frozen` | Each extension is installed at the commit or version in the lock file. The run fails if there is no lock file, or if any extension differs from it. ZeroFailed checks each extension's content against the lock file before it runs any of the extension's code. The lock file is not changed. |
 | `Off` | The lock file is not used. |
 
 Set the mode with the `ZF_EXTENSIONS_LOCK_MODE` environment variable, or with the `$zerofailedExtensionsLockMode` variable before `ZeroFailed.tasks` is called in `.zf/config.ps1`. The environment variable takes precedence, so a CI/CD pipeline can use `Frozen` without changing the configuration. For example, in a GitHub Actions workflow:

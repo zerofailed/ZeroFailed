@@ -18,6 +18,8 @@ function Register-ExtensionAndDependencies {
 
         When locked extensions are provided, an extension whose lock entry matches how it is requested is installed at the commit or version recorded in the lock entry.
         For a 'MinimumVersion', the lock entry matches when it has the same source and its version is in the range, whatever range it records as requested.
+        Before any of the extension's code runs, an error is thrown if its content differs from the lock entry.
+        The tasks of an extension that does not match its lock entry are not found, so its code does not run before the difference is reported.
 
         .PARAMETER ExtensionConfig
         A hashtable containing the initial extension metadata provided by the user.
@@ -72,6 +74,10 @@ function Register-ExtensionAndDependencies {
     $splat.Remove("Enabled") | Out-Null
     $splat.Add("TargetPath", $TargetPath)
 
+    # Whether the extension was installed at the version in the lock file, and whether to skip finding its tasks
+    $isLocked = $false
+    $skipTaskDiscovery = $false
+
     # Skip further processing is extension is explicitly disabled
     if (!$extension.ContainsKey('Enabled') -or $extension.Enabled) {
         if ($extension.ContainsKey("GitRepository")) {
@@ -105,6 +111,7 @@ function Register-ExtensionAndDependencies {
                     (_testExtensionLockEntryMatch -LockEntry $lockedEntry -Entry $lockEntry -MinimumVersion $extension['MinimumVersion'] -PreRelease:([bool]$extension['PreRelease']))) {
                 Write-Host "Using locked commit for extension $($extension.Name): $($lockedEntry['resolved'])" -f Cyan
                 $splat.Add("LockedCommit", $lockedEntry['resolved'])
+                $isLocked = $true
                 # A minimum version is installed from the locked release tag
                 if ($hasMinimumVersion) {
                     $splat.Add("GitRef", ($lockedEntry['resolvedRef'] ? $lockedEntry['resolvedRef'] : $lockedEntry['requested']))
@@ -131,6 +138,7 @@ function Register-ExtensionAndDependencies {
                     (_testExtensionLockEntryMatch -LockEntry $lockedEntry -Entry $lockEntry -MinimumVersion $extension['MinimumVersion'] -PreRelease:([bool]$extension['PreRelease']))) {
                 Write-Host "Using locked version for extension $($extension.Name): v$($lockedEntry['resolved'])" -f Cyan
                 $splat.Add("LockedVersion", $lockedEntry['resolved'])
+                $isLocked = $true
             }
 
             # Call the helper that will install the extension from a PowerShell module repository if it's not
@@ -159,6 +167,20 @@ function Register-ExtensionAndDependencies {
             # Missing local extension or invalid config
             continue
         }
+
+        # When the lock file is used, check the installed extension before any of its code runs, as finding its tasks
+        # runs its task files. Local extensions are working copies, so they are not locked.
+        if ($LockedExtensions -and $lockEntry.source.type -ne 'path' -and $extension.Enabled) {
+            if (!$isLocked) {
+                # The difference from the lock file is reported once every extension has been registered
+                Write-Verbose "Not finding the tasks of extension $($extension.Name), as it does not match the lock file"
+                $skipTaskDiscovery = $true
+            }
+            elseif ($lockedEntry['contentHash'] -and (_getExtensionContentHash -Path $extension.Path) -ne $lockedEntry['contentHash']) {
+                throw ("Extension $($extension.Name) ($($lockEntry.resolved)) does not have the content recorded in the lock file. " +
+                       "Delete '$($extension.Path)' to re-install it.")
+            }
+        }
     }
     else {
         Write-Host "Skipping extension - explicitly disabled"
@@ -169,7 +191,7 @@ function Register-ExtensionAndDependencies {
         Write-Verbose "Checking dependencies for $($extension.Name)"
         $extension.Add("dependencies", (Get-ExtensionDependencies -Extension $extension))
         Write-Verbose "Checking available tasks for $($extension.Name)"
-        $extension.Add("availableTasks", (Get-ExtensionAvailableTasks -ExtensionPath $extension.Path))
+        $extension.Add("availableTasks", ($skipTaskDiscovery ? @() : (Get-ExtensionAvailableTasks -ExtensionPath $extension.Path)))
     }
 
     $processedExtensionConfig += $extension

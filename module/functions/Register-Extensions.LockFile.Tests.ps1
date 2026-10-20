@@ -32,9 +32,13 @@ BeforeAll {
             $script:installed[$Name] = @($script:installed[$Name]) + $selected | Where-Object { $_ }
         }
 
+        # An installed copy is used as it is
         $path = Join-Path $TargetPath $Name $selected
-        New-Item -ItemType Directory -Path $path -Force | Out-Null
-        Set-Content -Path (Join-Path $path "$Name.psm1") -Value "# $Name $selected"
+        $modulePath = Join-Path $path "$Name.psm1"
+        if (!(Test-Path $modulePath)) {
+            New-Item -ItemType Directory -Path $path -Force | Out-Null
+            Set-Content -Path $modulePath -Value "# $Name $selected"
+        }
         @{ Path = $path; Enabled = $true; ResolvedVersion = $selected }
     }
 }
@@ -94,5 +98,18 @@ Describe 'Register-Extensions with a lock file' {
 
         (& $getCommon $frozen).LockEntry.resolved | Should -Be '1.6.0'
         $script:installed.Common | Should -Be @('1.6.0')
+    }
+
+    It 'Fails a later Frozen run, before finding its tasks, when an installed copy has changed' {
+        $commonPath = Join-Path $zfPath 'extensions' 'Common' '1.6.0'
+        Add-Content -Path (Join-Path $commonPath 'Common.psm1') -Value 'Write-Host "changed"'
+        # Record the extensions whose tasks are found from now on, as calls made by the Write run count in this scope
+        $script:extensionsWithTasksFound = @()
+        Mock Get-ExtensionAvailableTasks { $script:extensionsWithTasksFound += $ExtensionPath; @() }
+
+        { Register-Extensions -ExtensionsConfig (& $newExtensionsConfig) -DefaultPSRepository 'PSGallery' -ZfPath $zfPath -LockMode Frozen } |
+            Should -Throw "Extension Common (1.6.0) does not have the content recorded in the lock file. Delete '$commonPath' to re-install it."
+        $script:extensionsWithTasksFound | Should -Not -Contain $commonPath
+        $script:extensionsWithTasksFound | Should -Contain (Join-Path $zfPath 'extensions' 'A' '1.0.0')
     }
 }

@@ -17,6 +17,7 @@ BeforeAll {
     . (Join-Path (Split-Path -Parent $PSCommandPath) '_getExtensionVersionRange.ps1')
     . (Join-Path (Split-Path -Parent $PSCommandPath) '_testExtensionVersionInRange.ps1')
     . (Join-Path (Split-Path -Parent $PSCommandPath) '_getVersionFromGitTag.ps1')
+    . (Join-Path (Split-Path -Parent $PSCommandPath) '_getExtensionContentHash.ps1')
     . (Join-Path (Split-Path -Parent $PSCommandPath) 'Get-ExtensionDependencies.ps1')
     . (Join-Path (Split-Path -Parent $PSCommandPath) '_resolveModuleNameFromPath.ps1')
     . (Join-Path (Split-Path -Parent $PSCommandPath) 'Resolve-ExtensionMetadata.ps1')
@@ -302,6 +303,63 @@ Describe 'Register-ExtensionAndDependencies' {
                 $result[0].LockEntry.resolved | Should -Be 'latest-commit-of-ZeroFailed.Build.Common'
                 Should -Invoke _getExtensionFromGit -Times 1 -ParameterFilter { $Name -eq 'ZeroFailed.Build.Common' -and !$LockedCommit }
                 Should -Invoke Write-Host -Times 0 -ParameterFilter { $Object -like 'Using locked*' }
+            }
+
+            Context 'Content' {
+                BeforeAll {
+                    Mock Get-ExtensionAvailableTasks { @('MyTask') }
+                    Mock _getExtensionContentHash { 'sha256:installed' }
+                }
+
+                BeforeEach {
+                    $lockedExtensions = @{
+                        'ZeroFailed.Build.Common' = @{
+                            source = @{ type = 'git'; repository = 'https://github.com/zerofailed/ZeroFailed.Build.Common'; folderPath = 'module' }
+                            requested = 'main'
+                            resolved = 'locked-commit-1'
+                            contentHash = 'sha256:installed'
+                        }
+                    }
+                }
+
+                It 'Finds the tasks of a locked extension that has the content in the lock file' {
+                    [array]$result = Register-ExtensionAndDependencies -ExtensionConfig $extensionConfig -TargetPath $targetPath -LockedExtensions $lockedExtensions
+
+                    $result[0].availableTasks | Should -Be @('MyTask')
+                    Should -Invoke Get-ExtensionAvailableTasks -Times 1 -ParameterFilter { $ExtensionPath -like '*ZeroFailed.Build.Common*' }
+                }
+
+                It 'Throws before finding the tasks of a locked extension that does not have the content in the lock file' {
+                    $lockedExtensions.'ZeroFailed.Build.Common'.contentHash = 'sha256:locked'
+
+                    { Register-ExtensionAndDependencies -ExtensionConfig $extensionConfig -TargetPath $targetPath -LockedExtensions $lockedExtensions } |
+                        Should -Throw "Extension ZeroFailed.Build.Common (locked-commit-1) does not have the content recorded in the lock file. Delete '*' to re-install it."
+                    Should -Invoke Get-ExtensionAvailableTasks -Times 0
+                }
+
+                It 'Does not find the tasks of an extension that is <Description>' -ForEach @(
+                    @{ Description = 'requested differently from the lock file'; Requested = 'feature/other' }
+                    @{ Description = 'not in the lock file'; Requested = $null }
+                ) {
+                    if ($Requested) {
+                        $lockedExtensions.'ZeroFailed.Build.Common'.requested = $Requested
+                    }
+                    else {
+                        $lockedExtensions.Remove('ZeroFailed.Build.Common')
+                    }
+
+                    [array]$result = Register-ExtensionAndDependencies -ExtensionConfig $extensionConfig -TargetPath $targetPath -LockedExtensions $lockedExtensions
+
+                    $result[0].availableTasks | Should -BeNullOrEmpty
+                    Should -Invoke Get-ExtensionAvailableTasks -Times 0
+                }
+
+                It 'Finds the tasks of an extension when the lock file is not used' {
+                    [array]$result = Register-ExtensionAndDependencies -ExtensionConfig $extensionConfig -TargetPath $targetPath
+
+                    $result[0].availableTasks | Should -Be @('MyTask')
+                    Should -Invoke _getExtensionContentHash -Times 0
+                }
             }
 
             It 'Does not use a lock entry that has no resolved commit' {

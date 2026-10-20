@@ -39,6 +39,8 @@ Its lock entry records the range (for example, '[1.4.0,2.0.0)') as the requested
 
 When locked extensions are provided, an extension whose lock entry matches how it is requested is installed at the commit or version recorded in the lock entry.
 For a 'MinimumVersion', the lock entry matches when it has the same source and its version is in the range, whatever range it records as requested.
+Before any of the extension's code runs, an error is thrown if its content differs from the lock entry.
+The tasks of an extension that does not match its lock entry are not found, so its code does not run before the difference is reported.
 
 ## EXAMPLES
 
