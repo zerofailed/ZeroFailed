@@ -8,6 +8,7 @@ BeforeAll {
 
     # in-module dependencies
     . (Join-Path (Split-Path -Parent $PSCommandPath) '_getExtensionVersionRange.ps1')
+    . (Join-Path (Split-Path -Parent $PSCommandPath) '_getCompleteExtensionVersion.ps1')
     . (Join-Path (Split-Path -Parent $PSCommandPath) '_testExtensionVersionInRange.ps1')
     . (Join-Path (Split-Path -Parent $PSCommandPath) '_getVersionFromGitTag.ps1')
 
@@ -47,6 +48,7 @@ Describe '_testExtensionLockEntryMatch' {
         @{ Description = 'source type differs'; Source = @{ type = 'psrepository'; repository = 'https://github.com/zerofailed/ZeroFailed.Build.Common'; folderPath = 'module' }; Requested = 'main' }
         @{ Description = 'repository differs'; Source = @{ type = 'git'; repository = 'https://github.com/myorg/ZeroFailed.Build.Common'; folderPath = 'module' }; Requested = 'main' }
         @{ Description = 'folder path differs'; Source = @{ type = 'git'; repository = 'https://github.com/zerofailed/ZeroFailed.Build.Common'; folderPath = 'src' }; Requested = 'main' }
+        @{ Description = 'folder path differs by case'; Source = @{ type = 'git'; repository = 'https://github.com/zerofailed/ZeroFailed.Build.Common'; folderPath = 'Module' }; Requested = 'main' }
         @{ Description = 'source has an extra detail'; Source = @{ type = 'git'; repository = 'https://github.com/zerofailed/ZeroFailed.Build.Common'; folderPath = 'module'; extra = 'x' }; Requested = 'main' }
         @{ Description = 'requested version differs'; Source = @{ type = 'git'; repository = 'https://github.com/zerofailed/ZeroFailed.Build.Common'; folderPath = 'module' }; Requested = 'develop' }
         @{ Description = 'requested git reference differs by case'; Source = @{ type = 'git'; repository = 'https://github.com/zerofailed/ZeroFailed.Build.Common'; folderPath = 'module' }; Requested = 'Main' }

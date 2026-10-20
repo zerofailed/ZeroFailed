@@ -8,6 +8,7 @@ BeforeAll {
 
     # in-module dependencies
     . (Join-Path (Split-Path -Parent $PSCommandPath) '_getExtensionVersionRange.ps1')
+    . (Join-Path (Split-Path -Parent $PSCommandPath) '_getCompleteExtensionVersion.ps1')
     . (Join-Path (Split-Path -Parent $PSCommandPath) '_testExtensionVersionInRange.ps1')
 }
 
@@ -224,6 +225,19 @@ Describe 'Get-InstalledExtensionDetails' {
         # Assert
         $path | Should -Be (Join-Path $targetPath 'TestExtension2' '1.9.0')
         $version | Should -Be '1.9.0'
+    }
+
+    It 'Should find a requested version that has fewer than 3 numeric parts (<Requested>)' -ForEach @(
+        @{ Requested = '1.9' }
+        @{ Requested = '2' }
+    ) {
+        # Act
+        $path,$version = Get-InstalledExtensionDetails -Name 'TestExtension2' -Version $Requested -TargetPath $targetPath
+
+        # Assert
+        $expected = _getCompleteExtensionVersion -Version $Requested
+        $path | Should -Be (Join-Path $targetPath 'TestExtension2' $expected)
+        $version | Should -Be $expected
     }
 
     It 'Should find the requested stable version when pre-release versions are allowed and a newer pre-release version is installed' {

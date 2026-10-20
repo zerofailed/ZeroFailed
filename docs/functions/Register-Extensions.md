@@ -4,7 +4,7 @@ external help file: ZeroFailed-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: ZeroFailed
-ms.date: 10/29/2026
+ms.date: 11/02/2026
 PlatyPS schema version: 2024-05-01
 title: Register-Extensions
 ---
@@ -133,31 +133,31 @@ PS:> Register-Extensions -ExtensionsConfig $extensionsConfig -DefaultPSRepositor
     @{
         Name = "PublicExtension"                            # Extension available via a Git repo, using the 'main' branch
         Version = "main"
-        Path = "/myproject/.zf/extensions/PublicExtension/main"
+        Path = "/myproject/.zf/extensions/PublicExtension/main-1f0c8a2e"
         Enabled = $true
     }
     @{
         Name = "PublicExtension"                            # Extension available via a Git repo, using a tagged version
         Version = "refs/tags/1.0.0"
-        Path = "/myproject/.zf/extensions/PublicExtension/refs-tags-1.0.0"
+        Path = "/myproject/.zf/extensions/PublicExtension/refs-tags-1.0.0-1f0c8a2e"
         Enabled = $true
     }
     @{
         Name = "RangedGitExtension"                         # Extension available via a Git repo, newest release tag from 1.4.0, below 2.0.0
         MinimumVersion = "1.4.0"
-        Path = "/myproject/.zf/extensions/RangedGitExtension/refs-tags-v1.6.1"
+        Path = "/myproject/.zf/extensions/RangedGitExtension/refs-tags-v1.6.1-7b3d9e05"
         Enabled = $true
     }
     @{
         Name = "PublicExtension"                            # Extension available via a Git repo, using a custom branch
         Version = "feature/new-stuff"
-        Path = "/myproject/.zf/extensions/PublicExtension/feature-new-stuff"
+        Path = "/myproject/.zf/extensions/PublicExtension/feature-new-stuff-1f0c8a2e"
         Enabled = $true
     }
     @{
         Name = "PublicExtension"                            # Extension available via a Git repo, using the 'main' branch, located in a non-standard folder
         Version = "main"
-        Path = "/myproject/.zf/extensions/PublicExtension/main"
+        Path = "/myproject/.zf/extensions/PublicExtension/main-c46a71bd"
         Enabled = $true
     }
     @{

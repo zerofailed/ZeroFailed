@@ -19,6 +19,7 @@ function Get-InstalledExtensionDetails {
         .PARAMETER Version
         The version of the extension, if not specified the latest version available, if any, will be returned.
         When specified, only that exact version is returned, even if a later version is installed.
+        A version with fewer than 3 numeric parts matches the version with the missing parts set to zero: for example, '1.4' matches '1.4.0'.
         When this contains a semantic version with a pre-release tag, then this implies that a pre-release version is acceptable, as if the '-PreRelease' switch had been specified.
         When the '-PreRelease' switch is specified, a version without a pre-release tag (for example, '1.0.0') also matches its pre-release versions (for example, '1.0.0-beta0001').
 
@@ -30,7 +31,8 @@ function Get-InstalledExtensionDetails {
         When '-Version' is also specified, this parameter is ignored.
 
         .PARAMETER GitRefAsFolderName
-        The extension version as represented by the GitRef, modified to be safe for use as a filesystem directory name.
+        The name of the folder that the extension was installed in from a git repository.
+        This is the GitRef, modified to be safe for use as a filesystem directory name, followed by a short hash of the repository and the folder in it (for example, 'main-1f0c8a2e').
 
         .PARAMETER PreRelease
         Indicates whether to include pre-release versions in the search.
@@ -71,6 +73,14 @@ function Get-InstalledExtensionDetails {
         [Parameter()]
         [switch] $PreRelease
     )
+
+    # A version with fewer than 3 numeric parts (e.g. '1.4') is compared as its full version (e.g. '1.4.0')
+    if ($Version) {
+        $completeVersion = _getCompleteExtensionVersion -Version $Version
+        if ($completeVersion) {
+            $Version = $completeVersion
+        }
+    }
 
     # A minimum version accepts any installed version in its range, up to the next major version
     if ($MinimumVersion -and !$Version) {

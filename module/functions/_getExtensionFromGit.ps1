@@ -34,6 +34,14 @@ function _getExtensionFromGit {
     # Records where an installed extension came from, so that later runs know which commit is installed
     $sourceInfoFileName = '.zf-source.json'
 
+    # Whether an installed copy came from the requested repository and folder. Ignore the case of the repository URL,
+    # as well as any trailing '/', as the lock file does. Folders in a git repository are case-sensitive.
+    $isSameSource = {
+        param ($sourceInfo)
+        "$($sourceInfo['repository'])".TrimEnd('/') -eq $RepositoryUri.OriginalString.TrimEnd('/') -and
+            "$($sourceInfo['folderPath'])" -ceq $RepositoryFolderPath
+    }
+
     # A minimum version installs the newest release tag in its range, up to the next major version. An installed
     # release in the range is used as it is, so the tags are only listed when none is installed.
     if ($MinimumVersion -and !$GitRef) {
@@ -44,11 +52,8 @@ function _getExtensionFromGit {
                                     $sourceInfoPath = Join-Path $_.FullName $sourceInfoFileName
                                     if (Test-Path $sourceInfoPath) {
                                         $sourceInfo = Get-Content -Raw -Path $sourceInfoPath | ConvertFrom-Json -AsHashtable
-                                        # Ignore the case of the repository URL, as well as any trailing '/', as the lock file does
-                                        $isSameSource = "$($sourceInfo['repository'])".TrimEnd('/') -eq $RepositoryUri.OriginalString.TrimEnd('/') -and
-                                                        "$($sourceInfo['folderPath'])" -eq $RepositoryFolderPath
                                         $version = _getVersionFromGitTag -Ref "$($sourceInfo['ref'])"
-                                        if ($isSameSource -and $version -and (_testExtensionVersionInRange -Version $version -Range $range -PreRelease:$PreRelease)) {
+                                        if ((& $isSameSource $sourceInfo) -and $version -and (_testExtensionVersionInRange -Version $version -Range $range -PreRelease:$PreRelease)) {
                                             @{ Ref = $sourceInfo['ref']; Version = $version }
                                         }
                                     }
@@ -83,16 +88,19 @@ function _getExtensionFromGit {
         throw "A 'GitRef' or 'MinimumVersion' is required to install extension $Name from $RepositoryUri repository"
     }
 
-    # Check whether module is already installed
-    $safeGitRef = $GitRef.Replace('/', '-')
-    $existingExtensionPath,$existingExtensionVersion = Get-InstalledExtensionDetails -Name $Name -TargetPath $TargetPath -GitRefAsFolderName $safeGitRef
+    # Check whether module is already installed. Copies from different repositories (e.g. a fork and its upstream) or
+    # folders are installed in different folders, so they never overwrite each other's files.
+    $installFolderName = _getGitExtensionFolderName -RepositoryUri $RepositoryUri -RepositoryFolderPath $RepositoryFolderPath -GitRef $GitRef
+    $existingExtensionPath,$existingExtensionVersion = Get-InstalledExtensionDetails -Name $Name -TargetPath $TargetPath -GitRefAsFolderName $installFolderName
 
-    # Installs made by earlier versions of ZeroFailed have no record of their commit
+    # Installs made by earlier versions of ZeroFailed have no record of their commit, or of their source
     $installedCommit = $null
+    $installedSourceInfo = $null
     if ($existingExtensionPath) {
         $sourceInfoPath = Join-Path $existingExtensionPath $sourceInfoFileName
         if (Test-Path $sourceInfoPath) {
-            $installedCommit = (Get-Content -Raw -Path $sourceInfoPath | ConvertFrom-Json -AsHashtable)['commit']
+            $installedSourceInfo = Get-Content -Raw -Path $sourceInfoPath | ConvertFrom-Json -AsHashtable
+            $installedCommit = $installedSourceInfo['commit']
         }
     }
 
@@ -101,8 +109,15 @@ function _getExtensionFromGit {
         Write-Verbose "Extension '$Name' not found locally."
         $installRequired = $true
     }
-    elseif ($existingExtensionVersion -ne $safeGitRef) {
-        Write-Verbose "Extension '$Name' found locally but version mismatch detected. Found: '$existingExtensionVersion'; Required: '$safeGitRef' [$GitRef]"
+    elseif ($existingExtensionVersion -ne $installFolderName) {
+        Write-Verbose "Extension '$Name' found locally but version mismatch detected. Found: '$existingExtensionVersion'; Required: '$installFolderName' [$GitRef]"
+        $installRequired = $true
+    }
+    elseif ($installedSourceInfo -and $installedSourceInfo.ContainsKey('repository') -and !(& $isSameSource $installedSourceInfo)) {
+        # The folder name includes a short hash of the source, so this only happens if two sources' hashes collide or
+        # the folder was changed by hand
+        Write-Verbose ("Extension '$Name' found locally but it was installed from a different source. " +
+                       "Found: '$($installedSourceInfo['repository'])' ($($installedSourceInfo['folderPath'])); Required: '$RepositoryUri' ($RepositoryFolderPath)")
         $installRequired = $true
     }
     elseif ($LockedCommit -and $installedCommit -ne $LockedCommit) {
@@ -114,7 +129,7 @@ function _getExtensionFromGit {
     if ($installRequired) {
         Write-Host "Installing extension $Name from $RepositoryUri" -f Cyan
 
-        $destinationPath = Join-Path $TargetPath $Name $safeGitRef
+        $destinationPath = Join-Path $TargetPath $Name $installFolderName
         $copyArgs = @{
             RepoUrl = $RepositoryUri
             DestinationPath = $destinationPath
@@ -139,7 +154,7 @@ function _getExtensionFromGit {
             commit = $installedCommit
         } | ConvertTo-Json | Set-Content -Path (Join-Path $destinationPath $sourceInfoFileName)
 
-        $existingExtensionPath,$existingExtensionVersion = Get-InstalledExtensionDetails -Name $Name -TargetPath $TargetPath -GitRefAsFolderName $safeGitRef
+        $existingExtensionPath,$existingExtensionVersion = Get-InstalledExtensionDetails -Name $Name -TargetPath $TargetPath -GitRefAsFolderName $installFolderName
         if (!$existingExtensionPath) {
             throw "Failed to install extension $Name ($GitRef) from $RepositoryUri repository"
         }

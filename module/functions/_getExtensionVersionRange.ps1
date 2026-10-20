@@ -11,11 +11,11 @@ function _getExtensionVersionRange {
     )
 
     # Accept versions with fewer than 3 numeric parts (e.g. '1.4'), as PowerShell does for module versions
-    if ($MinimumVersion -notmatch '^(?<numbers>\d+(\.\d+){0,2})(?<label>-[0-9A-Za-z.-]+)?$') {
+    $completeVersion = _getCompleteExtensionVersion -Version $MinimumVersion
+    if (!$completeVersion) {
         throw "Invalid minimum version '$MinimumVersion': expected a semantic version, e.g. '1.4.0'"
     }
-    $parts = @($Matches.numbers -split '\.') + @('0', '0')
-    $minimum = [semver]"$($parts[0]).$($parts[1]).$($parts[2])$($Matches['label'])"
+    $minimum = [semver]$completeVersion
 
     # Breaking changes are expected in the next major version or, before 1.0.0, when the first non-zero part changes
     if ($minimum.Major -gt 0) {

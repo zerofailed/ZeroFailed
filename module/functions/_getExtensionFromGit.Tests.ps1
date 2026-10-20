@@ -8,13 +8,20 @@ BeforeAll {
 
     # in-module dependencies
     . (Join-Path (Split-Path -Parent $PSCommandPath) 'Get-InstalledExtensionDetails.ps1')
+    . (Join-Path (Split-Path -Parent $PSCommandPath) '_getCompleteExtensionVersion.ps1')
     . (Join-Path (Split-Path -Parent $PSCommandPath) '_copyFolderFromGitRepo.ps1')
     . (Join-Path (Split-Path -Parent $PSCommandPath) '_getExtensionVersionRange.ps1')
     . (Join-Path (Split-Path -Parent $PSCommandPath) '_testExtensionVersionInRange.ps1')
     . (Join-Path (Split-Path -Parent $PSCommandPath) '_getVersionFromGitTag.ps1')
     . (Join-Path (Split-Path -Parent $PSCommandPath) '_getGitTagVersions.ps1')
+    . (Join-Path (Split-Path -Parent $PSCommandPath) '_getGitExtensionFolderName.ps1')
 
     Set-StrictMode -Version Latest
+
+    # The name of the folder that an extension from the given source is installed in
+    function getFolderName([string] $Ref, [string] $Repository = 'https://github.com/zerofailed/ZeroFailed.Build.Test', [string] $FolderPath = 'module') {
+        _getGitExtensionFolderName -RepositoryUri $Repository -RepositoryFolderPath $FolderPath -GitRef $Ref
+    }
 
     # Creates the minimum folder structure of an installed extension, optionally recording the release tag it came from
     function newInstalledExtension([string] $Path, [string] $Name, [string] $Commit, [string] $Ref, [string] $Repository) {
@@ -34,6 +41,7 @@ Describe '_getExtensionFromGit' {
     BeforeAll {
         $name = 'ZeroFailed.Build.Test'
         $repo = 'https://github.com/zerofailed/ZeroFailed.Build.Test'
+        $mainFolder = getFolderName -Ref 'main'
 
         Mock Write-Host {}
 
@@ -54,8 +62,8 @@ Describe '_getExtensionFromGit' {
             $result = _getExtensionFromGit -Name $name -RepositoryUri $repo -TargetPath $targetPath -GitRef 'main'
         }
 
-        It 'Installs the extension into a folder named after the git reference' {
-            $result.Path | Should -Be (Join-Path $targetPath $name 'main')
+        It 'Installs the extension into a folder named after the git reference and the source' {
+            $result.Path | Should -Be (Join-Path $targetPath $name $mainFolder)
             $result.Enabled | Should -Be $true
             Should -Invoke _copyFolderFromGitRepo -Times 1 -ParameterFilter {
                 $RepoUrl -eq $repo -and $GitRef -eq 'main' -and $RepoFolderPath -eq 'module' -and !$Commit
@@ -91,23 +99,85 @@ Describe '_getExtensionFromGit' {
         It 'Uses a folder name with the / replaced' {
             $result = _getExtensionFromGit -Name $name -RepositoryUri $repo -TargetPath $targetPath -GitRef 'feature/foo'
 
-            $result.Path | Should -Be (Join-Path $targetPath $name 'feature-foo')
+            $result.Path | Should -Be (Join-Path $targetPath $name (getFolderName -Ref 'feature/foo'))
+            Split-Path -Leaf $result.Path | Should -BeLike 'feature-foo-*'
         }
     }
 
     Context 'When the extension is already installed' {
         It 'Uses the installed extension and returns its recorded commit' {
-            newInstalledExtension -Path (Join-Path $targetPath $name 'main') -Name $name -Commit 'installed-commit'
+            newInstalledExtension -Path (Join-Path $targetPath $name $mainFolder) -Name $name -Commit 'installed-commit'
 
             $result = _getExtensionFromGit -Name $name -RepositoryUri $repo -TargetPath $targetPath -GitRef 'main'
 
-            $result.Path | Should -Be (Join-Path $targetPath $name 'main')
+            $result.Path | Should -Be (Join-Path $targetPath $name $mainFolder)
             $result.ResolvedVersion | Should -Be 'installed-commit'
             Should -Invoke _copyFolderFromGitRepo -Times 0
         }
 
+        It 'Uses the installed extension when it was installed from the same source, ignoring case and a trailing /' {
+            newInstalledExtension -Path (Join-Path $targetPath $name $mainFolder) -Name $name -Commit 'installed-commit' -Ref 'main' -Repository "$($repo.ToUpperInvariant())/"
+
+            $result = _getExtensionFromGit -Name $name -RepositoryUri $repo -TargetPath $targetPath -GitRef 'main'
+
+            $result.ResolvedVersion | Should -Be 'installed-commit'
+            Should -Invoke _copyFolderFromGitRepo -Times 0
+        }
+
+        It 'Installs the extension in a separate folder when the same git reference was installed from a different <Description>' -ForEach @(
+            @{ Description = 'repository'; Repository = 'https://github.com/myfork/ZeroFailed.Build.Test'; FolderPath = 'module' }
+            @{ Description = 'folder in the repository'; Repository = 'https://github.com/zerofailed/ZeroFailed.Build.Test'; FolderPath = 'src' }
+            @{ Description = 'case of the folder in the repository'; Repository = 'https://github.com/zerofailed/ZeroFailed.Build.Test'; FolderPath = 'Module' }
+        ) {
+            $otherPath = Join-Path $targetPath $name (getFolderName -Ref 'main' -Repository $Repository -FolderPath $FolderPath)
+            newInstalledExtension -Path $otherPath -Name $name -Commit 'other-commit' -Ref 'main' -Repository $Repository
+            $otherSourceInfoPath = Join-Path $otherPath '.zf-source.json'
+            $otherSourceInfo = Get-Content -Raw $otherSourceInfoPath | ConvertFrom-Json -AsHashtable
+            $otherSourceInfo.folderPath = $FolderPath
+            $otherSourceInfo | ConvertTo-Json | Set-Content -Path $otherSourceInfoPath
+
+            $result = _getExtensionFromGit -Name $name -RepositoryUri $repo -TargetPath $targetPath -GitRef 'main'
+
+            $result.Path | Should -Be (Join-Path $targetPath $name $mainFolder)
+            $result.Path | Should -Not -Be $otherPath
+            $result.ResolvedVersion | Should -Be 'latest-commit'
+            Should -Invoke _copyFolderFromGitRepo -Times 1 -ParameterFilter { $RepoUrl -eq $repo -and $GitRef -eq 'main' }
+            (Get-Content -Raw (Join-Path $result.Path '.zf-source.json') | ConvertFrom-Json).repository | Should -Be $repo
+            (Get-Content -Raw $otherSourceInfoPath | ConvertFrom-Json).commit | Should -Be 'other-commit'
+        }
+
+        It 'Re-installs the extension when its folder holds a copy from a different <Description>' -ForEach @(
+            @{ Description = 'repository'; Repository = 'https://github.com/myfork/ZeroFailed.Build.Test'; FolderPath = 'module' }
+            @{ Description = 'case of the folder in the repository'; Repository = 'https://github.com/zerofailed/ZeroFailed.Build.Test'; FolderPath = 'Module' }
+        ) {
+            # Only possible if two sources' hashes collide, or the folder was changed by hand
+            $installedPath = Join-Path $targetPath $name $mainFolder
+            newInstalledExtension -Path $installedPath -Name $name -Commit 'other-commit' -Ref 'main' -Repository $Repository
+            $installedSourceInfoPath = Join-Path $installedPath '.zf-source.json'
+            $installedSourceInfo = Get-Content -Raw $installedSourceInfoPath | ConvertFrom-Json -AsHashtable
+            $installedSourceInfo.folderPath = $FolderPath
+            $installedSourceInfo | ConvertTo-Json | Set-Content -Path $installedSourceInfoPath
+
+            $result = _getExtensionFromGit -Name $name -RepositoryUri $repo -TargetPath $targetPath -GitRef 'main'
+
+            $result.Path | Should -Be $installedPath
+            $result.ResolvedVersion | Should -Be 'latest-commit'
+            Should -Invoke _copyFolderFromGitRepo -Times 1 -ParameterFilter { $RepoUrl -eq $repo -and $GitRef -eq 'main' }
+            (Get-Content -Raw (Join-Path $installedPath '.zf-source.json') | ConvertFrom-Json).repository | Should -Be $repo
+        }
+
+        It 'Installs the extension again when it is in a folder named after the git reference only, as earlier versions of ZeroFailed did' {
+            newInstalledExtension -Path (Join-Path $targetPath $name 'main') -Name $name -Commit 'installed-commit' -Ref 'main' -Repository $repo
+
+            $result = _getExtensionFromGit -Name $name -RepositoryUri $repo -TargetPath $targetPath -GitRef 'main'
+
+            $result.Path | Should -Be (Join-Path $targetPath $name $mainFolder)
+            $result.ResolvedVersion | Should -Be 'latest-commit'
+            Should -Invoke _copyFolderFromGitRepo -Times 1
+        }
+
         It 'Returns no commit when the extension was installed by an earlier version of ZeroFailed' {
-            newInstalledExtension -Path (Join-Path $targetPath $name 'main') -Name $name
+            newInstalledExtension -Path (Join-Path $targetPath $name $mainFolder) -Name $name
 
             $result = _getExtensionFromGit -Name $name -RepositoryUri $repo -TargetPath $targetPath -GitRef 'main'
 
@@ -118,7 +188,7 @@ Describe '_getExtensionFromGit' {
 
     Context 'When a commit is locked' {
         It 'Uses the installed extension when it is at the locked commit' {
-            newInstalledExtension -Path (Join-Path $targetPath $name 'main') -Name $name -Commit 'locked-commit'
+            newInstalledExtension -Path (Join-Path $targetPath $name $mainFolder) -Name $name -Commit 'locked-commit'
 
             $result = _getExtensionFromGit -Name $name -RepositoryUri $repo -TargetPath $targetPath -GitRef 'main' -LockedCommit 'locked-commit'
 
@@ -127,7 +197,7 @@ Describe '_getExtensionFromGit' {
         }
 
         It 'Re-installs the extension when it is at a different commit' {
-            newInstalledExtension -Path (Join-Path $targetPath $name 'main') -Name $name -Commit 'other-commit'
+            newInstalledExtension -Path (Join-Path $targetPath $name $mainFolder) -Name $name -Commit 'other-commit'
 
             $result = _getExtensionFromGit -Name $name -RepositoryUri $repo -TargetPath $targetPath -GitRef 'main' -LockedCommit 'locked-commit'
 
@@ -137,7 +207,7 @@ Describe '_getExtensionFromGit' {
         }
 
         It 'Re-installs the extension when it was installed by an earlier version of ZeroFailed' {
-            newInstalledExtension -Path (Join-Path $targetPath $name 'main') -Name $name
+            newInstalledExtension -Path (Join-Path $targetPath $name $mainFolder) -Name $name
 
             $result = _getExtensionFromGit -Name $name -RepositoryUri $repo -TargetPath $targetPath -GitRef 'main' -LockedCommit 'locked-commit'
 
@@ -166,7 +236,7 @@ Describe '_getExtensionFromGit' {
         It 'Installs the newest release tag in the range' {
             $result = _getExtensionFromGit -Name $name -RepositoryUri $repo -TargetPath $targetPath -MinimumVersion '1.4.0'
 
-            $result.Path | Should -Be (Join-Path $targetPath $name 'refs-tags-v1.6.1')
+            $result.Path | Should -Be (Join-Path $targetPath $name (getFolderName -Ref 'refs/tags/v1.6.1'))
             $result.ResolvedRef | Should -Be 'refs/tags/v1.6.1'
             $result.ResolvedVersion | Should -Be 'latest-commit'
             Should -Invoke _copyFolderFromGitRepo -Times 1 -ParameterFilter { $GitRef -eq 'refs/tags/v1.6.1' -and !$Commit }
@@ -180,11 +250,11 @@ Describe '_getExtensionFromGit' {
         }
 
         It 'Uses an installed release in the range without listing the tags' {
-            newInstalledExtension -Path (Join-Path $targetPath $name 'refs-tags-1.5.0') -Name $name -Commit 'installed-commit' -Ref 'refs/tags/1.5.0' -Repository "$repo/"
+            newInstalledExtension -Path (Join-Path $targetPath $name (getFolderName -Ref 'refs/tags/1.5.0')) -Name $name -Commit 'installed-commit' -Ref 'refs/tags/1.5.0' -Repository "$repo/"
 
             $result = _getExtensionFromGit -Name $name -RepositoryUri $repo -TargetPath $targetPath -MinimumVersion '1.4.0'
 
-            $result.Path | Should -Be (Join-Path $targetPath $name 'refs-tags-1.5.0')
+            $result.Path | Should -Be (Join-Path $targetPath $name (getFolderName -Ref 'refs/tags/1.5.0'))
             $result.ResolvedRef | Should -Be 'refs/tags/1.5.0'
             $result.ResolvedVersion | Should -Be 'installed-commit'
             Should -Invoke _getGitTagVersions -Times 0
@@ -192,13 +262,30 @@ Describe '_getExtensionFromGit' {
         }
 
         It 'Ignores installed releases from another repository, or outside the range' {
-            newInstalledExtension -Path (Join-Path $targetPath $name 'refs-tags-1.5.0') -Name $name -Commit 'other-commit' -Ref 'refs/tags/1.5.0' -Repository 'https://github.com/other/ZeroFailed.Build.Test'
-            newInstalledExtension -Path (Join-Path $targetPath $name 'refs-tags-2.0.0') -Name $name -Commit 'major-commit' -Ref 'refs/tags/2.0.0' -Repository $repo
+            $otherRepo = 'https://github.com/other/ZeroFailed.Build.Test'
+            newInstalledExtension -Path (Join-Path $targetPath $name (getFolderName -Ref 'refs/tags/1.5.0' -Repository $otherRepo)) -Name $name -Commit 'other-commit' -Ref 'refs/tags/1.5.0' -Repository $otherRepo
+            newInstalledExtension -Path (Join-Path $targetPath $name (getFolderName -Ref 'refs/tags/2.0.0')) -Name $name -Commit 'major-commit' -Ref 'refs/tags/2.0.0' -Repository $repo
 
             $result = _getExtensionFromGit -Name $name -RepositoryUri $repo -TargetPath $targetPath -MinimumVersion '1.4.0'
 
             $result.ResolvedRef | Should -Be 'refs/tags/v1.6.1'
             Should -Invoke _getGitTagVersions -Times 1
+        }
+
+        It 'Installs a release tag in a separate folder when another repository with the same tag is installed' {
+            # The other repository's copy is ignored when looking for an installed release, so the newest tag is
+            # chosen, and it is installed in its own folder
+            $otherPath = Join-Path $targetPath $name (getFolderName -Ref 'refs/tags/v1.6.1' -Repository 'https://github.com/other/ZeroFailed.Build.Test')
+            newInstalledExtension -Path $otherPath -Name $name -Commit 'other-commit' -Ref 'refs/tags/v1.6.1' -Repository 'https://github.com/other/ZeroFailed.Build.Test'
+
+            $result = _getExtensionFromGit -Name $name -RepositoryUri $repo -TargetPath $targetPath -MinimumVersion '1.4.0'
+
+            $result.Path | Should -Be (Join-Path $targetPath $name (getFolderName -Ref 'refs/tags/v1.6.1'))
+            $result.ResolvedRef | Should -Be 'refs/tags/v1.6.1'
+            $result.ResolvedVersion | Should -Be 'latest-commit'
+            Should -Invoke _copyFolderFromGitRepo -Times 1 -ParameterFilter { $RepoUrl -eq $repo -and $GitRef -eq 'refs/tags/v1.6.1' }
+            (Get-Content -Raw (Join-Path $result.Path '.zf-source.json') | ConvertFrom-Json).repository | Should -Be $repo
+            (Get-Content -Raw (Join-Path $otherPath '.zf-source.json') | ConvertFrom-Json).commit | Should -Be 'other-commit'
         }
 
         It 'Throws when no release tag is in the range' {
@@ -218,7 +305,7 @@ Describe '_getExtensionFromGit' {
         It 'Installs the locked commit of the release tag in the lock file, without listing the tags' {
             $result = _getExtensionFromGit -Name $name -RepositoryUri $repo -TargetPath $targetPath -MinimumVersion '1.4.0' -GitRef 'refs/tags/1.4.0' -LockedCommit 'locked-commit'
 
-            $result.Path | Should -Be (Join-Path $targetPath $name 'refs-tags-1.4.0')
+            $result.Path | Should -Be (Join-Path $targetPath $name (getFolderName -Ref 'refs/tags/1.4.0'))
             $result.ResolvedRef | Should -Be 'refs/tags/1.4.0'
             $result.ResolvedVersion | Should -Be 'locked-commit'
             Should -Invoke _getGitTagVersions -Times 0

@@ -36,10 +36,12 @@ function _testExtensionLockEntryMatch {
         if ($MinimumVersion -and $key -eq 'preRelease') {
             continue
         }
-        # Ignore the case of source details (e.g. repository URLs), as well as any trailing '/'
+        # Ignore the case of source details (e.g. repository URLs), as well as any trailing '/'. Folders in a git
+        # repository are case-sensitive (e.g. 'module' and 'Module' can both exist), so their case is not ignored.
         $lockedValue = "$($lockedSource[$key])".TrimEnd('/')
         $value = "$($source[$key])".TrimEnd('/')
-        if ($lockedValue -ne $value) {
+        $differs = $key -eq 'folderPath' ? ($lockedValue -cne $value) : ($lockedValue -ne $value)
+        if ($differs) {
             Write-Verbose "Lock entry does not match: source '$key' is '$lockedValue' in the lock file, but '$value' was requested"
             return $false
         }

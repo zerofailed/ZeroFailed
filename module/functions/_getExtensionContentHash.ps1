@@ -13,7 +13,7 @@ function _getExtensionContentHash {
     # Files written when an extension is installed, which differ between installs of the same content
     $excludedFiles = @(
         'PSGetModuleInfo.xml'   # Written by Save-PSResource, includes the install date & location
-        '.zf-source.json'       # Written by ZeroFailed, records where a git-based extension was installed from
+        '.zf-source.json'       # Written by ZeroFailed, records where an extension was installed from
     )
 
     # Uses .NET APIs rather than cmdlets (e.g. Get-FileHash), since this can run when module auto-loading is disabled

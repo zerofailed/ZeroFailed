@@ -8,6 +8,7 @@ BeforeAll {
 
     # in-module dependencies
     . (Join-Path (Split-Path -Parent $PSCommandPath) 'Get-InstalledExtensionDetails.ps1')
+    . (Join-Path (Split-Path -Parent $PSCommandPath) '_getCompleteExtensionVersion.ps1')
     . (Join-Path (Split-Path -Parent $PSCommandPath) '_getExtensionVersionRange.ps1')
     . (Join-Path (Split-Path -Parent $PSCommandPath) '_testExtensionVersionInRange.ps1')
 
@@ -71,6 +72,12 @@ Describe '_getExtensionFromPSRepository' {
             $result.ResolvedVersion | Should -Be $latestVersion
         }
 
+        It 'Only searches the configured repository' {
+            _getExtensionFromPSRepository -Name $name -PSRepository 'MyRepository' -TargetPath $targetPath | Out-Null
+
+            Should -Invoke Find-PSResource -Times 1 -ParameterFilter { $Repository -eq 'MyRepository' }
+        }
+
         It 'Uses an installed version without checking the repository' {
             newInstalledExtension -TargetPath $targetPath -Name $name -Version '1.5.0'
 
@@ -112,6 +119,19 @@ Describe '_getExtensionFromPSRepository' {
             Should -Invoke Save-PSResource -Times 0
         }
 
+        It 'Installs a requested version that has fewer than 3 numeric parts, and uses it once it is installed' {
+            $result = _getExtensionFromPSRepository -Name $name -PSRepository 'PSGallery' -TargetPath $targetPath -Version '1.4'
+
+            $result.Path | Should -Be (Join-Path $targetPath $name '1.4.0')
+            $result.ResolvedVersion | Should -Be '1.4.0'
+            $result.ContainsKey('Version') | Should -Be $false
+
+            $result = _getExtensionFromPSRepository -Name $name -PSRepository 'PSGallery' -TargetPath $targetPath -Version '1.4'
+
+            $result.ResolvedVersion | Should -Be '1.4.0'
+            Should -Invoke Find-PSResource -Times 1 -Exactly
+        }
+
         It 'Does not overwrite the requested version in the returned metadata' {
             $result = _getExtensionFromPSRepository -Name $name -PSRepository 'PSGallery' -TargetPath $targetPath -Version '1.0.0' -LockedVersion '1.0.0'
 
@@ -143,6 +163,12 @@ Describe '_getExtensionFromPSRepository' {
             $result.Enabled | Should -Be $true
             $result.ResolvedVersion | Should -Be '1.6.0'
             Should -Invoke Find-PSResource -Times 1 -ParameterFilter { $Version -eq '[1.4.0,2.0.0)' -and !$Prerelease }
+        }
+
+        It 'Only searches the configured repository for versions in the range' {
+            _getExtensionFromPSRepository -Name $name -PSRepository 'MyRepository' -TargetPath $targetPath -MinimumVersion '1.4.0' | Out-Null
+
+            Should -Invoke Find-PSResource -Times 1 -ParameterFilter { $Version -eq '[1.4.0,2.0.0)' -and $Repository -eq 'MyRepository' }
         }
 
         It 'Includes pre-release versions in the range when they are requested' {
@@ -191,6 +217,79 @@ Describe '_getExtensionFromPSRepository' {
             $result = _getExtensionFromPSRepository -Name $name -PSRepository 'PSGallery' -TargetPath $targetPath -MinimumVersion '1.4.0'
 
             $result.ContainsKey('Version') | Should -Be $false
+        }
+    }
+
+    Context 'The repository that an extension was installed from' {
+        BeforeAll {
+            # Records the repository of an installed extension, as an install by ZeroFailed does
+            function setInstalledRepository([string] $Path, [string] $Repository) {
+                @{ repository = $Repository } | ConvertTo-Json | Set-Content -Path (Join-Path $Path '.zf-source.json')
+            }
+        }
+
+        It 'Records the repository that the extension was installed from' {
+            $result = _getExtensionFromPSRepository -Name $name -PSRepository 'MyRepository' -TargetPath $targetPath
+
+            $sourceInfo = Get-Content -Raw (Join-Path $result.Path '.zf-source.json') | ConvertFrom-Json -AsHashtable
+            $sourceInfo.repository | Should -Be 'MyRepository'
+            $sourceInfo.version | Should -Be $latestVersion
+        }
+
+        It 'Uses an installed extension from the same repository, ignoring case' {
+            newInstalledExtension -TargetPath $targetPath -Name $name -Version '1.5.0'
+            setInstalledRepository -Path (Join-Path $targetPath $name '1.5.0') -Repository 'myrepository'
+
+            $result = _getExtensionFromPSRepository -Name $name -PSRepository 'MyRepository' -TargetPath $targetPath
+
+            $result.ResolvedVersion | Should -Be '1.5.0'
+            Should -Invoke Find-PSResource -Times 0
+        }
+
+        It 'Uses an installed extension with no record of its repository, as earlier versions of ZeroFailed installed' {
+            newInstalledExtension -TargetPath $targetPath -Name $name -Version '1.5.0'
+
+            $result = _getExtensionFromPSRepository -Name $name -PSRepository 'MyRepository' -TargetPath $targetPath
+
+            $result.ResolvedVersion | Should -Be '1.5.0'
+            Should -Invoke Find-PSResource -Times 0
+        }
+
+        It 'Installs the extension again when it was installed from a different repository' {
+            $installedPath = Join-Path $targetPath $name '1.0.0'
+            newInstalledExtension -TargetPath $targetPath -Name $name -Version '1.0.0'
+            setInstalledRepository -Path $installedPath -Repository 'OtherRepository'
+
+            $result = _getExtensionFromPSRepository -Name $name -PSRepository 'MyRepository' -TargetPath $targetPath -Version '1.0.0'
+
+            $result.Path | Should -Be $installedPath
+            Should -Invoke Find-PSResource -Times 1 -ParameterFilter { $Version -eq '1.0.0' -and $Repository -eq 'MyRepository' }
+            (Get-Content -Raw (Join-Path $installedPath '.zf-source.json') | ConvertFrom-Json).repository | Should -Be 'MyRepository'
+        }
+
+        It 'Throws, without installing, when an extension from a different repository cannot be removed' {
+            $installedPath = Join-Path $targetPath $name '1.0.0'
+            newInstalledExtension -TargetPath $targetPath -Name $name -Version '1.0.0'
+            setInstalledRepository -Path $installedPath -Repository 'OtherRepository'
+            Mock Remove-Item { Write-Error 'The file is in use' }
+
+            { _getExtensionFromPSRepository -Name $name -PSRepository 'MyRepository' -TargetPath $targetPath -Version '1.0.0' } |
+                Should -Throw "Extension $name (1.0.0) was installed from another repository, but it could not be removed: The file is in use Delete '$installedPath', then run again."
+            Should -Invoke Remove-Item -Times 1 -Exactly
+            Should -Invoke Find-PSResource -Times 0
+        }
+
+        It 'Uses another installed version from the same repository in place of one from a different repository' {
+            newInstalledExtension -TargetPath $targetPath -Name $name -Version '1.6.0'
+            setInstalledRepository -Path (Join-Path $targetPath $name '1.6.0') -Repository 'OtherRepository'
+            newInstalledExtension -TargetPath $targetPath -Name $name -Version '1.5.0'
+            setInstalledRepository -Path (Join-Path $targetPath $name '1.5.0') -Repository 'MyRepository'
+
+            $result = _getExtensionFromPSRepository -Name $name -PSRepository 'MyRepository' -TargetPath $targetPath -MinimumVersion '1.4.0'
+
+            $result.ResolvedVersion | Should -Be '1.5.0'
+            Join-Path $targetPath $name '1.6.0' | Should -Not -Exist
+            Should -Invoke Find-PSResource -Times 0
         }
     }
 

@@ -4,7 +4,7 @@ external help file: ZeroFailed-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: ZeroFailed
-ms.date: 10/29/2026
+ms.date: 11/02/2026
 PlatyPS schema version: 2024-05-01
 title: Get-InstalledExtensionDetails
 ---
@@ -64,7 +64,8 @@ $path,$version = Get-InstalledExtensionDetails -Name "MyExtension" -TargetPath "
 
 ### -GitRefAsFolderName
 
-The extension version as represented by the GitRef, modified to be safe for use as a filesystem directory name.
+The name of the folder that the extension was installed in from a git repository.
+This is the GitRef, modified to be safe for use as a filesystem directory name, followed by a short hash of the repository and the folder in it (for example, 'main-1f0c8a2e').
 
 ```yaml
 Type: System.String
@@ -175,6 +176,7 @@ HelpMessage: ''
 
 The version of the extension, if not specified the latest version available, if any, will be returned.
 When specified, only that exact version is returned, even if a later version is installed.
+A version with fewer than 3 numeric parts matches the version with the missing parts set to zero: for example, '1.4' matches '1.4.0'.
 When this contains a semantic version with a pre-release tag, then this implies that a pre-release version is acceptable, as if the '-PreRelease' switch had been specified.
 When the '-PreRelease' switch is specified, a version without a pre-release tag (for example, '1.0.0') also matches its pre-release versions (for example, '1.0.0-beta0001').
 

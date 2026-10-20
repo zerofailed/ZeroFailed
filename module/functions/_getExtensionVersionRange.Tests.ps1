@@ -5,6 +5,7 @@
 BeforeAll {
     # sut
     . $PSCommandPath.Replace('.Tests.ps1','.ps1')
+    . (Join-Path (Split-Path -Parent $PSCommandPath) '_getCompleteExtensionVersion.ps1')
 
     Set-StrictMode -Version Latest
 }
