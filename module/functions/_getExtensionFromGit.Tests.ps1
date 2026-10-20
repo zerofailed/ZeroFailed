@@ -106,6 +106,34 @@ Describe '_getExtensionFromGit' {
             Should -Invoke _copyFolderFromGitRepo -Times 0
         }
 
+        It 'Uses the installed extension when it was installed from the same source, ignoring case and a trailing /' {
+            newInstalledExtension -Path (Join-Path $targetPath $name 'main') -Name $name -Commit 'installed-commit' -Ref 'main' -Repository "$($repo.ToUpperInvariant())/"
+
+            $result = _getExtensionFromGit -Name $name -RepositoryUri $repo -TargetPath $targetPath -GitRef 'main'
+
+            $result.ResolvedVersion | Should -Be 'installed-commit'
+            Should -Invoke _copyFolderFromGitRepo -Times 0
+        }
+
+        It 'Re-installs the extension when it was installed from a different <Description>' -ForEach @(
+            @{ Description = 'repository'; Repository = 'https://github.com/myfork/ZeroFailed.Build.Test'; FolderPath = 'module' }
+            @{ Description = 'folder in the repository'; Repository = 'https://github.com/zerofailed/ZeroFailed.Build.Test'; FolderPath = 'src' }
+        ) {
+            $installedPath = Join-Path $targetPath $name 'main'
+            newInstalledExtension -Path $installedPath -Name $name -Commit 'fork-commit' -Ref 'main' -Repository $Repository
+            $sourceInfoPath = Join-Path $installedPath '.zf-source.json'
+            $sourceInfo = Get-Content -Raw $sourceInfoPath | ConvertFrom-Json -AsHashtable
+            $sourceInfo.folderPath = $FolderPath
+            $sourceInfo | ConvertTo-Json | Set-Content -Path $sourceInfoPath
+
+            $result = _getExtensionFromGit -Name $name -RepositoryUri $repo -TargetPath $targetPath -GitRef 'main'
+
+            $result.Path | Should -Be $installedPath
+            $result.ResolvedVersion | Should -Be 'latest-commit'
+            Should -Invoke _copyFolderFromGitRepo -Times 1 -ParameterFilter { $RepoUrl -eq $repo -and $GitRef -eq 'main' }
+            (Get-Content -Raw $sourceInfoPath | ConvertFrom-Json).repository | Should -Be $repo
+        }
+
         It 'Returns no commit when the extension was installed by an earlier version of ZeroFailed' {
             newInstalledExtension -Path (Join-Path $targetPath $name 'main') -Name $name
 
@@ -199,6 +227,21 @@ Describe '_getExtensionFromGit' {
 
             $result.ResolvedRef | Should -Be 'refs/tags/v1.6.1'
             Should -Invoke _getGitTagVersions -Times 1
+        }
+
+        It 'Re-installs a release tag that was installed from another repository with the same tag' {
+            # The other repository's copy is ignored when looking for an installed release, so the newest tag is
+            # chosen, and it is installed in the same folder
+            $installedPath = Join-Path $targetPath $name 'refs-tags-v1.6.1'
+            newInstalledExtension -Path $installedPath -Name $name -Commit 'other-commit' -Ref 'refs/tags/v1.6.1' -Repository 'https://github.com/other/ZeroFailed.Build.Test'
+
+            $result = _getExtensionFromGit -Name $name -RepositoryUri $repo -TargetPath $targetPath -MinimumVersion '1.4.0'
+
+            $result.Path | Should -Be $installedPath
+            $result.ResolvedRef | Should -Be 'refs/tags/v1.6.1'
+            $result.ResolvedVersion | Should -Be 'latest-commit'
+            Should -Invoke _copyFolderFromGitRepo -Times 1 -ParameterFilter { $RepoUrl -eq $repo -and $GitRef -eq 'refs/tags/v1.6.1' }
+            (Get-Content -Raw (Join-Path $installedPath '.zf-source.json') | ConvertFrom-Json).repository | Should -Be $repo
         }
 
         It 'Throws when no release tag is in the range' {

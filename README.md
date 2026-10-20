@@ -255,7 +255,7 @@ When you change the extensions in the configuration, run once in `Write` mode to
 
 A `MinimumVersion` uses the locked version when it comes from the same source and is in the range, even when the lock file records a different `requested` range. Several extensions can require the same extension with different minimum versions, and the lock file records only one of them. So a `Frozen` run treats a `MinimumVersion` as different from the lock file only when the locked version is outside its range.
 
-ZeroFailed records the commit of an extension installed from a git repository in a `.zf-source.json` file in its folder. Extensions installed by earlier versions of ZeroFailed do not have this file, so their commit is unknown. ZeroFailed warns about these, and you can delete their folders to re-install them and record their commits.
+ZeroFailed records the commit of an extension installed from a git repository in a `.zf-source.json` file in its folder, along with the repository and folder it came from. If you change an extension's `GitRepository` or `GitRepositoryFolderPath`, for example to use a fork, ZeroFailed re-installs it from the new source. Extensions installed by earlier versions of ZeroFailed do not have this file, so their commit is unknown. ZeroFailed warns about these, and you can delete their folders to re-install them and record their commits.
 
 
 ## ZeroFailed Process Overview
