@@ -1,4 +1,4 @@
-#Requires -Version 7
+#Requires -Version 7.1
 <#
 .SYNOPSIS
     Runs a .NET flavoured build process.

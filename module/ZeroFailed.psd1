@@ -28,7 +28,7 @@ Copyright = '(c) endjin. All rights reserved.'
 Description = 'Provides an extensibility framework for automated processes implemented using the "InvokeBuild" PowerShell module.'
 
 # Minimum version of the PowerShell engine required by this module
-PowerShellVersion = '7.0'
+PowerShellVersion = '7.1'
 
 # Name of the PowerShell host required by this module
 # PowerShellHostName = ''

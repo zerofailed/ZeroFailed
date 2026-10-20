@@ -1,7 +1,8 @@
 # ZeroFailed
 
 Extensible automation framework for reliable automated processes, built on the
-[InvokeBuild](https://github.com/nightroman/Invoke-Build) PowerShell module. PowerShell 7+ Core only, cross-platform.
+[InvokeBuild](https://github.com/nightroman/Invoke-Build) PowerShell module. PowerShell 7.1+ Core only (.NET 5 or later, so .NET 5 APIs such as `[Convert]::ToHexString` are
+fine), cross-platform.
 This repo is the **core `ZeroFailed` module** — it resolves, downloads and loads *extensions* (separate PS modules, e.g.
 `ZeroFailed.Build.DotNet`) that a consumer references in its `.zf/config.ps1`.
 
@@ -24,7 +25,7 @@ When available, authoritative conventions live in `.knowledge-base/powershell/`:
 
 ## Module layout & loading
 
-- `module/ZeroFailed.psd1` (manifest, requires PS 7.0) + `module/ZeroFailed.psm1` (loader). The loader dot-sources every
+- `module/ZeroFailed.psd1` (manifest, requires PS 7.1) + `module/ZeroFailed.psm1` (loader). The loader dot-sources every
   `module/functions/*.ps1` (excluding `*.Tests.ps1`) and exports only functions **not** prefixed with `_`.
 - `module/import-tasks.ps1` (aliased `ZeroFailed.tasks`) is the extension-loading entrypoint: reads `$zerofailedExtensions`
   (or the `ZF_EXTENSIONS` env JSON, which takes precedence), registers + de-dupes extensions, then loads their `tasks/`
