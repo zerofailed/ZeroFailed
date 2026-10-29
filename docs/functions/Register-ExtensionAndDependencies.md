@@ -2,9 +2,9 @@
 document type: cmdlet
 external help file: ZeroFailed-Help.xml
 HelpUri: ''
-Locale: en-GB
+Locale: en-US
 Module Name: ZeroFailed
-ms.date: 10/20/2026
+ms.date: 10/29/2026
 PlatyPS schema version: 2024-05-01
 title: Register-ExtensionAndDependencies
 ---

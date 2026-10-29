@@ -13,6 +13,7 @@
       "direct": false,
       "requiredBy": [
         "ZeroFailed.Build.DotNet",
+        "ZeroFailed.Build.GitHub",
         "ZeroFailed.Build.PowerShell"
       ]
     },
@@ -28,6 +29,18 @@
       "direct": true,
       "requiredBy": []
     },
+    "ZeroFailed.Build.GitHub": {
+      "source": {
+        "type": "git",
+        "folderPath": "module",
+        "repository": "https://github.com/zerofailed/ZeroFailed.Build.GitHub.git"
+      },
+      "requested": "main",
+      "resolved": "e29c22201a1e7b894c83337c728280cb6b06c8a6",
+      "contentHash": "sha256:7bd01a7fce5cbb503d0ee0789ab7c9d47e397dfc733a29a981044b04295caef5",
+      "direct": true,
+      "requiredBy": []
+    },
     "ZeroFailed.Build.PowerShell": {
       "source": {
         "type": "git",
@@ -35,8 +48,8 @@
         "repository": "https://github.com/zerofailed/ZeroFailed.Build.PowerShell.git"
       },
       "requested": "main",
-      "resolved": "9fc50f715e425131412a4fce0225641a83f847db",
-      "contentHash": "sha256:ae59da8e7861b92639b1b1a42e6ca0f8c39f81de764e4c02695808bf43471d43",
+      "resolved": "d0faca7cebf4a9853659e809ac6940cb560a0a9f",
+      "contentHash": "sha256:540e5174f7983be7e84f15e5064dc14748acde383cfe0c9435837e87a9abe972",
       "direct": true,
       "requiredBy": []
     },
