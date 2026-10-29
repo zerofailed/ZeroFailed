@@ -2,9 +2,9 @@
 document type: cmdlet
 external help file: ZeroFailed-Help.xml
 HelpUri: ''
-Locale: en-GB
+Locale: en-US
 Module Name: ZeroFailed
-ms.date: 12/04/2025
+ms.date: 10/29/2026
 PlatyPS schema version: 2024-05-01
 title: Get-InstalledExtensionDetails
 ---
@@ -20,8 +20,8 @@ Retrieves the details of an installed extension.
 ### Version (Default)
 
 ```
-Get-InstalledExtensionDetails -Name <string> -TargetPath <string> [-Version <string>] [-PreRelease]
- [<CommonParameters>]
+Get-InstalledExtensionDetails -Name <string> -TargetPath <string> [-Version <string>]
+ [-MinimumVersion <string>] [-PreRelease] [<CommonParameters>]
 ```
 
 ### GitRef
@@ -42,19 +42,23 @@ the path to the module and the version that was found.
 
 ### EXAMPLE 1
 
-$path,$version = Get-InstalledExtensionDetails -Name "MyExtension"
+$path,$version = Get-InstalledExtensionDetails -Name "MyExtension" -TargetPath "C:/MyProject/.zf"
 
 ### EXAMPLE 2
 
-$path,$version = Get-InstalledExtensionDetails -Name "MyExtension" -Version "1.0.0"
+$path,$version = Get-InstalledExtensionDetails -Name "MyExtension" -TargetPath "C:/MyProject/.zf" -Version "1.0.0"
 
 ### EXAMPLE 3
 
-$path,$version = Get-InstalledExtensionDetails -Name "MyExtension" -Version "1.0.0-beta0001"
+$path,$version = Get-InstalledExtensionDetails -Name "MyExtension" -TargetPath "C:/MyProject/.zf" -Version "1.0.0-beta0001" -PreRelease
 
 ### EXAMPLE 4
 
-$path,$version = Get-InstalledExtensionDetails -Name "MyExtension" -PreRelease
+$path,$version = Get-InstalledExtensionDetails -Name "MyExtension" -TargetPath "C:/MyProject/.zf" -PreRelease
+
+### EXAMPLE 5
+
+$path,$version = Get-InstalledExtensionDetails -Name "MyExtension" -TargetPath "C:/MyProject/.zf" -MinimumVersion "1.4.0"
 
 ## PARAMETERS
 
@@ -71,6 +75,31 @@ ParameterSets:
 - Name: GitRef
   Position: Named
   IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+### -MinimumVersion
+
+The lowest version of the extension to return.
+The newest installed version from this version up to, but not including, the next major version is returned: for example, '1.4.0' matches '1.9.2', but not '2.0.0'.
+Before version 1.0.0, the limit is the next change to the first part that is not zero: for example, '0.3.1' matches versions below '0.4.0'.
+Pre-release versions only match when the '-PreRelease' switch is specified.
+When '-Version' is also specified, this parameter is ignored.
+
+```yaml
+Type: System.String
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: Version
+  Position: Named
+  IsRequired: false
   ValueFromPipeline: false
   ValueFromPipelineByPropertyName: false
   ValueFromRemainingArguments: false
@@ -145,8 +174,9 @@ HelpMessage: ''
 ### -Version
 
 The version of the extension, if not specified the latest version available, if any, will be returned.
-When this contains a semantic version with a pre-release tag, then this implies that a pre-release
-version is acceptable. (i.e. as if the '-PreRelease' switch had been specified)
+When specified, only that exact version is returned, even if a later version is installed.
+When this contains a semantic version with a pre-release tag, then this implies that a pre-release version is acceptable, as if the '-PreRelease' switch had been specified.
+When the '-PreRelease' switch is specified, a version without a pre-release tag (for example, '1.0.0') also matches its pre-release versions (for example, '1.0.0-beta0001').
 
 ```yaml
 Type: System.String

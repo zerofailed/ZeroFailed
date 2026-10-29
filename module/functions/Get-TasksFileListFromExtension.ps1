@@ -2,8 +2,25 @@
 # Copyright (c) Endjin Limited. All rights reserved.
 # </copyright>
 function Get-TasksFileListFromExtension {
+    <#
+        .SYNOPSIS
+        Finds all the task definition files from a specified extension.
+
+        .DESCRIPTION
+        Finds all the files that define tasks for an extension, using the pattern defined in '-TasksFileGlob'.
+
+        .PARAMETER TasksPath
+        The path to the extension tasks.
+
+        .PARAMETER TasksFileGlob
+        The glob pattern to use when searching for task files, defaults to '*.tasks.ps1'.
+
+        .EXAMPLE
+        PS:> $taskFiles = Get-TasksFileListFromExtension -TasksPath "C:\myExtension\tasks"
+        PS:> $taskFiles | % { . $_ }
+    #>
     [CmdletBinding()]
-    [OutputType([System.IO.FileInfo[]])]
+    [OutputType([System.IO.FileInfo])]
     param (
         [Parameter(Mandatory=$true)]
         [string] $TasksPath,

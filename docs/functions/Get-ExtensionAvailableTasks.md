@@ -2,9 +2,9 @@
 document type: cmdlet
 external help file: ZeroFailed-Help.xml
 HelpUri: ''
-Locale: en-GB
+Locale: en-US
 Module Name: ZeroFailed
-ms.date: 12/04/2025
+ms.date: 10/29/2026
 PlatyPS schema version: 2024-05-01
 title: Get-ExtensionAvailableTasks
 ---
@@ -28,9 +28,8 @@ Get-ExtensionAvailableTasks [-ExtensionPath] <string> [<CommonParameters>]
 ## DESCRIPTION
 
 This function is used to discover all of the tasks defined by an extension.
-It does this by creating a private implementation of the InvokeBuild 'task' DSL keyword
-that simply returns the task name as a string. This allows us to enumerate all of the tasks defined
-in the extension's tasks files, without knowing how many tasks are defined in any given file.
+It does this by creating a private implementation of the InvokeBuild 'task' DSL keyword that simply returns the task name as a string.
+This allows us to enumerate all of the tasks defined in the extension's tasks files, without knowing how many tasks are defined in any given file.
 
 ## EXAMPLES
 

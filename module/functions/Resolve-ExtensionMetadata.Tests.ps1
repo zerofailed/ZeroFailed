@@ -96,6 +96,19 @@ Describe 'Resolve-ExtensionMetadata' {
                 $result.Keys | Should -Not -Contain 'Path'
             }
         }
+        Context 'Valid specification by name & minimum version' {
+            BeforeAll {
+                $config = @{
+                    Name = "MyExtension"
+                    MinimumVersion = "1.4.0"
+                }
+                $result = Resolve-ExtensionMetadata $config
+            }
+
+            It 'Should return minimum version metadata' {
+                $result.MinimumVersion | Should -Be $config.MinimumVersion
+            }
+        }
     }
 
     Context 'Invalid configuration' {
@@ -104,6 +117,21 @@ Describe 'Resolve-ExtensionMetadata' {
             {
                 Resolve-ExtensionMetadata $config
             } | Should -Throw "Invalid extension configuration syntax."
+        }
+
+        It 'Should throw an exception when MinimumVersion is used with <Key>' -TestCases @(
+            @{ Key = 'Version'; Value = '1.5.0' }
+            @{ Key = 'GitRef'; Value = 'main' }
+            @{ Key = 'Path'; Value = "$extensionPath" }
+        ) {
+            $config = @{
+                Name = "MyExtension"
+                MinimumVersion = "1.4.0"
+                $Key = $Value
+            }
+            {
+                Resolve-ExtensionMetadata $config
+            } | Should -Throw "Invalid extension configuration for 'MyExtension': 'MinimumVersion' cannot be used with '$Key'."
         }
     }
 }

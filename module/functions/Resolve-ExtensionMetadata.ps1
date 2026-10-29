@@ -2,6 +2,54 @@
 # Copyright (c) Endjin Limited. All rights reserved.
 # </copyright>
 function Resolve-ExtensionMetadata {
+    <#
+        .SYNOPSIS
+        Resolves extension metadata from a string or hashtable configuration.
+
+        .DESCRIPTION
+        This function resolves extension metadata from a string or hashtable configuration.
+        The function supports both simple and object-based syntax.
+
+        An error is thrown if 'MinimumVersion' is combined with 'Version', 'GitRef' or 'Path', because a minimum version selects
+        from a range of released versions.
+
+        .PARAMETER Value
+        The extension configuration to resolve.
+
+        .EXAMPLE
+        PS:> Resolve-ExtensionMetadata -Value "MyExtension"
+        @{
+            Name = "MyExtension"
+        }
+
+        .EXAMPLE
+        PS:> Resolve-ExtensionMetadata -Value "c:\path\to\MyExtension"
+        @{
+            Name = "MyExtension"
+            Path = "c:\path\to\MyExtension"
+        }
+
+        .EXAMPLE
+        PS:> Resolve-ExtensionMetadata -Value @{Path="c:\path\to\MyExtension"}
+        @{
+            Name = "MyExtension"
+            Path = "c:\path\to\MyExtension"
+        }
+
+        .EXAMPLE
+        PS:> Resolve-ExtensionMetadata -Value @{Name="MyExtension"; Version="1.0.0"}
+        @{
+            Name = "MyExtension"
+            Version = "1.0.0"
+        }
+
+        .EXAMPLE
+        PS:> Resolve-ExtensionMetadata -Value @{Name="MyExtension"; MinimumVersion="1.4.0"}
+        @{
+            Name = "MyExtension"
+            MinimumVersion = "1.4.0"
+        }
+    #>
     [CmdletBinding()]
     [OutputType([hashtable])]
     param (
@@ -39,6 +87,15 @@ function Resolve-ExtensionMetadata {
     }
     elseif (!$extension.ContainsKey("Name")) {
         throw "Invalid extension configuration syntax."
+    }
+
+    # A minimum version selects from a range of released versions, so it cannot be combined with a specific version
+    if ($extension.ContainsKey("MinimumVersion")) {
+        foreach ($key in "Version", "GitRef", "Path") {
+            if ($extension.ContainsKey($key)) {
+                throw "Invalid extension configuration for '$($extension.Name)': 'MinimumVersion' cannot be used with '$key'."
+            }
+        }
     }
 
     Write-Verbose "Resolved extension metadata: $($extension | ConvertTo-Json)"

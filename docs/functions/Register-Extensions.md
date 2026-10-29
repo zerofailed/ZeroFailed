@@ -2,9 +2,9 @@
 document type: cmdlet
 external help file: ZeroFailed-Help.xml
 HelpUri: ''
-Locale: en-GB
+Locale: en-US
 Module Name: ZeroFailed
-ms.date: 12/04/2025
+ms.date: 10/29/2026
 PlatyPS schema version: 2024-05-01
 title: Register-Extensions
 ---
@@ -21,7 +21,7 @@ Validates and registers a set of extensions and their dependencies.
 
 ```
 Register-Extensions [-ExtensionsConfig] <hashtable[]> [-DefaultPSRepository] <string>
- [-ZfPath] <string> [<CommonParameters>]
+ [-ZfPath] <string> [[-LockMode] <string>] [<CommonParameters>]
 ```
 
 ## ALIASES
@@ -32,6 +32,25 @@ This function validates, installs (if necessary) and registers the specified set
 they declare, returning a fully-populated set of metadata for all extensions.
 
 If an extension is considered valid and available, then it will be marked as enabled; otherwise it will be marked as disabled.
+
+The extensions lock file ('<ZfPath>/extensions.lock.json') records the exact version of every installed extension, including dependencies.
+How it is used depends on the lock mode:
+
+- Write (default): extensions are resolved as normal, then the lock file is created or updated.
+- Frozen: each extension is installed at the commit or version in the lock file, and an error is thrown if there is no lock file or if any extension differs from it.
+- Off: the lock file is not used.
+
+Each extension's metadata includes a 'LockEntry' that records how it was requested and resolved.
+
+When several extensions require the same extension and at least one of them uses a 'MinimumVersion', the version that is used must be in every range that they require.
+A pre-release version is only in the range of a 'MinimumVersion' that also sets 'PreRelease'.
+
+- If the configuration includes the extension, that version is used, wherever it is listed, and a warning names each range that it is not in.
+- Otherwise, the first one registered is used if it is in every range.
+- Otherwise, the newest registered version that is in every range is used in its place.
+- If no version is in every range, an error is thrown.
+
+Without a 'MinimumVersion', the first one registered is used.
 
 ## EXAMPLES
 
@@ -50,6 +69,10 @@ $extensionsConfig = @(
         PreRelease = $true
     }
     @{
+        Name = "RangedPublicExtension"                      # Extension available via PS Gallery, newest version from 1.4.0, below 2.0.0
+        MinimumVersion = "1.4.0"
+    }
+    @{
         Name = "PublicExtension"                            # Extension available via a Git repo, using the 'main' branch
         GitRepository = "https://github.com/myorg/PublicExtension"
     }
@@ -57,6 +80,11 @@ $extensionsConfig = @(
         Name = "PublicExtension"                            # Extension available via a Git repo, using a tagged version
         GitRepository = "https://github.com/myorg/PublicExtension"
         GitRef = "refs/tags/1.0.0"
+    }
+    @{
+        Name = "RangedGitExtension"                         # Extension available via a Git repo, newest release tag from 1.4.0, below 2.0.0
+        GitRepository = "https://github.com/myorg/RangedGitExtension"
+        MinimumVersion = "1.4.0"
     }
     @{
         Name = "PublicExtension"                            # Extension available via a Git repo, using a custom branch
@@ -75,7 +103,7 @@ $extensionsConfig = @(
         Path = "/myNonExistantExtension/module"             # Incorrect path to a local extension
     }
 )
-PS:> Register-Extensions -ExtensionsConfig $extensionsConfig -DefaultRepository PSGallery -ZfPath "/myproject/.zf"
+PS:> Register-Extensions -ExtensionsConfig $extensionsConfig -DefaultPSRepository PSGallery -ZfPath "/myproject/.zf"
 
 @(
     @{
@@ -97,6 +125,12 @@ PS:> Register-Extensions -ExtensionsConfig $extensionsConfig -DefaultRepository 
         Enabled = $true
     }
     @{
+        Name = "RangedPublicExtension"                      # Extension available via PS Gallery, newest version from 1.4.0, below 2.0.0
+        MinimumVersion = "1.4.0"
+        Path = "/myproject/.zf/extensions/RangedPublicExtension/1.6.1"
+        Enabled = $true
+    }
+    @{
         Name = "PublicExtension"                            # Extension available via a Git repo, using the 'main' branch
         Version = "main"
         Path = "/myproject/.zf/extensions/PublicExtension/main"
@@ -106,6 +140,12 @@ PS:> Register-Extensions -ExtensionsConfig $extensionsConfig -DefaultRepository 
         Name = "PublicExtension"                            # Extension available via a Git repo, using a tagged version
         Version = "refs/tags/1.0.0"
         Path = "/myproject/.zf/extensions/PublicExtension/refs-tags-1.0.0"
+        Enabled = $true
+    }
+    @{
+        Name = "RangedGitExtension"                         # Extension available via a Git repo, newest release tag from 1.4.0, below 2.0.0
+        MinimumVersion = "1.4.0"
+        Path = "/myproject/.zf/extensions/RangedGitExtension/refs-tags-v1.6.1"
         Enabled = $true
     }
     @{
@@ -136,7 +176,8 @@ PS:> Register-Extensions -ExtensionsConfig $extensionsConfig -DefaultRepository 
 
 ### -DefaultPSRepository
 
-The default PowerShell repository to use when installing those types of extensions. Defaults to 'PSGallery'.
+The default PowerShell repository to use when installing those types of extensions.
+Defaults to 'PSGallery'.
 
 ```yaml
 Type: System.String
@@ -176,10 +217,34 @@ AcceptedValues: []
 HelpMessage: ''
 ```
 
+### -LockMode
+
+How the extensions lock file is used: 'Write' updates it after resolving the extensions, 'Frozen' installs the versions it records and throws an error if any extension differs from it, and 'Off' does not use it.
+Defaults to 'Write'.
+
+```yaml
+Type: System.String
+DefaultValue: Write
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: 3
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues:
+- Write
+- Frozen
+- Off
+HelpMessage: ''
+```
+
 ### -ZfPath
 
-The path to the '.zf' storage directory (e.g.
-where extensions will be installed).
+The path to the '.zf' storage directory, where extensions will be installed.
 
 ```yaml
 Type: System.String

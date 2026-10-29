@@ -8,6 +8,7 @@ BeforeAll {
 
     # in-module dependencies
     . (Join-Path (Split-Path -Parent $PSCommandPath) 'Get-InstalledExtensionDetails.ps1')
+    . (Join-Path (Split-Path -Parent $PSCommandPath) '_getExtensionFromPSRepository.ps1')
 }
 
 Describe 'Get-ExtensionFromPowerShellRepository' {
@@ -36,6 +37,9 @@ Describe 'Get-ExtensionFromPowerShellRepository' {
         }
         It "Should install the latest stable version" {
             $result.Version | Should -Be $moduleInfo.Version
+        }
+        It "Should only return the metadata it has always returned" {
+            $result.Keys | Sort-Object | Should -Be @('Enabled', 'Path', 'Version')
         }
         It "Should mark the extension as enabled" {
             $result.Enabled | Should -Be $true

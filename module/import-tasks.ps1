@@ -32,32 +32,37 @@ if ($env:ZF_EXTENSIONS) {
 # in a similar fashion to the 'ZF_EXTENSIONS' property.
 $zerofailedExtensionsRepository ??= !$env:ZF_EXTENSIONS_PS_REPO ? "PSGallery" : $env:ZF_EXTENSIONS_PS_REPO
 
+# The extensions lock file ('<ZfPath>/extensions.lock.json') records the exact version of every installed extension:
+#  - Write (default): extensions are resolved as normal, then the lock file is updated
+#  - Frozen: the versions in the lock file are installed, and any difference from it is an error
+#  - Off: the lock file is not used
+# The 'ZF_EXTENSIONS_LOCK_MODE' environment variable takes precedence over the '$zerofailedExtensionsLockMode'
+# variable, so that a CI/CD pipeline can use 'Frozen' without changing the configuration.
+$zerofailedExtensionsLockMode = $env:ZF_EXTENSIONS_LOCK_MODE ? $env:ZF_EXTENSIONS_LOCK_MODE : ($zerofailedExtensionsLockMode ?? 'Write')
+
 # Process the extensions configuration, obtaining them where necessary and
 # filling-out the addtional metadata required by subsequent steps to load them.
 if ($zerofailedExtensions.Count -gt 0) {
     Write-Host "*** Registering Extensions..." -f Green
+    if ($zerofailedExtensionsLockMode -ne 'Write') {
+        Write-Host "Extensions lock mode: $zerofailedExtensionsLockMode" -f Green
+    }
     [array]$registeredExtensions = Register-Extensions -Extensions $zerofailedExtensions `
                                                 -DefaultPSRepository $zerofailedExtensionsRepository `
                                                 -ZfPath $ZfPath `
+                                                -LockMode $zerofailedExtensionsLockMode `
                                                 -Verbose:$VerbosePreference
 }
 else {
     Write-Host "No extensions specified" -f Yellow
 }
 
-# Validate whether extension dependencies are non-conflicting
-# For the moment we'll just log a warning and remove duplicate references, with no regard for versioning - first one wins
-($registeredExtensions | Group-Object -Property Name) |
-    Where-Object { $_.Count -gt 1 } |
-    ForEach-Object {
-        Write-Warning "Multiple versions of extension '$($_.Name)' have been resolved - removing duplicates, will use the first one found: $($_.Group[0] | Select-Object Name,Version,Path | ConvertTo-Json)"
-    }
-$registeredExtensions = $registeredExtensions |
-                            Group-Object -Property Name |
-                                ForEach-Object {
-                                    $_.Group |
-                                    Select-Object -First 1
-                                }
+# Validate whether extension dependencies are non-conflicting: remove duplicate
+# references (first one wins), warning only when the same extension has been
+# resolved to genuinely different versions.
+if ($registeredExtensions.Count -gt 0) {
+    [array]$registeredExtensions = Resolve-ExtensionDuplicates -Extensions $registeredExtensions
+}
 
 #
 # Load the process definition
