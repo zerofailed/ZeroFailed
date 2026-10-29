@@ -78,7 +78,7 @@ function _getExtensionFromGit {
                                     Select-Object -First 1
             if (!$availableRelease) {
                 throw ("No release of extension $Name in $RepositoryUri repository matches $($range.Text). " +
-                       "Releases are tags named after a semantic version, e.g. '$($range.Minimum)' or 'v$($range.Minimum)'.")
+                       "Releases are git tags named after a semantic version, e.g. '$($range.Minimum)' or 'v$($range.Minimum)'. GitHub Releases are not used.")
             }
             $GitRef = $availableRelease.Ref
         }

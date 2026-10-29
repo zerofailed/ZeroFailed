@@ -110,6 +110,7 @@ These rules decide which versions are in the range:
 - Before version 1.0.0, the first part that is not zero sets the limit. For example, `MinimumVersion = '0.3.1'` accepts versions below `0.4.0`.
 - ZeroFailed installs a pre-release version only when you also set `PreRelease = $true`.
 - In a git repository, a release is a tag named after a full semantic version (for example, `1.4.2` or `v1.4.2`). The `v` prefix is optional. ZeroFailed ignores other tags, such as `v1`.
+- ZeroFailed reads only the tags in the git repository. It does not use GitHub Releases (or the release features of other git hosts). A tag without a GitHub Release is used, a draft GitHub Release that has no tag yet is not used, and the GitHub "pre-release" setting is ignored. Only a pre-release label in the tag name, such as `1.5.0-beta.1`, makes a version a pre-release.
 - If a release in the range is already installed, ZeroFailed uses it. To update to the newest release, delete the extension's folder in `.zf/extensions`, then run again.
 
 #### When several extensions require the same extension
