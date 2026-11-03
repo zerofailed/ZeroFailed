@@ -92,6 +92,24 @@ Describe '_testExtensionLockEntryMatch' {
         _testExtensionLockEntryMatch -LockEntry $lockEntry -Entry $psEntry | Should -Be $false
     }
 
+    It 'Matches a module version that has fewer than 3 numeric parts with its full version (<Requested> and <Locked>)' -ForEach @(
+        @{ Requested = '1.4'; Locked = '1.4.0' }
+        @{ Requested = '1.4.0'; Locked = '1.4' }
+        @{ Requested = '1'; Locked = '1.0.0' }
+    ) {
+        $psEntry = @{ source = @{ type = 'psrepository'; repository = 'PSGallery'; preRelease = $false }; requested = $Requested }
+        $lockEntry = @{ source = @{ type = 'psrepository'; repository = 'PSGallery'; preRelease = $false }; requested = $Locked }
+
+        _testExtensionLockEntryMatch -LockEntry $lockEntry -Entry $psEntry | Should -Be $true
+    }
+
+    It 'Does not match a different module version' {
+        $psEntry = @{ source = @{ type = 'psrepository'; repository = 'PSGallery'; preRelease = $false }; requested = '1.4' }
+        $lockEntry = @{ source = @{ type = 'psrepository'; repository = 'PSGallery'; preRelease = $false }; requested = '1.4.1' }
+
+        _testExtensionLockEntryMatch -LockEntry $lockEntry -Entry $psEntry | Should -Be $false
+    }
+
     It 'Does not match a missing lock entry' {
         _testExtensionLockEntryMatch -LockEntry $null -Entry $entry | Should -Be $false
     }

@@ -239,7 +239,7 @@ For each extension, the lock file records:
 | Property | Description |
 | --- | --- |
 | `source` | Where the extension comes from: a git repository and folder, a PowerShell repository, or a local path. For a PowerShell repository, or a git `MinimumVersion`, it also records whether pre-release versions are allowed. |
-| `requested` | The `GitRef` or `Version` in the configuration, or the range of a `MinimumVersion` (for example, `[1.4.0,2.0.0)`). |
+| `requested` | The `GitRef` or `Version` in the configuration, or the range of a `MinimumVersion` (for example, `[1.4.0,2.0.0)`). A `Version` with fewer than 3 numeric parts is recorded as its full version (for example, `1.4` is recorded as `1.4.0`). |
 | `resolved` | The commit or exact module version that was installed. |
 | `resolvedRef` | For a git `MinimumVersion`, the release tag that was installed (for example, `refs/tags/1.4.2`). |
 | `contentHash` | A SHA256 hash of the installed files. Line endings are normalised, so the hash is the same on every platform. |

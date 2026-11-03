@@ -666,6 +666,21 @@ Describe 'Register-ExtensionAndDependencies' {
                 Should -Invoke Write-Host -Times 0 -ParameterFilter { $Object -like 'Using locked*' }
             }
 
+            It 'Records a version with fewer than 3 numeric parts as its full version, and matches its lock entry' {
+                $lockedExtensions = @{
+                    $mockModuleName = @{
+                        source = @{ type = 'psrepository'; repository = 'PSGallery'; preRelease = $false }
+                        requested = '1.0.0'
+                        resolved = '1.0.0'
+                    }
+                }
+
+                [array]$result = Register-ExtensionAndDependencies -ExtensionConfig @{ Name = $mockModuleName; Version = '1.0' } -TargetPath $targetPath -LockedExtensions $lockedExtensions
+
+                $result[0].LockEntry.requested | Should -Be '1.0.0'
+                Should -Invoke _getExtensionFromPSRepository -Times 1 -ParameterFilter { $LockedVersion -eq '1.0.0' }
+            }
+
             It 'Records a minimum version as its range' {
                 [array]$result = Register-ExtensionAndDependencies -ExtensionConfig @{ Name = $mockModuleName; MinimumVersion = '1.0' } -TargetPath $targetPath
 

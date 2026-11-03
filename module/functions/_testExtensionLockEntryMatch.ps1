@@ -72,8 +72,15 @@ function _testExtensionLockEntryMatch {
         return $true
     }
 
-    # Git references are case-sensitive
-    if ("$($LockEntry['requested'])" -cne "$($Entry['requested'])") {
+    # Git references are case-sensitive. A module version with fewer than 3 numeric parts (e.g. '1.4') is the same as its
+    # full version (e.g. '1.4.0').
+    $lockedRequested = "$($LockEntry['requested'])"
+    $requested = "$($Entry['requested'])"
+    if ($lockedSource['type'] -eq 'psrepository') {
+        $lockedRequested = (_getCompleteExtensionVersion -Version $lockedRequested) ?? $lockedRequested
+        $requested = (_getCompleteExtensionVersion -Version $requested) ?? $requested
+    }
+    if ($lockedRequested -cne $requested) {
         Write-Verbose "Lock entry does not match: '$($LockEntry['requested'])' is in the lock file, but '$($Entry['requested'])' was requested"
         return $false
     }
