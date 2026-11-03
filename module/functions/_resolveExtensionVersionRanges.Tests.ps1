@@ -11,6 +11,7 @@ BeforeAll {
     . (Join-Path (Split-Path -Parent $PSCommandPath) '_getCompleteExtensionVersion.ps1')
     . (Join-Path (Split-Path -Parent $PSCommandPath) '_testExtensionVersionInRange.ps1')
     . (Join-Path (Split-Path -Parent $PSCommandPath) '_getVersionFromGitTag.ps1')
+    . (Join-Path (Split-Path -Parent $PSCommandPath) '_getNormalizedGitRepositoryUrl.ps1')
 
     # Defined so that it can be mocked
     function Register-ExtensionAndDependencies { param($ExtensionConfig, $TargetPath, $RequiredBy, $LockedExtensions) }
@@ -252,6 +253,22 @@ Describe '_resolveExtensionVersionRanges' {
                 $ExtensionConfig.GitRepositoryFolderPath -eq 'module' -and
                 !$ExtensionConfig.ContainsKey('PSRepository')
             }
+        }
+
+        It 'Installs from a git repository that is referenced with and without a trailing .git' {
+            $extensions | ForEach-Object {
+                $_.LockEntry.source = [ordered]@{ type = 'git'; folderPath = 'module'; repository = 'https://github.com/zerofailed/Common' }
+                $_.LockEntry.resolvedRef = "refs/tags/$($_.LockEntry.resolved)"
+            }
+            $extensions[1].LockEntry.source.repository = 'https://github.com/zerofailed/Common.git'
+            Mock Register-ExtensionAndDependencies {
+                newRegisteredExtension -Type 'git' -RequiredBy $RequiredBy -MinimumVersion $ExtensionConfig.MinimumVersion -Resolved 'commit' -ResolvedRef 'refs/tags/1.6.0'
+            }
+
+            $result = _resolveExtensionVersionRanges -Extensions $extensions -TargetPath $targetPath
+
+            $result[0].LockEntry.resolvedRef | Should -Be 'refs/tags/1.6.0'
+            Should -Invoke Register-ExtensionAndDependencies -Times 1
         }
 
         It 'Throws, with the reason, when the version cannot be installed' {

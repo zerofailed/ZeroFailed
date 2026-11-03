@@ -5,6 +5,7 @@
 BeforeAll {
     # sut
     . $PSCommandPath.Replace('.Tests.ps1','.ps1')
+    . (Join-Path (Split-Path -Parent $PSCommandPath) '_getNormalizedGitRepositoryUrl.ps1')
 
     Set-StrictMode -Version Latest
 }
@@ -38,6 +39,17 @@ Describe '_getGitExtensionFolderName' {
         $expected = _getGitExtensionFolderName -RepositoryUri $repo -RepositoryFolderPath 'module' -GitRef 'main'
 
         $result = _getGitExtensionFolderName -RepositoryUri "$($repo.ToUpperInvariant())/" -RepositoryFolderPath 'module' -GitRef 'main'
+
+        $result | Should -Be $expected
+    }
+
+    It 'Ignores a trailing .git in the repository URL (<Suffix>)' -ForEach @(
+        @{ Suffix = '.git' }
+        @{ Suffix = '.GIT/' }
+    ) {
+        $expected = _getGitExtensionFolderName -RepositoryUri $repo -RepositoryFolderPath 'module' -GitRef 'main'
+
+        $result = _getGitExtensionFolderName -RepositoryUri "$repo$Suffix" -RepositoryFolderPath 'module' -GitRef 'main'
 
         $result | Should -Be $expected
     }

@@ -15,6 +15,7 @@ BeforeAll {
     . (Join-Path (Split-Path -Parent $PSCommandPath) '_getVersionFromGitTag.ps1')
     . (Join-Path (Split-Path -Parent $PSCommandPath) '_getGitTagVersions.ps1')
     . (Join-Path (Split-Path -Parent $PSCommandPath) '_getGitExtensionFolderName.ps1')
+    . (Join-Path (Split-Path -Parent $PSCommandPath) '_getNormalizedGitRepositoryUrl.ps1')
 
     Set-StrictMode -Version Latest
 
@@ -120,6 +121,16 @@ Describe '_getExtensionFromGit' {
 
             $result = _getExtensionFromGit -Name $name -RepositoryUri $repo -TargetPath $targetPath -GitRef 'main'
 
+            $result.ResolvedVersion | Should -Be 'installed-commit'
+            Should -Invoke _copyFolderFromGitRepo -Times 0
+        }
+
+        It 'Uses the installed extension when it was installed from the same repository with a trailing .git' {
+            newInstalledExtension -Path (Join-Path $targetPath $name $mainFolder) -Name $name -Commit 'installed-commit' -Ref 'main' -Repository $repo
+
+            $result = _getExtensionFromGit -Name $name -RepositoryUri "$repo.git" -TargetPath $targetPath -GitRef 'main'
+
+            $result.Path | Should -Be (Join-Path $targetPath $name $mainFolder)
             $result.ResolvedVersion | Should -Be 'installed-commit'
             Should -Invoke _copyFolderFromGitRepo -Times 0
         }

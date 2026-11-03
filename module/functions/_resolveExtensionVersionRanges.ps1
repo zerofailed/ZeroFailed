@@ -79,7 +79,8 @@ function _resolveExtensionVersionRanges {
     $describeSource = {
         param ($extension)
         $source = $extension.LockEntry.source
-        "$($source.type)|$("$($source['repository'])".TrimEnd('/').ToLowerInvariant())|$($source['folderPath'])"
+        $repository = $source.type -eq 'git' ? (_getNormalizedGitRepositoryUrl -RepositoryUrl "$($source['repository'])") : "$($source['repository'])".TrimEnd('/').ToLowerInvariant()
+        "$($source.type)|$repository|$($source['folderPath'])"
     }
 
     # Installs the newest version in every range, when they overlap and every extension requires the same source. Every

@@ -13,6 +13,7 @@ BeforeAll {
     . (Join-Path (Split-Path -Parent $PSCommandPath) '_copyFolderFromGitRepo.ps1')
     . (Join-Path (Split-Path -Parent $PSCommandPath) '_getExtensionFromGit.ps1')
     . (Join-Path (Split-Path -Parent $PSCommandPath) '_getGitExtensionFolderName.ps1')
+    . (Join-Path (Split-Path -Parent $PSCommandPath) '_getNormalizedGitRepositoryUrl.ps1')
 }
 
 Describe 'Get-ExtensionFromGitRepository' {

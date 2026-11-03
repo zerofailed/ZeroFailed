@@ -35,10 +35,10 @@ function _getExtensionFromGit {
     $sourceInfoFileName = '.zf-source.json'
 
     # Whether an installed copy came from the requested repository and folder. Ignore the case of the repository URL,
-    # as well as any trailing '/', as the lock file does. Folders in a git repository are case-sensitive.
+    # as well as any trailing '/' or '.git', as the lock file does. Folders in a git repository are case-sensitive.
     $isSameSource = {
         param ($sourceInfo)
-        "$($sourceInfo['repository'])".TrimEnd('/') -eq $RepositoryUri.OriginalString.TrimEnd('/') -and
+        (_getNormalizedGitRepositoryUrl -RepositoryUrl "$($sourceInfo['repository'])") -eq (_getNormalizedGitRepositoryUrl -RepositoryUrl $RepositoryUri.OriginalString) -and
             "$($sourceInfo['folderPath'])" -ceq $RepositoryFolderPath
     }
 

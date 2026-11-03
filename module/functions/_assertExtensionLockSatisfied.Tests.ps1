@@ -14,6 +14,7 @@ BeforeAll {
     . (Join-Path (Split-Path -Parent $PSCommandPath) '_getCompleteExtensionVersion.ps1')
     . (Join-Path (Split-Path -Parent $PSCommandPath) '_testExtensionVersionInRange.ps1')
     . (Join-Path (Split-Path -Parent $PSCommandPath) '_getVersionFromGitTag.ps1')
+    . (Join-Path (Split-Path -Parent $PSCommandPath) '_getNormalizedGitRepositoryUrl.ps1')
 
     Set-StrictMode -Version Latest
 

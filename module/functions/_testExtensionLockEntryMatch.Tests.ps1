@@ -11,6 +11,7 @@ BeforeAll {
     . (Join-Path (Split-Path -Parent $PSCommandPath) '_getCompleteExtensionVersion.ps1')
     . (Join-Path (Split-Path -Parent $PSCommandPath) '_testExtensionVersionInRange.ps1')
     . (Join-Path (Split-Path -Parent $PSCommandPath) '_getVersionFromGitTag.ps1')
+    . (Join-Path (Split-Path -Parent $PSCommandPath) '_getNormalizedGitRepositoryUrl.ps1')
 
     Set-StrictMode -Version Latest
 }
@@ -42,6 +43,25 @@ Describe '_testExtensionLockEntryMatch' {
         }
 
         _testExtensionLockEntryMatch -LockEntry $lockEntry -Entry $entry | Should -Be $true
+    }
+
+    It 'Ignores a trailing .git in a git repository URL (<Repository>)' -ForEach @(
+        @{ Repository = 'https://github.com/zerofailed/ZeroFailed.Build.Common.git' }
+        @{ Repository = 'https://github.com/zerofailed/ZeroFailed.Build.Common.GIT/' }
+    ) {
+        $lockEntry = @{
+            source = @{ type = 'git'; repository = $Repository; folderPath = 'module' }
+            requested = 'main'
+        }
+
+        _testExtensionLockEntryMatch -LockEntry $lockEntry -Entry $entry | Should -Be $true
+    }
+
+    It 'Does not ignore a trailing .git in a PowerShell repository name' {
+        $psEntry = @{ source = @{ type = 'psrepository'; repository = 'MyRepo'; preRelease = $false }; requested = '1.0.0' }
+        $lockEntry = @{ source = @{ type = 'psrepository'; repository = 'MyRepo.git'; preRelease = $false }; requested = '1.0.0' }
+
+        _testExtensionLockEntryMatch -LockEntry $lockEntry -Entry $psEntry | Should -Be $false
     }
 
     It 'Does not match when the <Description>' -ForEach @(
