@@ -21,13 +21,18 @@ function Register-Extensions {
 
         Each extension's metadata includes a 'LockEntry' that records how it was requested and resolved.
 
+        Only one run at a time registers the extensions of the same 'ZfPath'.
+        Another run that uses the same 'ZfPath' waits for it to finish, for up to 10 minutes.
+
         When several extensions require the same extension and at least one of them uses a 'MinimumVersion', the version that is used must be in every range that they require.
-        A pre-release version is only in the range of a 'MinimumVersion' that also sets 'PreRelease'.
+        A pre-release version is only in the range of a 'MinimumVersion' that also sets 'PreRelease', or that is itself a pre-release.
 
         - If the configuration includes the extension, that version is used, wherever it is listed, and a warning names each range that it is not in.
         - Otherwise, the first one registered is used if it is in every range.
         - Otherwise, the newest registered version that is in every range is used in its place.
         - If no version is in every range, an error is thrown.
+
+        The other versions, and the dependencies that only they declare, are not used.
 
         Without a 'MinimumVersion', the first one registered is used.
 
@@ -181,63 +186,73 @@ function Register-Extensions {
 
     [hashtable[]]$processedExtensionConfig = @()
 
-    # The lock file records the exact version of every extension that was installed, including dependencies:
-    #  - Write:  extensions are resolved as normal, then the lock file is updated
-    #  - Frozen: the versions in the lock file are installed, and any difference from it is an error
-    #  - Off:    the lock file is not used
-    $lockFilePath = Join-Path $ZfPath 'extensions.lock.json'
-    $lockedExtensions = $null
-    if ($LockMode -eq 'Frozen') {
-        $lockedExtensions = _readExtensionLockFile -Path $lockFilePath
-        if ($null -eq $lockedExtensions) {
-            throw "The extensions lock mode is 'Frozen', but there is no lock file at '$lockFilePath'. Run with the lock mode set to 'Write' to create it."
+    # Only one run at a time can install extensions into, and write the lock file of, the same '.zf' folder
+    $extensionsLock = _waitForExtensionsLock -ZfPath $ZfPath
+    try {
+        # The lock file records the exact version of every extension that was installed, including dependencies:
+        #  - Write:  extensions are resolved as normal, then the lock file is updated
+        #  - Frozen: the versions in the lock file are installed, and any difference from it is an error
+        #  - Off:    the lock file is not used
+        $lockFilePath = Join-Path $ZfPath 'extensions.lock.json'
+        $lockedExtensions = $null
+        if ($LockMode -eq 'Frozen') {
+            $lockedExtensions = _readExtensionLockFile -Path $lockFilePath
+            if ($null -eq $lockedExtensions) {
+                throw "The extensions lock mode is 'Frozen', but there is no lock file at '$lockFilePath'. Run with the lock mode set to 'Write' to create it."
+            }
+            Write-Host "Using extensions lock file: $lockFilePath"
         }
-        Write-Host "Using extensions lock file: $lockFilePath"
-    }
 
-    # Extensions will be installed under the ZfPath, which by convention
-    # is the '.zf' folder in the root of a project.
-    $zfExtensionsPath = Join-Path $ZfPath 'extensions'
-    if (!(Test-Path $zfExtensionsPath)) {
-        New-Item -ItemType Directory $zfExtensionsPath | Out-Null
-    }
-    Write-Host "ZF Extensions Path: $zfExtensionsPath"
-
-    # Ensure that $zfExtensionsPath is the first place we will look
-    # for modules by putting it at the front of $env:PSModulePath
-    [string[]]$moduleSearchPaths = $env:PSModulePath -split [IO.Path]::PathSeparator
-    if ($zfExtensionsPath -notin $moduleSearchPaths) {
-        $moduleSearchPaths = ,$zfExtensionsPath + $moduleSearchPaths
-    }
-    elseif ($moduleSearchPaths[0] -ne $zfExtensionsPath) {
-        $moduleSearchPaths = ,$zfExtensionsPath + $($moduleSearchPaths | Where-Object {$_ -ne $zfExtensionsPath})
-    }
-    $env:PSModulePath = $moduleSearchPaths -join [IO.Path]::PathSeparator
-
-    # Process each configured extension
-    for ($i=0; $i -lt $ExtensionsConfig.Length; $i++) {
-
-        # An extension that is not registered (a missing local extension) returns nothing
-        $registeredExtensions = @(Register-ExtensionAndDependencies -ExtensionConfig $ExtensionsConfig[$i] `
-                                                                   -TargetPath $zfExtensionsPath `
-                                                                   -LockedExtensions $lockedExtensions)
-
-        # Persist the fully-populated extension metadata
-        $processedExtensionConfig += $registeredExtensions
-    }
-
-    # When several extensions require the same extension with a minimum version, use a version that satisfies all of them
-    # (an empty result is kept as an empty array, e.g. when every extension is a missing local extension)
-    $processedExtensionConfig = @(_resolveExtensionVersionRanges -Extensions $processedExtensionConfig `
-                                                                 -TargetPath $zfExtensionsPath `
-                                                                 -LockedExtensions $lockedExtensions)
-
-    switch ($LockMode) {
-        'Write' {
-            _writeExtensionLockFile -Path $lockFilePath -Extensions $processedExtensionConfig
+        # Extensions will be installed under the ZfPath, which by convention
+        # is the '.zf' folder in the root of a project.
+        $zfExtensionsPath = Join-Path $ZfPath 'extensions'
+        if (!(Test-Path $zfExtensionsPath)) {
+            New-Item -ItemType Directory $zfExtensionsPath | Out-Null
         }
-        'Frozen' {
-            _assertExtensionLockSatisfied -Extensions $processedExtensionConfig -LockedExtensions $lockedExtensions -LockFilePath $lockFilePath
+        Write-Host "ZF Extensions Path: $zfExtensionsPath"
+
+        # Ensure that $zfExtensionsPath is the first place we will look
+        # for modules by putting it at the front of $env:PSModulePath
+        [string[]]$moduleSearchPaths = $env:PSModulePath -split [IO.Path]::PathSeparator
+        if ($zfExtensionsPath -notin $moduleSearchPaths) {
+            $moduleSearchPaths = ,$zfExtensionsPath + $moduleSearchPaths
+        }
+        elseif ($moduleSearchPaths[0] -ne $zfExtensionsPath) {
+            $moduleSearchPaths = ,$zfExtensionsPath + $($moduleSearchPaths | Where-Object {$_ -ne $zfExtensionsPath})
+        }
+        $env:PSModulePath = $moduleSearchPaths -join [IO.Path]::PathSeparator
+
+        # Process each configured extension
+        for ($i=0; $i -lt $ExtensionsConfig.Length; $i++) {
+
+            # An extension that is not registered (a missing local extension) returns nothing
+            $registeredExtensions = @(Register-ExtensionAndDependencies -ExtensionConfig $ExtensionsConfig[$i] `
+                                                                       -TargetPath $zfExtensionsPath `
+                                                                       -LockedExtensions $lockedExtensions)
+
+            # Persist the fully-populated extension metadata
+            $processedExtensionConfig += $registeredExtensions
+        }
+
+        # When several extensions require the same extension with a minimum version, use a version that satisfies all of them
+        # (an empty result is kept as an empty array, e.g. when every extension is a missing local extension)
+        $processedExtensionConfig = @(_resolveExtensionVersionRanges -Extensions $processedExtensionConfig `
+                                                                     -TargetPath $zfExtensionsPath `
+                                                                     -LockedExtensions $lockedExtensions)
+
+        switch ($LockMode) {
+            'Write' {
+                _writeExtensionLockFile -Path $lockFilePath -Extensions $processedExtensionConfig
+            }
+            'Frozen' {
+                _assertExtensionLockSatisfied -Extensions $processedExtensionConfig -LockedExtensions $lockedExtensions -LockFilePath $lockFilePath
+            }
+        }
+    }
+    finally {
+        if ($extensionsLock) {
+            $extensionsLock.ReleaseMutex()
+            $extensionsLock.Dispose()
         }
     }
 

@@ -232,6 +232,8 @@ env:
   ZF_EXTENSIONS_LOCK_MODE: Frozen
 ```
 
+Only one run at a time installs extensions into the same `.zf` folder and writes its lock file. If two runs use the same `.zf` folder at the same time, for example parallel builds of one working copy, the second run waits up to 10 minutes for the first run to finish registering its extensions.
+
 #### What the lock file records
 
 For each extension, the lock file records:

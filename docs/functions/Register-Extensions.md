@@ -42,13 +42,18 @@ How it is used depends on the lock mode:
 
 Each extension's metadata includes a 'LockEntry' that records how it was requested and resolved.
 
+Only one run at a time registers the extensions of the same 'ZfPath'.
+Another run that uses the same 'ZfPath' waits for it to finish, for up to 10 minutes.
+
 When several extensions require the same extension and at least one of them uses a 'MinimumVersion', the version that is used must be in every range that they require.
-A pre-release version is only in the range of a 'MinimumVersion' that also sets 'PreRelease'.
+A pre-release version is only in the range of a 'MinimumVersion' that also sets 'PreRelease', or that is itself a pre-release.
 
 - If the configuration includes the extension, that version is used, wherever it is listed, and a warning names each range that it is not in.
 - Otherwise, the first one registered is used if it is in every range.
 - Otherwise, the newest registered version that is in every range is used in its place.
 - If no version is in every range, an error is thrown.
+
+The other versions, and the dependencies that only they declare, are not used.
 
 Without a 'MinimumVersion', the first one registered is used.
 

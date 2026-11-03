@@ -17,6 +17,15 @@ BeforeAll {
     function _writeExtensionLockFile { param($Path, $Extensions) }
     function _assertExtensionLockSatisfied { param($Extensions, $LockedExtensions, $LockFilePath) }
     function _resolveExtensionVersionRanges { param($Extensions, $TargetPath, $LockedExtensions) }
+    function _waitForExtensionsLock { param($ZfPath) }
+
+    # Records whether the lock that _waitForExtensionsLock returns is released
+    function newExtensionsLock {
+        $extensionsLock = [pscustomobject]@{ Released = $false; Disposed = $false }
+        $extensionsLock | Add-Member -MemberType ScriptMethod -Name ReleaseMutex -Value { $this.Released = $true }
+        $extensionsLock | Add-Member -MemberType ScriptMethod -Name Dispose -Value { $this.Disposed = $true }
+        $extensionsLock
+    }
 
     # Save original env var to restore later
     $script:originalPSModulePath = $env:PSModulePath
@@ -259,6 +268,38 @@ Describe 'Register-Extensions' {
                 { Register-Extensions -ExtensionsConfig $extensionsConfig -DefaultPSRepository $defaultRepo -ZfPath $zfPath -LockMode 'Sometimes' } |
                     Should -Throw
             }
+        }
+    }
+
+    Context 'Runs that share a .zf folder' {
+        BeforeEach {
+            $zfPath = Join-Path -Path TestDrive: -ChildPath '.zf'
+            $extensionsLock = newExtensionsLock
+            Mock _waitForExtensionsLock { $extensionsLock }
+        }
+
+        It 'Registers the extensions, and writes the lock file, while it holds the lock for the .zf folder' {
+            Mock 'Register-ExtensionAndDependencies' {
+                $extensionsLock.Released | Should -Be $false
+                @{ Name = 'Extension1' }
+            }
+            Mock _writeExtensionLockFile { $extensionsLock.Released | Should -Be $false }
+
+            Register-Extensions -ExtensionsConfig @(@{ Name = 'Extension1' }) -DefaultPSRepository 'PSGallery' -ZfPath $zfPath | Out-Null
+
+            Should -Invoke _waitForExtensionsLock -Times 1 -ParameterFilter { $ZfPath -eq $zfPath }
+            Should -Invoke _writeExtensionLockFile -Times 1
+            $extensionsLock.Released | Should -Be $true
+            $extensionsLock.Disposed | Should -Be $true
+        }
+
+        It 'Releases the lock when registration fails' {
+            Mock 'Register-ExtensionAndDependencies' { throw 'Registration failed' }
+
+            { Register-Extensions -ExtensionsConfig @(@{ Name = 'Extension1' }) -DefaultPSRepository 'PSGallery' -ZfPath $zfPath } | Should -Throw '*Registration failed*'
+
+            $extensionsLock.Released | Should -Be $true
+            $extensionsLock.Disposed | Should -Be $true
         }
     }
 }
