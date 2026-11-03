@@ -187,13 +187,15 @@ Describe '_getExtensionFromGit' {
             Should -Invoke _copyFolderFromGitRepo -Times 1
         }
 
-        It 'Returns no commit when the extension was installed by an earlier version of ZeroFailed' {
+        It 'Installs the extension again when its install did not complete' {
             newInstalledExtension -Path (Join-Path $targetPath $name $mainFolder) -Name $name
 
             $result = _getExtensionFromGit -Name $name -RepositoryUri $repo -TargetPath $targetPath -GitRef 'main'
 
-            $result.ResolvedVersion | Should -BeNullOrEmpty
-            Should -Invoke _copyFolderFromGitRepo -Times 0
+            $result.Path | Should -Be (Join-Path $targetPath $name $mainFolder)
+            $result.ResolvedVersion | Should -Be 'latest-commit'
+            Should -Invoke _copyFolderFromGitRepo -Times 1
+            Join-Path $result.Path '.zf-source.json' | Should -Exist
         }
     }
 
@@ -217,7 +219,7 @@ Describe '_getExtensionFromGit' {
             (Get-Content -Raw (Join-Path $result.Path '.zf-source.json') | ConvertFrom-Json).commit | Should -Be 'locked-commit'
         }
 
-        It 'Re-installs the extension when it was installed by an earlier version of ZeroFailed' {
+        It 'Re-installs the extension when its install did not complete' {
             newInstalledExtension -Path (Join-Path $targetPath $name $mainFolder) -Name $name
 
             $result = _getExtensionFromGit -Name $name -RepositoryUri $repo -TargetPath $targetPath -GitRef 'main' -LockedCommit 'locked-commit'
@@ -332,6 +334,25 @@ Describe '_getExtensionFromGit' {
         It 'Throws an error that includes the reason' {
             { _getExtensionFromGit -Name $name -RepositoryUri $repo -TargetPath $targetPath -GitRef 'main' } |
                 Should -Throw "Failed to install extension $name (main) from $repo repository: git fetch failed"
+        }
+
+        It 'Leaves no install folder or staging folder when the copy stops part way' {
+            Mock _copyFolderFromGitRepo {
+                newInstalledExtension -Path $DestinationPath -Name 'ZeroFailed.Build.Test'
+                throw 'Copy stopped'
+            }
+
+            { _getExtensionFromGit -Name $name -RepositoryUri $repo -TargetPath $targetPath -GitRef 'main' } | Should -Throw '*Copy stopped*'
+
+            @(Get-ChildItem -Path (Join-Path $targetPath $name) -Force -ErrorAction Ignore) | Should -HaveCount 0
+        }
+
+        It 'Keeps the existing install when the copy fails' {
+            newInstalledExtension -Path (Join-Path $targetPath $name $mainFolder) -Name $name -Commit 'other-commit' -Ref 'main' -Repository $repo
+
+            { _getExtensionFromGit -Name $name -RepositoryUri $repo -TargetPath $targetPath -GitRef 'main' -LockedCommit 'locked-commit' } | Should -Throw
+
+            (Get-Content -Raw (Join-Path $targetPath $name $mainFolder '.zf-source.json') | ConvertFrom-Json).commit | Should -Be 'other-commit'
         }
     }
 }

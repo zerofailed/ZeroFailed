@@ -93,7 +93,8 @@ function _getExtensionFromGit {
     $installFolderName = _getGitExtensionFolderName -RepositoryUri $RepositoryUri -RepositoryFolderPath $RepositoryFolderPath -GitRef $GitRef
     $existingExtensionPath,$existingExtensionVersion = Get-InstalledExtensionDetails -Name $Name -TargetPath $TargetPath -GitRefAsFolderName $installFolderName
 
-    # Installs made by earlier versions of ZeroFailed have no record of their commit, or of their source
+    # Every install records its source once all of its files are in place, so a folder without this record is an
+    # install that did not complete. Earlier versions of ZeroFailed did not use this folder name.
     $installedCommit = $null
     $installedSourceInfo = $null
     if ($existingExtensionPath) {
@@ -113,7 +114,11 @@ function _getExtensionFromGit {
         Write-Verbose "Extension '$Name' found locally but version mismatch detected. Found: '$existingExtensionVersion'; Required: '$installFolderName' [$GitRef]"
         $installRequired = $true
     }
-    elseif ($installedSourceInfo -and $installedSourceInfo.ContainsKey('repository') -and !(& $isSameSource $installedSourceInfo)) {
+    elseif (!$installedSourceInfo) {
+        Write-Verbose "Extension '$Name' found locally but its install did not complete, as it has no '$sourceInfoFileName' file"
+        $installRequired = $true
+    }
+    elseif ($installedSourceInfo.ContainsKey('repository') -and !(& $isSameSource $installedSourceInfo)) {
         # The folder name includes a short hash of the source, so this only happens if two sources' hashes collide or
         # the folder was changed by hand
         Write-Verbose ("Extension '$Name' found locally but it was installed from a different source. " +
@@ -129,10 +134,14 @@ function _getExtensionFromGit {
     if ($installRequired) {
         Write-Host "Installing extension $Name from $RepositoryUri" -f Cyan
 
+        # Copy the files into a staging folder next to the install folder, then rename it, so that an install that stops
+        # part way (e.g. with Ctrl+C) never leaves a folder that looks complete. Git references cannot start with '.',
+        # so the staging folder's name cannot be the name of an install folder.
         $destinationPath = Join-Path $TargetPath $Name $installFolderName
+        $stagingPath = Join-Path $TargetPath $Name ".staging-$(New-Guid)"
         $copyArgs = @{
             RepoUrl = $RepositoryUri
-            DestinationPath = $destinationPath
+            DestinationPath = $stagingPath
             RepoFolderPath = $RepositoryFolderPath
             GitRef = $GitRef
         }
@@ -141,18 +150,30 @@ function _getExtensionFromGit {
         }
 
         try {
-            $installedCommit = _copyFolderFromGitRepo @copyArgs
-        }
-        catch {
-            throw "Failed to install extension $Name ($GitRef) from $RepositoryUri repository: $($_.Exception.Message)"
-        }
+            try {
+                $installedCommit = _copyFolderFromGitRepo @copyArgs
+            }
+            catch {
+                throw "Failed to install extension $Name ($GitRef) from $RepositoryUri repository: $($_.Exception.Message)"
+            }
 
-        [ordered]@{
-            repository = $RepositoryUri.OriginalString
-            folderPath = $RepositoryFolderPath
-            ref = $GitRef
-            commit = $installedCommit
-        } | ConvertTo-Json | Set-Content -Path (Join-Path $destinationPath $sourceInfoFileName)
+            [ordered]@{
+                repository = $RepositoryUri.OriginalString
+                folderPath = $RepositoryFolderPath
+                ref = $GitRef
+                commit = $installedCommit
+            } | ConvertTo-Json | Set-Content -Path (Join-Path $stagingPath $sourceInfoFileName)
+
+            if (Test-Path $destinationPath) {
+                Remove-Item -Path $destinationPath -Recurse -Force
+            }
+            Move-Item -Path $stagingPath -Destination $destinationPath
+        }
+        finally {
+            if (Test-Path $stagingPath) {
+                Remove-Item -Path $stagingPath -Recurse -Force -ErrorAction Ignore
+            }
+        }
 
         $existingExtensionPath,$existingExtensionVersion = Get-InstalledExtensionDetails -Name $Name -TargetPath $TargetPath -GitRefAsFolderName $installFolderName
         if (!$existingExtensionPath) {
