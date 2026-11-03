@@ -144,6 +144,12 @@ function _resolveExtensionVersionRanges {
             continue
         }
 
+        # An occurrence that does not match the lock file was not installed, and the run fails when the lock file is
+        # checked, which reports the reason
+        if (@($indices | Where-Object { $resolved[$_]['LockMismatch'] }).Count -gt 0) {
+            continue
+        }
+
         $occurrences = @($indices | ForEach-Object { $resolved[$_] } | Where-Object { $_.ContainsKey('LockEntry') })
         $requirements = @(foreach ($occurrence in $occurrences) {
             $requirement = & $getRequirement $occurrence

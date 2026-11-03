@@ -21,7 +21,8 @@ function Register-ExtensionAndDependencies {
         When locked extensions are provided, an extension whose lock entry matches how it is requested is installed at the commit or version recorded in the lock entry.
         For a 'MinimumVersion', the lock entry matches when it has the same source and its version is in the range, whatever range it records as requested.
         Before any of the extension's code runs, an error is thrown if its content differs from the lock entry.
-        The tasks of an extension that does not match its lock entry are not found, so its code does not run before the difference is reported.
+        An extension that does not match its lock entry is not installed, and its dependencies are not registered.
+        It is returned disabled, with 'LockMismatch' set, so that the difference can be reported once every extension has been registered.
 
         .PARAMETER ExtensionConfig
         A hashtable containing the initial extension metadata provided by the user.
@@ -76,9 +77,8 @@ function Register-ExtensionAndDependencies {
     $splat.Remove("Enabled") | Out-Null
     $splat.Add("TargetPath", $TargetPath)
 
-    # Whether the extension was installed at the version in the lock file, and whether to skip finding its tasks
+    # Whether the extension was installed at the version in the lock file
     $isLocked = $false
-    $skipTaskDiscovery = $false
 
     # Skip further processing is extension is explicitly disabled
     if (!$extension.ContainsKey('Enabled') -or $extension.Enabled) {
@@ -122,7 +122,7 @@ function Register-ExtensionAndDependencies {
 
             # Call the helper that will install the extension from a Git repository if it's not
             # already installed and provide the resulting additional metadata that we need to use the extension
-            $result = _getExtensionFromGit @splat
+            $result = ($LockedExtensions -and !$isLocked) ? $null : (_getExtensionFromGit @splat)
         }
         elseif (!$extension.ContainsKey("Path")) {
             # PowerShell module-based extension
@@ -152,12 +152,22 @@ function Register-ExtensionAndDependencies {
 
             # Call the helper that will install the extension from a PowerShell module repository if it's not
             # already installed and provide the resulting additional metadata that we need to use the extension
-            $result = _getExtensionFromPSRepository @splat
+            $result = ($LockedExtensions -and !$isLocked) ? $null : (_getExtensionFromPSRepository @splat)
         }
         else {
             # Local file-system-based extension, which is used in place
             $lockEntry = _newExtensionLockEntry -SourceType 'path' -Source @{ path = $extension.Path } -RequiredBy $RequiredBy
             $result = _getExtensionFromPath -Name $extension.Name -Path $extension.Path
+        }
+
+        # When the lock file is used, an extension that does not match it is not installed, as the run fails once every
+        # extension has been registered. Its dependencies are not registered either.
+        if ($null -eq $result) {
+            Write-Verbose "Not installing extension $($extension.Name), as it does not match the lock file"
+            $extension.LockEntry = $lockEntry
+            $extension.Enabled = $false
+            $extension.LockMismatch = $true
+            return @($extension)
         }
 
         # Add the metadata populated by the helper, recording the resolved version (and release tag) separately
@@ -180,16 +190,10 @@ function Register-ExtensionAndDependencies {
 
         # When the lock file is used, check the installed extension before any of its code runs, as finding its tasks
         # runs its task files. Local extensions are working copies, so they are not locked.
-        if ($LockedExtensions -and $lockEntry.source.type -ne 'path' -and $extension.Enabled) {
-            if (!$isLocked) {
-                # The difference from the lock file is reported once every extension has been registered
-                Write-Verbose "Not finding the tasks of extension $($extension.Name), as it does not match the lock file"
-                $skipTaskDiscovery = $true
-            }
-            elseif ($lockedEntry['contentHash'] -and (_getExtensionContentHash -Path $extension.Path) -ne $lockedEntry['contentHash']) {
-                throw ("Extension $($extension.Name) ($($lockEntry.resolved)) does not have the content recorded in the lock file. " +
-                       "Delete '$($extension.Path)' to re-install it.")
-            }
+        if ($isLocked -and $extension.Enabled -and $lockedEntry['contentHash'] -and
+                (_getExtensionContentHash -Path $extension.Path) -ne $lockedEntry['contentHash']) {
+            throw ("Extension $($extension.Name) ($($lockEntry.resolved)) does not have the content recorded in the lock file. " +
+                   "Delete '$($extension.Path)' to re-install it.")
         }
     }
     else {
@@ -201,7 +205,7 @@ function Register-ExtensionAndDependencies {
         Write-Verbose "Checking dependencies for $($extension.Name)"
         $extension.Add("dependencies", (Get-ExtensionDependencies -Extension $extension))
         Write-Verbose "Checking available tasks for $($extension.Name)"
-        $extension.Add("availableTasks", ($skipTaskDiscovery ? @() : (Get-ExtensionAvailableTasks -ExtensionPath $extension.Path)))
+        $extension.Add("availableTasks", (Get-ExtensionAvailableTasks -ExtensionPath $extension.Path))
     }
 
     $processedExtensionConfig += $extension

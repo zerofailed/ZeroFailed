@@ -63,6 +63,21 @@ Describe '_resolveExtensionVersionRanges' {
         Mock Register-ExtensionAndDependencies {}
     }
 
+    It 'Ignores an extension that was not installed because it does not match the lock file' {
+        $mismatch = newRegisteredExtension -RequiredBy 'DotNet' -MinimumVersion '1.6'
+        $mismatch.Enabled = $false
+        $mismatch.LockMismatch = $true
+        $extensions = @(
+            $mismatch
+            newRegisteredExtension -RequiredBy 'PowerShell' -MinimumVersion '1.4' -Resolved '1.5.0'
+        )
+
+        $result = _resolveExtensionVersionRanges -Extensions $extensions -TargetPath $targetPath -LockedExtensions @{}
+
+        $result[0] | Should -Be $mismatch
+        Should -Invoke Register-ExtensionAndDependencies -Times 0
+    }
+
     It 'Leaves the order unchanged when the first occurrence satisfies every requirement' {
         $extensions = @(
             newRegisteredExtension -RequiredBy 'DotNet' -MinimumVersion '1.2' -Resolved '1.6.0'

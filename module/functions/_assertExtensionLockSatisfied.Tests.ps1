@@ -117,6 +117,45 @@ Describe '_assertExtensionLockSatisfied' {
             Should -Throw "*$ExpectedProblem*"
     }
 
+    It 'Fails, without reporting that it could not be installed, when an extension was not installed because <Description>' -ForEach @(
+        @{
+            Description = 'it is not in the lock file'
+            Locked = @{}
+            ExpectedProblem = "'Build' is not in the lock file"
+        }
+        @{
+            Description = 'it is requested differently'
+            Locked = @{ Name = 'Build'; Requested = 'develop' }
+            ExpectedProblem = "'Build' is requested as 'main' from git 'https://github.com/org/Build', but the lock file has 'develop' from git 'https://github.com/org/Build'"
+        }
+        @{
+            Description = 'the lock file has no resolved version'
+            Locked = @{ Name = 'Build'; Resolved = '' }
+            ExpectedProblem = "'Build' has no resolved version in the lock file*"
+        }
+    ) {
+        $extension = newRegisteredExtension -Name 'Build' -Resolved '' -Enabled $false
+        $extension.LockMismatch = $true
+        $lockedExtensions = $Locked.Count -gt 0 ? @{ $Locked.Name = (newLockedExtension @Locked) } : @{}
+
+        $errorMessage = try { _assertExtensionLockSatisfied -Extensions @($extension) -LockedExtensions $lockedExtensions -LockFilePath $lockFilePath } catch { $_.Exception.Message }
+
+        $errorMessage | Should -BeLike "*$ExpectedProblem*"
+        $errorMessage | Should -Not -BeLike '*could not be installed*'
+    }
+
+    It 'Does not warn about unused lock entries when there are problems' {
+        $extension = newRegisteredExtension -Name 'Build' -Resolved '' -Enabled $false
+        $extension.LockMismatch = $true
+        $locked = @{
+            'Build' = newLockedExtension -Name 'Build' -Requested 'develop'
+            'Dependency' = newLockedExtension -Name 'Dependency'
+        }
+
+        { _assertExtensionLockSatisfied -Extensions @($extension) -LockedExtensions $locked -LockFilePath $lockFilePath } | Should -Throw
+        Should -Invoke Write-Warning -Times 0 -Scope It
+    }
+
     It 'Reports every problem, with how to update the lock file' {
         $extensions = @(
             newRegisteredExtension -Name 'Build' -Resolved 'other'

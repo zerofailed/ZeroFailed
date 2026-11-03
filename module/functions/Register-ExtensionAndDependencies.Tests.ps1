@@ -292,7 +292,7 @@ Describe 'Register-ExtensionAndDependencies' {
                 Should -Invoke Write-Host -Times 1 -ParameterFilter { $Object -eq 'Using locked commit for extension ZeroFailed.DevOps.Common: locked-commit-2' }
             }
 
-            It 'Does not use the lock file when the extension was requested differently' {
+            It 'Does not install the extension, or its dependencies, when it was requested differently from the lock file' {
                 $lockedExtensions = @{
                     'ZeroFailed.Build.Common' = @{
                         source = @{ type = 'git'; repository = 'https://github.com/zerofailed/ZeroFailed.Build.Common'; folderPath = 'module' }
@@ -303,9 +303,21 @@ Describe 'Register-ExtensionAndDependencies' {
 
                 [array]$result = Register-ExtensionAndDependencies -ExtensionConfig $extensionConfig -TargetPath $targetPath -LockedExtensions $lockedExtensions
 
-                $result[0].LockEntry.resolved | Should -Be 'latest-commit-of-ZeroFailed.Build.Common'
-                Should -Invoke _getExtensionFromGit -Times 1 -ParameterFilter { $Name -eq 'ZeroFailed.Build.Common' -and !$LockedCommit }
+                $result.Count | Should -Be 1
+                $result[0].Enabled | Should -Be $false
+                $result[0].LockMismatch | Should -Be $true
+                $result[0].LockEntry.requested | Should -Be 'main'
+                $result[0].LockEntry.resolved | Should -BeNullOrEmpty
+                Should -Invoke _getExtensionFromGit -Times 0
                 Should -Invoke Write-Host -Times 0 -ParameterFilter { $Object -like 'Using locked*' }
+            }
+
+            It 'Installs the extension when the lock file is not used' {
+                [array]$result = Register-ExtensionAndDependencies -ExtensionConfig $extensionConfig -TargetPath $targetPath
+
+                $result[0].LockEntry.resolved | Should -Be 'latest-commit-of-ZeroFailed.Build.Common'
+                $result[0].ContainsKey('LockMismatch') | Should -Be $false
+                Should -Invoke _getExtensionFromGit -Times 1 -ParameterFilter { $Name -eq 'ZeroFailed.Build.Common' -and !$LockedCommit }
             }
 
             Context 'Content' {
@@ -374,9 +386,10 @@ Describe 'Register-ExtensionAndDependencies' {
                     }
                 }
 
-                Register-ExtensionAndDependencies -ExtensionConfig $extensionConfig -TargetPath $targetPath -LockedExtensions $lockedExtensions | Out-Null
+                [array]$result = Register-ExtensionAndDependencies -ExtensionConfig $extensionConfig -TargetPath $targetPath -LockedExtensions $lockedExtensions
 
-                Should -Invoke _getExtensionFromGit -Times 1 -ParameterFilter { $Name -eq 'ZeroFailed.Build.Common' -and !$LockedCommit }
+                $result[0].LockMismatch | Should -Be $true
+                Should -Invoke _getExtensionFromGit -Times 0
                 Should -Invoke Write-Host -Times 0 -ParameterFilter { $Object -like 'Using locked*' }
             }
         }
@@ -445,9 +458,10 @@ Describe 'Register-ExtensionAndDependencies' {
             ) {
                 $lockEntry.resolvedRef = $ResolvedRef
 
-                Register-ExtensionAndDependencies -ExtensionConfig $extensionConfig -TargetPath $targetPath -LockedExtensions @{ 'ZeroFailed.DevOps.Common' = $lockEntry } | Out-Null
+                [array]$result = Register-ExtensionAndDependencies -ExtensionConfig $extensionConfig -TargetPath $targetPath -LockedExtensions @{ 'ZeroFailed.DevOps.Common' = $lockEntry }
 
-                Should -Invoke _getExtensionFromGit -Times 1 -ParameterFilter { !$GitRef -and !$LockedCommit }
+                $result[0].LockMismatch | Should -Be $true
+                Should -Invoke _getExtensionFromGit -Times 0
             }
 
             Context 'When declared by an extension that is referenced by a git branch' {
@@ -507,9 +521,10 @@ Describe 'Register-ExtensionAndDependencies' {
             It 'Does not use a locked release tag from a different repository' {
                 $lockEntry.source.repository = 'https://github.com/myorg/ZeroFailed.DevOps.Common'
 
-                Register-ExtensionAndDependencies -ExtensionConfig $extensionConfig -TargetPath $targetPath -LockedExtensions @{ 'ZeroFailed.DevOps.Common' = $lockEntry } | Out-Null
+                [array]$result = Register-ExtensionAndDependencies -ExtensionConfig $extensionConfig -TargetPath $targetPath -LockedExtensions @{ 'ZeroFailed.DevOps.Common' = $lockEntry }
 
-                Should -Invoke _getExtensionFromGit -Times 1 -ParameterFilter { !$GitRef -and !$LockedCommit }
+                $result[0].LockMismatch | Should -Be $true
+                Should -Invoke _getExtensionFromGit -Times 0
             }
 
             It 'Does not record pre-release tags for a git reference' {
@@ -533,18 +548,20 @@ Describe 'Register-ExtensionAndDependencies' {
             It 'Does not use a lock entry that has no release tag' {
                 $lockEntry.Remove('resolvedRef')
 
-                Register-ExtensionAndDependencies -ExtensionConfig $extensionConfig -TargetPath $targetPath -LockedExtensions @{ 'ZeroFailed.DevOps.Common' = $lockEntry } | Out-Null
+                [array]$result = Register-ExtensionAndDependencies -ExtensionConfig $extensionConfig -TargetPath $targetPath -LockedExtensions @{ 'ZeroFailed.DevOps.Common' = $lockEntry }
 
-                Should -Invoke _getExtensionFromGit -Times 1 -ParameterFilter { !$GitRef -and !$LockedCommit }
+                $result[0].LockMismatch | Should -Be $true
+                Should -Invoke _getExtensionFromGit -Times 0
             }
 
             It 'Does not use a lock entry for a git branch' {
                 $lockEntry.requested = 'main'
                 $lockEntry.Remove('resolvedRef')
 
-                Register-ExtensionAndDependencies -ExtensionConfig $extensionConfig -TargetPath $targetPath -LockedExtensions @{ 'ZeroFailed.DevOps.Common' = $lockEntry } | Out-Null
+                [array]$result = Register-ExtensionAndDependencies -ExtensionConfig $extensionConfig -TargetPath $targetPath -LockedExtensions @{ 'ZeroFailed.DevOps.Common' = $lockEntry }
 
-                Should -Invoke _getExtensionFromGit -Times 1 -ParameterFilter { !$GitRef -and !$LockedCommit }
+                $result[0].LockMismatch | Should -Be $true
+                Should -Invoke _getExtensionFromGit -Times 0
             }
         }
     }
@@ -661,8 +678,10 @@ Describe 'Register-ExtensionAndDependencies' {
             It 'Does not use the lock file when the extension was requested differently' {
                 [array]$result = Register-ExtensionAndDependencies -ExtensionConfig @{ Name = $mockModuleName; PreRelease = $true } -TargetPath $targetPath -LockedExtensions $lockedExtensions
 
-                $result[0].LockEntry.resolved | Should -Be $mockModuleVersion
-                Should -Invoke _getExtensionFromPSRepository -Times 1 -ParameterFilter { !$LockedVersion }
+                $result[0].Enabled | Should -Be $false
+                $result[0].LockMismatch | Should -Be $true
+                Should -Invoke _getExtensionFromPSRepository -Times 0
+                Should -Invoke Get-ExtensionDependencies -Times 0
                 Should -Invoke Write-Host -Times 0 -ParameterFilter { $Object -like 'Using locked*' }
             }
 
@@ -719,15 +738,16 @@ Describe 'Register-ExtensionAndDependencies' {
                 @{ Description = 'a pre-release, when pre-release versions are not included'; Resolved = '1.1.0-beta1'; Repository = 'PSGallery' }
                 @{ Description = 'from a different repository'; Resolved = '1.1.0'; Repository = 'MyRepository' }
             ) {
-                Register-ExtensionAndDependencies -ExtensionConfig @{ Name = $mockModuleName; MinimumVersion = '1.0.0' } -TargetPath $targetPath -LockedExtensions @{
+                [array]$result = Register-ExtensionAndDependencies -ExtensionConfig @{ Name = $mockModuleName; MinimumVersion = '1.0.0' } -TargetPath $targetPath -LockedExtensions @{
                     $mockModuleName = @{
                         source = @{ type = 'psrepository'; repository = $Repository; preRelease = $true }
                         requested = '[1.0.0,2.0.0)'
                         resolved = $Resolved
                     }
-                } | Out-Null
+                }
 
-                Should -Invoke _getExtensionFromPSRepository -Times 1 -ParameterFilter { !$LockedVersion }
+                $result[0].LockMismatch | Should -Be $true
+                Should -Invoke _getExtensionFromPSRepository -Times 0
             }
         }
     }

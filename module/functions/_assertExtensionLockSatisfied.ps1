@@ -37,8 +37,22 @@ function _assertExtensionLockSatisfied {
         }
     }
     foreach ($extension in $firstByName.Values) {
-        if ($extension.ContainsKey('LockEntry') -and !$extension.Enabled -and $extension.LockEntry.source.type -ne 'path') {
-            $problems.Add("'$($extension.Name)' could not be installed")
+        $name = $extension.Name
+        if ($extension['LockMismatch']) {
+            # Not installed, because it does not match the lock file
+            $lockedEntry = $LockedExtensions[$name]
+            if ($null -eq $lockedEntry) {
+                $problems.Add("'$name' is not in the lock file")
+            }
+            elseif (!(_testExtensionLockEntryMatch -LockEntry $lockedEntry -Entry $extension.LockEntry -MinimumVersion $extension['MinimumVersion'] -PreRelease:([bool]$extension['PreRelease']))) {
+                $problems.Add("'$name' is requested as $(& $describeRequest $extension.LockEntry), but the lock file has $(& $describeRequest $lockedEntry)")
+            }
+            else {
+                $problems.Add("'$name' has no resolved version in the lock file; delete its installed copy, then run in 'Write' mode to re-install it and record its version")
+            }
+        }
+        elseif ($extension.ContainsKey('LockEntry') -and !$extension.Enabled -and $extension.LockEntry.source.type -ne 'path') {
+            $problems.Add("'$name' could not be installed")
         }
     }
 
@@ -69,8 +83,10 @@ function _assertExtensionLockSatisfied {
         }
     }
 
+    # The dependencies of an extension that does not match the lock file are not registered, so they would appear
+    # unused when there are problems
     $unusedNames = @($LockedExtensions.Keys | Where-Object { !$entries.Contains($_) } | Sort-Object)
-    if ($unusedNames.Count -gt 0) {
+    if ($unusedNames.Count -gt 0 -and $problems.Count -eq 0) {
         Write-Warning "The extensions lock file contains extensions that are no longer used: $($unusedNames -join ', ')"
     }
 
