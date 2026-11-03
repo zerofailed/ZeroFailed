@@ -321,6 +321,34 @@ Describe 'Get-InstalledExtensionDetails' {
         $version | Should -Be '1.0.0'
     }
 
+    It 'Should ignore a copy from a git repository whose tag is a version, when pre-release versions are allowed (<Description>)' -ForEach @(
+        @{ Description = 'without a version'; Arguments = @{} ; ExpectedVersion = '1.0.0' }
+        @{ Description = 'with the version of the tag'; Arguments = @{ Version = '1.1.0' }; ExpectedVersion = $null }
+    ) {
+        # Arrange: a git reference such as '1.1.0' is installed in a folder that is named after it and a hash of its
+        # source, which is also a valid semantic version with a pre-release label
+        $gitTargetPath = Join-Path -Path TestDrive: -ChildPath "git-version-tag-$($Arguments.Count)"
+        $gitPath = Join-Path $gitTargetPath 'TagExtension' '1.1.0-1f0c8a2e'
+        New-Item -Path $gitPath -ItemType Directory -Force | Out-Null
+        Set-Content -Path (Join-Path $gitPath 'TagExtension.psd1') -Value "@{ ModuleVersion = '1.1.0' }"
+        $stablePath = Join-Path $gitTargetPath 'TagExtension' '1.0.0'
+        New-Item -Path $stablePath -ItemType Directory -Force | Out-Null
+        Set-Content -Path (Join-Path $stablePath 'TagExtension.psd1') -Value "@{ ModuleVersion = '1.0.0' }"
+
+        # Act
+        $path,$version = Get-InstalledExtensionDetails -Name 'TagExtension' -TargetPath $gitTargetPath -PreRelease @Arguments
+
+        # Assert
+        if ($ExpectedVersion) {
+            $path | Should -Be $stablePath
+            $version | Should -Be $ExpectedVersion
+        }
+        else {
+            $path | Should -BeNullOrEmpty
+            $version | Should -BeNullOrEmpty
+        }
+    }
+
     Context 'With a minimum version' {
         It 'Should find the newest installed version below the next major version' {
             # Act

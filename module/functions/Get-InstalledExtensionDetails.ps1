@@ -11,6 +11,7 @@ function Get-InstalledExtensionDetails {
         the path to the module and the version that was found.
 
         When searching by version, folders that are not named after a version (for example, a copy of the extension from a git repository) are ignored.
+        A folder name with a pre-release label (for example, '1.1.0-1f0c8a2e', a git copy of the tag '1.1.0') is also ignored, as a module's pre-release label is in its manifest.
 
         .PARAMETER Name
         The name of the extension, which is also the name of the PowerShell module.
@@ -95,9 +96,11 @@ function Get-InstalledExtensionDetails {
                             ForEach-Object {
                                 if ($PSCmdlet.ParameterSetName -eq 'Version') {
                                     # Skip folders that are not named after a version, e.g. a copy of the same
-                                    # extension from a git repository
+                                    # extension from a git repository. A module's folder is named after its version
+                                    # without any pre-release label, which is in its manifest. A git copy of a tag
+                                    # such as '1.1.0' is in a folder such as '1.1.0-1f0c8a2e', which also parses.
                                     $foundVersion = $null
-                                    if (![semver]::TryParse($_.Name, [ref]$foundVersion)) {
+                                    if (![semver]::TryParse($_.Name, [ref]$foundVersion) -or $foundVersion.PreReleaseLabel -or $foundVersion.BuildLabel) {
                                         Write-Verbose "Ignoring folder '$($_.Name)' of extension '$Name', as it is not named after a version"
                                         return
                                     }

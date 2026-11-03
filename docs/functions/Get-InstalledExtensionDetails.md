@@ -4,7 +4,7 @@ external help file: ZeroFailed-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: ZeroFailed
-ms.date: 11/02/2026
+ms.date: 11/03/2026
 PlatyPS schema version: 2024-05-01
 title: Get-InstalledExtensionDetails
 ---
@@ -39,6 +39,7 @@ Searches the local system for an installed version of the PowerShell module repr
 the path to the module and the version that was found.
 
 When searching by version, folders that are not named after a version (for example, a copy of the extension from a git repository) are ignored.
+A folder name with a pre-release label (for example, '1.1.0-1f0c8a2e', a git copy of the tag '1.1.0') is also ignored, as a module's pre-release label is in its manifest.
 
 ## EXAMPLES
 
