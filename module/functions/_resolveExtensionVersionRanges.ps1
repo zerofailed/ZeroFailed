@@ -167,12 +167,6 @@ function _resolveExtensionVersionRanges {
             continue
         }
 
-        # An occurrence that does not match the lock file was not installed, and the run fails when the lock file is
-        # checked, which reports the reason
-        if (@($indices | Where-Object { $resolved[$_]['LockMismatch'] }).Count -gt 0) {
-            continue
-        }
-
         $occurrences = @($indices | ForEach-Object { $resolved[$_] } | Where-Object { $_.ContainsKey('LockEntry') })
         $requirements = @(foreach ($occurrence in $occurrences) {
             $requirement = & $getRequirement $occurrence
@@ -195,6 +189,15 @@ function _resolveExtensionVersionRanges {
             $resolved[$directIndex] = $first
             $resolved[$indices[0]] = $direct
             $first = $direct
+        }
+
+        # An occurrence that does not match the lock file was not installed, and the run fails when the lock file is
+        # checked, which reports the reason. When the configuration chooses the version, the occurrences that it
+        # overrides are not used, so they do not need to match (e.g. a minimum version that the locked version
+        # chosen by the configuration is not in).
+        if ($first['LockMismatch'] -or
+                (!$first.LockEntry.direct -and @($indices | Where-Object { $resolved[$_]['LockMismatch'] }).Count -gt 0)) {
+            continue
         }
 
         # Later steps use the first occurrence of each extension, so it must satisfy every requirement

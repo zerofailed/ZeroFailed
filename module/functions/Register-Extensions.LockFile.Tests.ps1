@@ -113,3 +113,56 @@ Describe 'Register-Extensions with a lock file' {
         $script:extensionsWithTasksFound | Should -Contain (Join-Path $zfPath 'extensions' 'A' '1.0.0')
     }
 }
+
+Describe 'Register-Extensions with a lock file, when the configuration chooses a version that an earlier extension does not' {
+
+    BeforeAll {
+        Mock Write-Host {}
+        Mock Write-Warning {}
+        Mock _getExtensionFromPSRepository { installFromFakeRepository -Name $Name -Version $Version -MinimumVersion $MinimumVersion -LockedVersion $LockedVersion -TargetPath $TargetPath }
+        Mock Get-ExtensionAvailableTasks { @() }
+
+        # 'A' requires 'Common' 1.5 or later, but the configuration chooses 'Common' 1.3.0. 'A' is listed first, so its
+        # 'Common' is registered first.
+        Mock Get-ExtensionDependencies { @{ A = @{ Name = 'Common'; MinimumVersion = '1.5' } }[$Extension.Name] }
+        $newExtensionsConfig = {
+            @(
+                @{ Name = 'A'; Version = '1.0.0' }
+                @{ Name = 'Common'; Version = '1.3.0' }
+            )
+        }
+        $getCommon = { param ($extensions) $extensions | Where-Object { $_.Name -eq 'Common' } | Select-Object -First 1 }
+    }
+
+    BeforeEach {
+        $originalPSModulePath = $env:PSModulePath
+        $zfPath = Join-Path $TestDrive ([guid]::NewGuid())
+        $script:available = @{ A = @('1.0.0'); Common = @('1.3.0', '1.6.0') }
+        $script:installed = @{}
+
+        $written = Register-Extensions -ExtensionsConfig (& $newExtensionsConfig) -DefaultPSRepository 'PSGallery' -ZfPath $zfPath -LockMode Write
+    }
+
+    AfterEach {
+        $env:PSModulePath = $originalPSModulePath
+    }
+
+    It 'Writes the version that the configuration chooses to the lock file' {
+        (& $getCommon $written).LockEntry.resolved | Should -Be '1.3.0'
+    }
+
+    It 'Is satisfied by a later Frozen run on the same machine' {
+        $frozen = Register-Extensions -ExtensionsConfig (& $newExtensionsConfig) -DefaultPSRepository 'PSGallery' -ZfPath $zfPath -LockMode Frozen
+
+        (& $getCommon $frozen).LockEntry.resolved | Should -Be '1.3.0'
+    }
+
+    It 'Is satisfied by a later Frozen run on a clean machine' {
+        $script:installed = @{}
+
+        $frozen = Register-Extensions -ExtensionsConfig (& $newExtensionsConfig) -DefaultPSRepository 'PSGallery' -ZfPath $zfPath -LockMode Frozen
+
+        (& $getCommon $frozen).LockEntry.resolved | Should -Be '1.3.0'
+        $script:installed.Common | Should -Be @('1.3.0')
+    }
+}

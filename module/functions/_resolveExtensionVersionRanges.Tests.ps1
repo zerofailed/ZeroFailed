@@ -78,6 +78,44 @@ Describe '_resolveExtensionVersionRanges' {
         Should -Invoke Register-ExtensionAndDependencies -Times 0
     }
 
+    It 'Uses an occurrence from the configuration in place of an earlier one that does not match the lock file, with a warning' {
+        $mismatch = newRegisteredExtension -RequiredBy 'PowerShell' -MinimumVersion '1.5'
+        $mismatch.Enabled = $false
+        $mismatch.LockMismatch = $true
+        $extensions = @(
+            newRegisteredExtension -Name 'PowerShell' -Requested '1.0.0' -Resolved '1.0.0'
+            $mismatch
+            newRegisteredExtension -Requested '1.3.0' -Resolved '1.3.0'
+        )
+
+        $result = @(_resolveExtensionVersionRanges -Extensions $extensions -TargetPath $targetPath -LockedExtensions @{})
+
+        @($result | ForEach-Object { $_.Path }) | Should -Be @('PowerShell-1.0.0', 'Common-1.3.0')
+        $result[1].LockEntry.requiredBy | Should -Be @('PowerShell')
+        Should -Invoke Register-ExtensionAndDependencies -Times 0
+        Should -Invoke Write-Warning -Times 1 -ParameterFilter {
+            $Message -eq "Extension 'Common' 1.3.0 is used because it is in the configuration, but 'PowerShell' requires [1.5.0,2.0.0)"
+        }
+    }
+
+    It 'Ignores an occurrence from the configuration that does not match the lock file' {
+        $mismatch = newRegisteredExtension -Requested '1.3.0'
+        $mismatch.Enabled = $false
+        $mismatch.LockMismatch = $true
+        $extensions = @(
+            newRegisteredExtension -Name 'PowerShell' -Requested '1.0.0' -Resolved '1.0.0'
+            newRegisteredExtension -RequiredBy 'PowerShell' -MinimumVersion '1.5' -Resolved '1.6.0'
+            $mismatch
+        )
+
+        $result = @(_resolveExtensionVersionRanges -Extensions $extensions -TargetPath $targetPath -LockedExtensions @{})
+
+        # The occurrence from the configuration is first, so that the lock file check reports it
+        $result.Count | Should -Be 3
+        $result[1] | Should -Be $mismatch
+        Should -Invoke Write-Warning -Times 0
+    }
+
     It 'Keeps only the first occurrence when it satisfies every requirement, and records every extension that requires it' {
         $extensions = @(
             newRegisteredExtension -RequiredBy 'DotNet' -MinimumVersion '1.2' -Resolved '1.6.0'
