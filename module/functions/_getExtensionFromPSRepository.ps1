@@ -41,13 +41,13 @@ function _getExtensionFromPSRepository {
         $extension.Add("MinimumVersion", $MinimumVersion)
     }
 
-    # The lock file records the exact version to install, which takes precedence over the requested version
+    # The lock file records the exact version to install, which takes precedence over the requested version. Whether
+    # pre-release versions are allowed also comes from the locked version, so that an installed pre-release (e.g.
+    # '1.0.0-beta1') is not used in place of a locked version without a pre-release tag (e.g. '1.0.0').
     if ($LockedVersion) {
         $Version = $LockedVersion
         $MinimumVersion = $null
-        if ($LockedVersion.Contains('-')) {
-            $PreRelease = $true
-        }
+        $PreRelease = $LockedVersion.Contains('-')
     }
 
     # Compare a version with fewer than 3 numeric parts (e.g. '1.4') as its full version (e.g. '1.4.0'), which is the

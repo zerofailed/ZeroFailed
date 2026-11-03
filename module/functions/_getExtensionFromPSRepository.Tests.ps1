@@ -119,6 +119,17 @@ Describe '_getExtensionFromPSRepository' {
             Should -Invoke Find-PSResource -Times 1 -ParameterFilter { $Version -eq '2.1.0-beta0001' -and $Prerelease }
         }
 
+        It 'Replaces an installed pre-release of the locked version when the locked version is not a pre-release, even when pre-release versions are allowed' {
+            newInstalledExtension -TargetPath $targetPath -Name $name -Version '1.0.0-beta1'
+
+            $result = _getExtensionFromPSRepository -Name $name -PSRepository 'PSGallery' -TargetPath $targetPath -PreRelease -LockedVersion '1.0.0'
+
+            $result.Path | Should -Be (Join-Path $targetPath $name '1.0.0')
+            $result.ResolvedVersion | Should -Be '1.0.0'
+            Should -Invoke Find-PSResource -Times 1 -ParameterFilter { $Version -eq '1.0.0' -and !$Prerelease }
+            Should -Invoke Save-PSResource -Times 1
+        }
+
         It 'Uses the installed extension when it is the locked version' {
             newInstalledExtension -TargetPath $targetPath -Name $name -Version '1.0.0'
             newInstalledExtension -TargetPath $targetPath -Name $name -Version '2.0.0'
