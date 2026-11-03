@@ -72,23 +72,68 @@ Describe '_resolveExtensionVersionRanges' {
             newRegisteredExtension -RequiredBy 'PowerShell' -MinimumVersion '1.4' -Resolved '1.5.0'
         )
 
-        $result = _resolveExtensionVersionRanges -Extensions $extensions -TargetPath $targetPath -LockedExtensions @{}
+        $result = @(_resolveExtensionVersionRanges -Extensions $extensions -TargetPath $targetPath -LockedExtensions @{})
 
         $result[0] | Should -Be $mismatch
         Should -Invoke Register-ExtensionAndDependencies -Times 0
     }
 
-    It 'Leaves the order unchanged when the first occurrence satisfies every requirement' {
+    It 'Keeps only the first occurrence when it satisfies every requirement, and records every extension that requires it' {
         $extensions = @(
             newRegisteredExtension -RequiredBy 'DotNet' -MinimumVersion '1.2' -Resolved '1.6.0'
             newRegisteredExtension -RequiredBy 'PowerShell' -MinimumVersion '1.5' -Resolved '1.6.0'
         )
 
-        $result = _resolveExtensionVersionRanges -Extensions $extensions -TargetPath $targetPath
+        $result = @(_resolveExtensionVersionRanges -Extensions $extensions -TargetPath $targetPath)
 
+        $result.Count | Should -Be 1
         [object]::ReferenceEquals($result[0], $extensions[0]) | Should -Be $true
-        [object]::ReferenceEquals($result[1], $extensions[1]) | Should -Be $true
+        $result[0].LockEntry.requiredBy | Should -Be @('DotNet', 'PowerShell')
         Should -Invoke Write-Warning -Times 0
+    }
+
+    It 'Discards the dependencies that only a discarded occurrence requires' {
+        $usedDependency = newRegisteredExtension -Name 'Shared' -RequiredBy 'Common' -Requested 'main' -Resolved 'commit'
+        $discardedDependency = newRegisteredExtension -Name 'Old' -RequiredBy 'Common' -Requested 'main' -Resolved 'commit'
+        $nestedDependency = newRegisteredExtension -Name 'Nested' -RequiredBy 'Old' -Requested 'main' -Resolved 'commit'
+        $discardedDependency.dependencies = @($nestedDependency)
+        $old = newRegisteredExtension -RequiredBy 'DotNet' -MinimumVersion '1.2' -Resolved '1.3.0'
+        $old.dependencies = @($discardedDependency)
+        $new = newRegisteredExtension -RequiredBy 'PowerShell' -MinimumVersion '1.5' -Resolved '1.6.0'
+        $new.dependencies = @($usedDependency)
+        $extensions = @(
+            newRegisteredExtension -Name 'DotNet' -Requested '1.0.0' -Resolved '1.0.0'
+            $old
+            $discardedDependency
+            $nestedDependency
+            newRegisteredExtension -Name 'PowerShell' -Requested '1.0.0' -Resolved '1.0.0'
+            $new
+            $usedDependency
+        )
+
+        $result = @(_resolveExtensionVersionRanges -Extensions $extensions -TargetPath $targetPath)
+
+        @($result | ForEach-Object { $_.Name }) | Should -Be @('DotNet', 'Common', 'PowerShell', 'Shared')
+        $result[1].Path | Should -Be 'Common-1.6.0'
+    }
+
+    It 'Keeps a dependency of a discarded occurrence when it is the version chosen for every extension that requires it' {
+        $chosenDependency = newRegisteredExtension -Name 'Shared' -RequiredBy 'Common' -MinimumVersion '1.5' -Resolved '1.6.0'
+        $otherDependency = newRegisteredExtension -Name 'Shared' -RequiredBy 'PowerShell' -MinimumVersion '1.0' -Resolved '1.0.0'
+        $old = newRegisteredExtension -RequiredBy 'DotNet' -MinimumVersion '1.2' -Resolved '1.3.0'
+        $old.dependencies = @($chosenDependency)
+        $extensions = @(
+            newRegisteredExtension -Name 'DotNet' -Requested '1.0.0' -Resolved '1.0.0'
+            $old
+            $chosenDependency
+            newRegisteredExtension -Name 'PowerShell' -Requested '1.0.0' -Resolved '1.0.0'
+            newRegisteredExtension -RequiredBy 'PowerShell' -MinimumVersion '1.5' -Resolved '1.6.0'
+            $otherDependency
+        )
+
+        $result = @(_resolveExtensionVersionRanges -Extensions $extensions -TargetPath $targetPath)
+
+        @($result | ForEach-Object { $_.Path }) | Should -Be @('DotNet-1.0.0', 'Common-1.6.0', 'Shared-1.6.0', 'PowerShell-1.0.0')
     }
 
     It 'Uses the newest occurrence that satisfies every requirement, in place of the first one' {
@@ -99,9 +144,10 @@ Describe '_resolveExtensionVersionRanges' {
             newRegisteredExtension -RequiredBy 'PowerShell' -MinimumVersion '1.5' -Resolved '1.6.0'
         )
 
-        $result = _resolveExtensionVersionRanges -Extensions $extensions -TargetPath $targetPath
+        $result = @(_resolveExtensionVersionRanges -Extensions $extensions -TargetPath $targetPath)
 
-        @($result | ForEach-Object { $_.Path }) | Should -Be @('DotNet-1.0.0', 'Common-1.6.0', 'PowerShell-1.0.0', 'Common-1.3.0')
+        @($result | ForEach-Object { $_.Path }) | Should -Be @('DotNet-1.0.0', 'Common-1.6.0', 'PowerShell-1.0.0')
+        $result[1].LockEntry.requiredBy | Should -Be @('PowerShell', 'DotNet')
     }
 
     It 'Uses the release tags of git extensions' {
@@ -110,7 +156,7 @@ Describe '_resolveExtensionVersionRanges' {
             newRegisteredExtension -Type 'git' -RequiredBy 'PowerShell' -MinimumVersion '1.5' -Resolved 'commit2' -ResolvedRef 'refs/tags/v1.6.0'
         )
 
-        $result = _resolveExtensionVersionRanges -Extensions $extensions -TargetPath $targetPath
+        $result = @(_resolveExtensionVersionRanges -Extensions $extensions -TargetPath $targetPath)
 
         $result[0].LockEntry.resolvedRef | Should -Be 'refs/tags/v1.6.0'
     }
@@ -121,7 +167,7 @@ Describe '_resolveExtensionVersionRanges' {
             newRegisteredExtension -Type 'git' -RequiredBy 'PowerShell' -MinimumVersion '1.5' -Resolved 'commit2' -ResolvedRef 'refs/tags/1.6.0'
         )
 
-        $result = _resolveExtensionVersionRanges -Extensions $extensions -TargetPath $targetPath
+        $result = @(_resolveExtensionVersionRanges -Extensions $extensions -TargetPath $targetPath)
 
         $result[0].LockEntry.resolvedRef | Should -Be 'refs/tags/1.6.0'
     }
@@ -132,7 +178,7 @@ Describe '_resolveExtensionVersionRanges' {
             newRegisteredExtension -RequiredBy 'PowerShell' -MinimumVersion '1.5' -Resolved '1.6.0'
         )
 
-        $result = _resolveExtensionVersionRanges -Extensions $extensions -TargetPath $targetPath
+        $result = @(_resolveExtensionVersionRanges -Extensions $extensions -TargetPath $targetPath)
 
         $result[0].Path | Should -Be 'Common-1.3.0'
         Should -Invoke Write-Warning -Times 1 -ParameterFilter {
@@ -147,9 +193,11 @@ Describe '_resolveExtensionVersionRanges' {
             newRegisteredExtension -Requested '1.3.0' -Resolved '1.3.0'
         )
 
-        $result = _resolveExtensionVersionRanges -Extensions $extensions -TargetPath $targetPath
+        $result = @(_resolveExtensionVersionRanges -Extensions $extensions -TargetPath $targetPath)
 
-        @($result | ForEach-Object { $_.Path }) | Should -Be @('PowerShell-1.0.0', 'Common-1.3.0', 'Common-1.6.0')
+        @($result | ForEach-Object { $_.Path }) | Should -Be @('PowerShell-1.0.0', 'Common-1.3.0')
+        $result[1].LockEntry.direct | Should -Be $true
+        $result[1].LockEntry.requiredBy | Should -Be @('PowerShell')
         Should -Invoke Write-Warning -Times 1 -ParameterFilter {
             $Message -eq "Extension 'Common' 1.3.0 is used because it is in the configuration, but 'PowerShell' requires [1.5.0,2.0.0)"
         }
@@ -161,7 +209,7 @@ Describe '_resolveExtensionVersionRanges' {
             newRegisteredExtension -MinimumVersion '1.5' -Resolved '1.6.0'
         )
 
-        $result = _resolveExtensionVersionRanges -Extensions $extensions -TargetPath $targetPath
+        $result = @(_resolveExtensionVersionRanges -Extensions $extensions -TargetPath $targetPath)
 
         $result[0].Path | Should -Be 'Common-1.6.0'
         Should -Invoke Write-Warning -Times 0
@@ -175,7 +223,7 @@ Describe '_resolveExtensionVersionRanges' {
             newRegisteredExtension -RequiredBy 'PowerShell' -MinimumVersion '1.4' -Resolved '1.5.0'
         )
 
-        $result = _resolveExtensionVersionRanges -Extensions $extensions -TargetPath $targetPath
+        $result = @(_resolveExtensionVersionRanges -Extensions $extensions -TargetPath $targetPath)
 
         $result[0].Path | Should -Be 'Common-1.5.0'
     }
@@ -187,7 +235,7 @@ Describe '_resolveExtensionVersionRanges' {
         )
         $extensions | ForEach-Object { $_.PreRelease = $true }
 
-        $result = _resolveExtensionVersionRanges -Extensions $extensions -TargetPath $targetPath
+        $result = @(_resolveExtensionVersionRanges -Extensions $extensions -TargetPath $targetPath)
 
         $result[0].Path | Should -Be 'Common-1.6.0-beta.1'
     }
@@ -229,7 +277,7 @@ Describe '_resolveExtensionVersionRanges' {
         }
 
         It 'Installs the newest version in every range, from the same source, without pre-release versions' {
-            $result = _resolveExtensionVersionRanges -Extensions $extensions -TargetPath $targetPath -LockedExtensions $lockedExtensions
+            $result = @(_resolveExtensionVersionRanges -Extensions $extensions -TargetPath $targetPath -LockedExtensions $lockedExtensions)
 
             $result[0].Path | Should -Be 'Common-1.6.0'
             Should -Invoke Register-ExtensionAndDependencies -Times 1 -ParameterFilter {
@@ -243,12 +291,12 @@ Describe '_resolveExtensionVersionRanges' {
             }
         }
 
-        It 'Keeps every registered occurrence, and adds the dependencies of the installed version' {
-            $result = _resolveExtensionVersionRanges -Extensions $extensions -TargetPath $targetPath
+        It 'Keeps only the installed version, and adds its dependencies' {
+            $result = @(_resolveExtensionVersionRanges -Extensions $extensions -TargetPath $targetPath)
 
-            $result.Count | Should -Be 4
-            @($result | Where-Object { $_.Name -eq 'Common' }).Count | Should -Be 3
-            @($result | Where-Object { $_.Name -eq 'Dependency' }).Count | Should -Be 1
+            @($result | ForEach-Object { $_.Name }) | Should -Be @('Common', 'Dependency')
+            $result[0].Path | Should -Be 'Common-1.6.0'
+            $result[0].LockEntry.requiredBy | Should -Be @('DotNet', 'PowerShell')
         }
 
         It 'Installs from a git repository' {
@@ -260,7 +308,7 @@ Describe '_resolveExtensionVersionRanges' {
                 newRegisteredExtension -Type 'git' -RequiredBy $RequiredBy -MinimumVersion $ExtensionConfig.MinimumVersion -Resolved 'commit' -ResolvedRef 'refs/tags/1.6.0'
             }
 
-            $result = _resolveExtensionVersionRanges -Extensions $extensions -TargetPath $targetPath
+            $result = @(_resolveExtensionVersionRanges -Extensions $extensions -TargetPath $targetPath)
 
             $result[0].LockEntry.resolvedRef | Should -Be 'refs/tags/1.6.0'
             Should -Invoke Register-ExtensionAndDependencies -Times 1 -ParameterFilter {
@@ -280,7 +328,7 @@ Describe '_resolveExtensionVersionRanges' {
                 newRegisteredExtension -Type 'git' -RequiredBy $RequiredBy -MinimumVersion $ExtensionConfig.MinimumVersion -Resolved 'commit' -ResolvedRef 'refs/tags/1.6.0'
             }
 
-            $result = _resolveExtensionVersionRanges -Extensions $extensions -TargetPath $targetPath
+            $result = @(_resolveExtensionVersionRanges -Extensions $extensions -TargetPath $targetPath)
 
             $result[0].LockEntry.resolvedRef | Should -Be 'refs/tags/1.6.0'
             Should -Invoke Register-ExtensionAndDependencies -Times 1
@@ -346,7 +394,7 @@ Describe '_resolveExtensionVersionRanges' {
             newRegisteredExtension -RequiredBy 'PowerShell' -Requested '2.0.0' -Resolved '2.0.0'
         )
 
-        $result = _resolveExtensionVersionRanges -Extensions $extensions -TargetPath $targetPath
+        $result = @(_resolveExtensionVersionRanges -Extensions $extensions -TargetPath $targetPath)
 
         $result[0].Path | Should -Be 'Common-1.0.0'
         Should -Invoke Write-Warning -Times 0
@@ -358,7 +406,7 @@ Describe '_resolveExtensionVersionRanges' {
             newRegisteredExtension -RequiredBy 'PowerShell' -MinimumVersion '1.5' -Resolved '1.6.0'
         )
 
-        $result = _resolveExtensionVersionRanges -Extensions $extensions -TargetPath $targetPath
+        $result = @(_resolveExtensionVersionRanges -Extensions $extensions -TargetPath $targetPath)
 
         $result[0].ContainsKey('LockEntry') | Should -Be $false
     }

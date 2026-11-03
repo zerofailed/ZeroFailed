@@ -126,6 +126,29 @@ function _resolveExtensionVersionRanges {
     # Whether an extension was installed, whose dependencies may also need to be reconciled
     $installedAny = $false
 
+    # The occurrences that are not used once a version has been chosen, and the chosen occurrences, compared by reference
+    $discarded = [System.Collections.Generic.HashSet[object]]::new([System.Collections.Generic.ReferenceEqualityComparer]::Instance)
+    $chosen = [System.Collections.Generic.HashSet[object]]::new([System.Collections.Generic.ReferenceEqualityComparer]::Instance)
+
+    # Discards every occurrence of an extension other than the first one, which is the chosen version. The chosen
+    # occurrence records every extension that required the extension, so that the lock file still lists them.
+    $discardOtherOccurrences = {
+        param ($indices)
+        $winner = $resolved[$indices[0]]
+        $chosen.Add($winner) | Out-Null
+        foreach ($index in ($indices | Select-Object -Skip 1)) {
+            $other = $resolved[$index]
+            if ([object]::ReferenceEquals($other, $winner)) {
+                continue
+            }
+            $discarded.Add($other) | Out-Null
+            if ($other.ContainsKey('LockEntry')) {
+                $winner.LockEntry.requiredBy = [string[]]@(@($winner.LockEntry.requiredBy) + @($other.LockEntry.requiredBy) | Select-Object -Unique)
+                $winner.LockEntry.direct = $winner.LockEntry.direct -or $other.LockEntry.direct
+            }
+        }
+    }
+
     # Find every occurrence of each extension, in the order that they were registered
     $resolved = [System.Collections.Generic.List[hashtable]]::new($Extensions)
     $indicesByName = [ordered]@{}
@@ -178,12 +201,14 @@ function _resolveExtensionVersionRanges {
         $firstVersion = & $getVersion $first
         $unsatisfied = @($requirements | Where-Object { !(& $satisfies $firstVersion $_.Requirement) })
         if ($unsatisfied.Count -eq 0) {
+            & $discardOtherOccurrences $indices
             continue
         }
 
         if ($first.LockEntry.direct) {
             Write-Warning ("Extension '$name'$($firstVersion ? " $firstVersion" : '') is used because it is in the configuration, but " +
                            (($unsatisfied | ForEach-Object { "$(& $describeRequirer $_.Extension) requires $($_.Requirement.Text)" }) -join '; '))
+            & $discardOtherOccurrences $indices
             continue
         }
 
@@ -238,6 +263,25 @@ function _resolveExtensionVersionRanges {
         $bestIndex = $indices | Where-Object { [object]::ReferenceEquals($resolved[$_], $best.Extension) } | Select-Object -First 1
         $resolved[$bestIndex] = $first
         $resolved[$indices[0]] = $best.Extension
+        & $discardOtherOccurrences $indices
+    }
+
+    # Also discard the dependencies that only the discarded occurrences registered. A registered dependency is the
+    # same object as the entry in its parent's 'dependencies'. A dependency that was chosen for every extension that
+    # requires it is kept.
+    if ($discarded.Count -gt 0) {
+        $registeredExtensions = [System.Collections.Generic.HashSet[object]]::new([object[]]$resolved, [System.Collections.Generic.ReferenceEqualityComparer]::Instance)
+        $pending = [System.Collections.Generic.Queue[object]]::new([object[]]@($discarded))
+        while ($pending.Count -gt 0) {
+            $occurrence = $pending.Dequeue()
+            foreach ($dependency in @($occurrence['dependencies'])) {
+                if ($null -ne $dependency -and $registeredExtensions.Contains($dependency) -and !$chosen.Contains($dependency) -and $discarded.Add($dependency)) {
+                    Write-Verbose "Not using extension '$($dependency.Name)', as only a version of '$($occurrence.Name)' that is not used requires it"
+                    $pending.Enqueue($dependency)
+                }
+            }
+        }
+        $resolved = [System.Collections.Generic.List[hashtable]]::new([hashtable[]]@($resolved | Where-Object { !$discarded.Contains($_) }))
     }
 
     # The dependencies of an installed extension are registered after it, so reconcile them too
