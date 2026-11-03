@@ -89,7 +89,7 @@ function Register-Extensions {
             @{
                 Name = "PublicExtension"                            # Extension available via a Git repo, using the 'main' branch, located in a non-standard folder
                 GitRepository = "https://github.com/myorg/PublicExtension"
-                GitRepositoryPath = "src/PublicExtension"
+                GitRepositoryFolderPath = "src/PublicExtension"
             }
             @{
                 Path = "~/myLocalExtension/module"                  # Extension being developed locally
