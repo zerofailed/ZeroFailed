@@ -10,6 +10,8 @@ function Get-InstalledExtensionDetails {
         Searches the local system for an installed version of the PowerShell module representing the specified extension, and returns
         the path to the module and the version that was found.
 
+        When searching by version, folders that are not named after a version (for example, a copy of the extension from a git repository) are ignored.
+
         .PARAMETER Name
         The name of the extension, which is also the name of the PowerShell module.
 
@@ -92,7 +94,13 @@ function Get-InstalledExtensionDetails {
     $existingVersion = Get-ChildItem -Path (Join-Path $TargetPath $Name) -Directory -ErrorAction Ignore |
                             ForEach-Object {
                                 if ($PSCmdlet.ParameterSetName -eq 'Version') {
-                                    $foundVersion = [semver]$_.BaseName
+                                    # Skip folders that are not named after a version, e.g. a copy of the same
+                                    # extension from a git repository
+                                    $foundVersion = $null
+                                    if (![semver]::TryParse($_.Name, [ref]$foundVersion)) {
+                                        Write-Verbose "Ignoring folder '$($_.Name)' of extension '$Name', as it is not named after a version"
+                                        return
+                                    }
                                     # Check whether we need to include pre-release versions
                                     $manifestPath = Join-Path $_ "$Name.psd1"
                                     $manifest = Import-PowerShellDataFile $manifestPath

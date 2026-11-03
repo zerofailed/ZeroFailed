@@ -303,6 +303,24 @@ Describe 'Get-InstalledExtensionDetails' {
         $version | Should -BeNullOrEmpty
     }
 
+    It 'Should ignore folders that are not named after a version, such as a copy from a git repository' {
+        # Arrange
+        $gitTargetPath = Join-Path -Path TestDrive: -ChildPath 'git-and-psrepository'
+        New-Item -Path (Join-Path $gitTargetPath 'MixedExtension' 'main-1f0c8a2e') -ItemType Directory -Force | Out-Null
+        New-Item -Path (Join-Path $gitTargetPath 'MixedExtension' '.staging-00000000-0000-0000-0000-000000000000') -ItemType Directory -Force | Out-Null
+        $stablePath = Join-Path $gitTargetPath 'MixedExtension' '1.0.0'
+        New-Item -Path $stablePath -ItemType Directory -Force | Out-Null
+        Set-Content -Path (Join-Path $stablePath 'MixedExtension.psd1') -Value "@{ ModuleVersion = '1.0.0' }"
+
+        # Act
+        $ErrorActionPreference = 'Stop'
+        $path,$version = Get-InstalledExtensionDetails -Name 'MixedExtension' -TargetPath $gitTargetPath
+
+        # Assert
+        $path | Should -Be $stablePath
+        $version | Should -Be '1.0.0'
+    }
+
     Context 'With a minimum version' {
         It 'Should find the newest installed version below the next major version' {
             # Act

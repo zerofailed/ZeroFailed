@@ -38,6 +38,8 @@ Get-InstalledExtensionDetails -Name <string> -TargetPath <string> -GitRefAsFolde
 Searches the local system for an installed version of the PowerShell module representing the specified extension, and returns
 the path to the module and the version that was found.
 
+When searching by version, folders that are not named after a version (for example, a copy of the extension from a git repository) are ignored.
+
 ## EXAMPLES
 
 ### EXAMPLE 1
