@@ -2,9 +2,9 @@
 document type: cmdlet
 external help file: ZeroFailed-Help.xml
 HelpUri: ''
-Locale: en-GB
+Locale: en-US
 Module Name: ZeroFailed
-ms.date: 12/04/2025
+ms.date: 10/29/2026
 PlatyPS schema version: 2024-05-01
 title: Get-ExtensionDependencies
 ---
@@ -103,7 +103,7 @@ Full syntax:
                 }
                 @{
                     Name = 'MyExtension'
-                    GitRepository = 'https://github.com/myorg/myextension
+                    GitRepository = 'https://github.com/myorg/myextension'
                     GitRef = 'main'
                 }
             )

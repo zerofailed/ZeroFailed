@@ -2,9 +2,9 @@
 document type: cmdlet
 external help file: ZeroFailed-Help.xml
 HelpUri: ''
-Locale: en-GB
+Locale: en-US
 Module Name: ZeroFailed
-ms.date: 12/04/2025
+ms.date: 10/29/2026
 PlatyPS schema version: 2024-05-01
 title: Resolve-ExtensionMetadata
 ---
@@ -29,6 +29,11 @@ Resolve-ExtensionMetadata [-Value] <Object> [<CommonParameters>]
 
 This function resolves extension metadata from a string or hashtable configuration.
 The function supports both simple and object-based syntax.
+
+An error is thrown if 'MinimumVersion' is combined with 'Version', 'GitRef' or 'Path', because a minimum version selects
+from a range of released versions.
+
+When 'MinimumVersion' is a pre-release (for example, '1.4.0-beta1'), 'PreRelease' is set to include pre-release versions.
 
 ## EXAMPLES
 
@@ -61,6 +66,14 @@ Resolve-ExtensionMetadata -Value @{Name="MyExtension"; Version="1.0.0"}
 @{
     Name = "MyExtension"
     Version = "1.0.0"
+}
+
+### EXAMPLE 5
+
+Resolve-ExtensionMetadata -Value @{Name="MyExtension"; MinimumVersion="1.4.0"}
+@{
+    Name = "MyExtension"
+    MinimumVersion = "1.4.0"
 }
 
 ## PARAMETERS

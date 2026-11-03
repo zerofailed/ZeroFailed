@@ -2,14 +2,68 @@
 # Copyright (c) Endjin Limited. All rights reserved.
 # </copyright>
 function Register-ExtensionAndDependencies {
+    <#
+        .SYNOPSIS
+        Registers an extension and its dependencies.
+
+        .DESCRIPTION
+        A recursive function responsible for registering the specified extension and its dependencies.
+
+        A local extension whose path does not exist is not registered: a warning is written, and nothing is returned for it.
+
+        Each extension's metadata includes a 'LockEntry' that records how it was requested and resolved: its source, the requested git reference or version, the commit or version that was installed, and which extension required it.
+
+        An extension can request a 'MinimumVersion' instead of a 'Version' or 'GitRef'.
+        It is installed at the newest release from that version up to, but not including, the next major version: a module version from a PowerShell repository, or a git tag named after a semantic version (for example, '1.4.2' or 'v1.4.2').
+        An installed release in that range is used as it is.
+        Its lock entry records the range (for example, '[1.4.0,2.0.0)') as the requested version and, for a git repository, the release tag as 'resolvedRef'.
+
+        When locked extensions are provided, an extension whose lock entry matches how it is requested is installed at the commit or version recorded in the lock entry.
+        For a 'MinimumVersion', the lock entry matches when it has the same source and its version is in the range, whatever range it records as requested.
+        Before any of the extension's code runs, an error is thrown if its content differs from the lock entry.
+        An extension that does not match its lock entry is not installed, and its dependencies are not registered.
+        It is returned disabled, with 'LockMismatch' set, so that the difference can be reported once every extension has been registered.
+
+        .PARAMETER ExtensionConfig
+        A hashtable containing the initial extension metadata provided by the user.
+        This parameter is mandatory.
+
+        .PARAMETER TargetPath
+        The path to the folder where ZeroFailed extensions are installed (typically '.zf/extensions').
+        This parameter is mandatory.
+
+        .PARAMETER RequiredBy
+        The name of the extension that declared this extension as a dependency.
+        Omit this for an extension that is configured directly.
+
+        .PARAMETER LockedExtensions
+        The extensions recorded in the extensions lock file, keyed by name.
+        When omitted, extensions are resolved without using a lock file.
+
+        .EXAMPLE
+        PS:> $extensionConfig = @{
+            Name = "MyExtension"
+            Path = "C:\Extensions\MyExtension"
+            Repository = "https://example.com/extensions"
+        }
+        PS:>Register-ExtensionAndDependencies -ExtensionConfig $extensionConfig -TargetPath "$PWD/.zf/extensions"
+    #>
     [CmdletBinding()]
-    [OutputType([hashtable[]])]
+    [OutputType([hashtable])]
     param (
         [Parameter(Mandatory=$true)]
         $ExtensionConfig,
 
         [Parameter(Mandatory=$true)]
-        [string] $TargetPath
+        [string] $TargetPath,
+
+        [Parameter()]
+        [AllowNull()]
+        [string] $RequiredBy,
+
+        [Parameter()]
+        [AllowNull()]
+        [System.Collections.IDictionary] $LockedExtensions
     )
 
     [hashtable[]]$processedExtensionConfig = @()
@@ -20,7 +74,11 @@ function Register-ExtensionAndDependencies {
     # Prepare the parameters needed for extension registration
     $splat = $extension.Clone()
     $splat.Remove("Process") | Out-Null
+    $splat.Remove("Enabled") | Out-Null
     $splat.Add("TargetPath", $TargetPath)
+
+    # Whether the extension was installed at the version in the lock file
+    $isLocked = $false
 
     # Skip further processing is extension is explicitly disabled
     if (!$extension.ContainsKey('Enabled') -or $extension.Enabled) {
@@ -28,8 +86,9 @@ function Register-ExtensionAndDependencies {
             # Git-based extension
             $splat.Remove("GitRepository")
             $splat.Add("RepositoryUri", $extension.GitRepository)
-            # Set defaults for any optional configuration settings
-            if (!$extension.ContainsKey("GitRef")) { $splat.Add("GitRef", 'main') }
+            # Set defaults for any optional configuration settings (a minimum version is resolved to a release tag instead)
+            $hasMinimumVersion = $extension.ContainsKey("MinimumVersion")
+            if (!$extension.ContainsKey("GitRef") -and !$hasMinimumVersion) { $splat.Add("GitRef", 'main') }
             if ($extension.ContainsKey("GitRepositoryFolderPath")) {
                 $splat.Remove("GitRepositoryFolderPath")
                 $splat.Add("RepositoryFolderPath", $extension.GitRepositoryFolderPath)
@@ -37,30 +96,104 @@ function Register-ExtensionAndDependencies {
             else {
                 $splat.Add("RepositoryFolderPath", 'module')
             }
-    
+
+            # A minimum version is recorded as its range, so that it is distinct from a git reference, along with
+            # whether it includes pre-release tags
+            $source = @{ repository = $extension.GitRepository; folderPath = $splat.RepositoryFolderPath }
+            if ($hasMinimumVersion) {
+                $source.preRelease = [bool]$extension['PreRelease']
+            }
+            $requested = $hasMinimumVersion ? (_getExtensionVersionRange -MinimumVersion $extension.MinimumVersion).Text : $splat.GitRef
+            $lockEntry = _newExtensionLockEntry -SourceType 'git' `
+                                                -Source $source `
+                                                -Requested $requested `
+                                                -RequiredBy $RequiredBy
+            $lockedEntry = $LockedExtensions ? $LockedExtensions[$extension.Name] : $null
+            if ($lockedEntry -and $lockedEntry['resolved'] -and
+                    (_testExtensionLockEntryMatch -LockEntry $lockedEntry -Entry $lockEntry -MinimumVersion $extension['MinimumVersion'] -PreRelease:([bool]$extension['PreRelease']))) {
+                Write-Host "Using locked commit for extension $($extension.Name): $($lockedEntry['resolved'])" -f Cyan
+                $splat.Add("LockedCommit", $lockedEntry['resolved'])
+                $isLocked = $true
+                # A minimum version is installed from the locked release tag
+                if ($hasMinimumVersion) {
+                    $splat.Add("GitRef", ($lockedEntry['resolvedRef'] ? $lockedEntry['resolvedRef'] : $lockedEntry['requested']))
+                }
+            }
+
             # Call the helper that will install the extension from a Git repository if it's not
             # already installed and provide the resulting additional metadata that we need to use the extension
-            $extension += Get-ExtensionFromGitRepository @splat
+            $result = ($LockedExtensions -and !$isLocked) ? $null : (_getExtensionFromGit @splat)
         }
         elseif (!$extension.ContainsKey("Path")) {
             # PowerShell module-based extension
             # Set defaults for any optional configuration settings
             $splat["PSRepository"] = $extension.ContainsKey("PSRepository") ? $extension.PSRepository : $DefaultPSRepository
-            
+
+            # A minimum version is recorded as its range, so that it is distinct from the same exact version. A version with
+            # fewer than 3 numeric parts (e.g. '1.4') is recorded as its full version (e.g. '1.4.0').
+            $requested = $extension.ContainsKey("MinimumVersion") ? (_getExtensionVersionRange -MinimumVersion $extension.MinimumVersion).Text : $extension['Version']
+            if ($requested -and !$extension.ContainsKey("MinimumVersion")) {
+                $completeVersion = _getCompleteExtensionVersion -Version $requested
+                if ($completeVersion) {
+                    $requested = $completeVersion
+                }
+            }
+            $lockEntry = _newExtensionLockEntry -SourceType 'psrepository' `
+                                                -Source @{ repository = $splat.PSRepository; preRelease = [bool]$extension['PreRelease'] } `
+                                                -Requested $requested `
+                                                -RequiredBy $RequiredBy
+            $lockedEntry = $LockedExtensions ? $LockedExtensions[$extension.Name] : $null
+            if ($lockedEntry -and $lockedEntry['resolved'] -and
+                    (_testExtensionLockEntryMatch -LockEntry $lockedEntry -Entry $lockEntry -MinimumVersion $extension['MinimumVersion'] -PreRelease:([bool]$extension['PreRelease']))) {
+                Write-Host "Using locked version for extension $($extension.Name): v$($lockedEntry['resolved'])" -f Cyan
+                $splat.Add("LockedVersion", $lockedEntry['resolved'])
+                $isLocked = $true
+            }
+
             # Call the helper that will install the extension from a PowerShell module repository if it's not
             # already installed and provide the resulting additional metadata that we need to use the extension
-            $extension += Get-ExtensionFromPowerShellRepository @splat
-        }
-        elseif ((Test-Path $extension.Path)) {
-            # Local file-system-based extension
-            $extension['Enabled'] = $extension.ContainsKey('Enabled') ? $extension.Enabled : $true
-            Write-Host "USING PATH: $($extension.Name) ($($extension.Path))" -f Cyan
+            $result = ($LockedExtensions -and !$isLocked) ? $null : (_getExtensionFromPSRepository @splat)
         }
         else {
-            # Missing local extension or invalid config
-            Write-Warning "Extension '$($extension.Name)' not found at $($extension.Path) - it has been disabled."
-            $extension['Enabled'] = $false
-            continue
+            # Local file-system-based extension, which is used in place
+            $lockEntry = _newExtensionLockEntry -SourceType 'path' -Source @{ path = $extension.Path } -RequiredBy $RequiredBy
+            $result = _getExtensionFromPath -Name $extension.Name -Path $extension.Path
+        }
+
+        # When the lock file is used, an extension that does not match it is not installed, as the run fails once every
+        # extension has been registered. Its dependencies are not registered either.
+        if ($null -eq $result) {
+            Write-Verbose "Not installing extension $($extension.Name), as it does not match the lock file"
+            $extension.LockEntry = $lockEntry
+            $extension.Enabled = $false
+            $extension.LockMismatch = $true
+            return @($extension)
+        }
+
+        # Add the metadata populated by the helper, recording the resolved version (and release tag) separately
+        $lockEntry.resolved = $result.ResolvedVersion
+        if ($result.ContainsKey('ResolvedRef')) {
+            $lockEntry.resolvedRef = $result.ResolvedRef
+        }
+        $extension.LockEntry = $lockEntry
+        foreach ($key in $result.Keys) {
+            if ($key -notin 'ResolvedVersion', 'ResolvedRef') {
+                $extension[$key] = $result[$key]
+            }
+        }
+
+        if ($lockEntry.source.type -eq 'path' -and !$extension.Enabled) {
+            # Missing local extension or invalid config, which is not registered, so that another extension with the same
+            # name can be used in its place
+            return
+        }
+
+        # When the lock file is used, check the installed extension before any of its code runs, as finding its tasks
+        # runs its task files. Local extensions are working copies, so they are not locked.
+        if ($isLocked -and $extension.Enabled -and $lockedEntry['contentHash'] -and
+                (_getExtensionContentHash -Path $extension.Path) -ne $lockedEntry['contentHash']) {
+            throw ("Extension $($extension.Name) ($($lockEntry.resolved)) does not have the content recorded in the lock file. " +
+                   "Delete '$($extension.Path)' to re-install it.")
         }
     }
     else {
@@ -81,7 +214,11 @@ function Register-ExtensionAndDependencies {
     if ($extension.Enabled) {
         foreach ($dependency in $extension.dependencies) {
             Write-Host "Processing dependency: $($dependency.Name)"
-            $processedExtensionConfig += Register-ExtensionAndDependencies -ExtensionConfig $dependency -TargetPath $TargetPath
+            # A dependency that is not registered returns nothing
+            $processedExtensionConfig += @(Register-ExtensionAndDependencies -ExtensionConfig $dependency `
+                                                                             -TargetPath $TargetPath `
+                                                                             -RequiredBy $extension.Name `
+                                                                             -LockedExtensions $LockedExtensions)
         }
     }
     

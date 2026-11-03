@@ -8,7 +8,13 @@ BeforeAll {
 
     # in-module dependencies
     . (Join-Path (Split-Path -Parent $PSCommandPath) 'Get-InstalledExtensionDetails.ps1')
+    . (Join-Path (Split-Path -Parent $PSCommandPath) '_getCompleteExtensionVersion.ps1')
     . (Join-Path (Split-Path -Parent $PSCommandPath) 'Copy-FolderFromGitRepo.ps1')
+    . (Join-Path (Split-Path -Parent $PSCommandPath) '_copyFolderFromGitRepo.ps1')
+    . (Join-Path (Split-Path -Parent $PSCommandPath) '_getExtensionFromGit.ps1')
+    . (Join-Path (Split-Path -Parent $PSCommandPath) '_getGitExtensionFolderName.ps1')
+    . (Join-Path (Split-Path -Parent $PSCommandPath) '_getNormalizedGitRepositoryUrl.ps1')
+    . (Join-Path (Split-Path -Parent $PSCommandPath) '_removeFolderWithRetry.ps1')
 }
 
 Describe 'Get-ExtensionFromGitRepository' {
@@ -35,7 +41,10 @@ Describe 'Get-ExtensionFromGitRepository' {
             Test-Path (Join-Path $result.Path 'ZeroFailed.Build.DotNet.psd1') | Should -Be $true
         }
         It "Should install from the correct branch" {
-            Split-Path -Leaf $result.Path | Should -Be $gitRef
+            Split-Path -Leaf $result.Path | Should -BeLike "$gitRef-*"
+        }
+        It "Should only return the metadata it has always returned" {
+            $result.Keys | Sort-Object | Should -Be @('Enabled', 'Path')
         }
         It "Should mark the extension as enabled" {
             $result.Enabled | Should -Be $true
@@ -57,7 +66,7 @@ Describe 'Get-ExtensionFromGitRepository' {
             Test-Path (Join-Path $result.Path 'ZeroFailed.Build.DotNet.psd1') | Should -Be $true
         }
         It "Should use a folder name based on safe formatting of the Git reference" {
-            Split-Path -Leaf $result.Path | Should -Be 'refs-heads-main'
+            Split-Path -Leaf $result.Path | Should -BeLike 'refs-heads-main-*'
         }
         It "Should mark the extension as enabled" {
             $result.Enabled | Should -Be $true
