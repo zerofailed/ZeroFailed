@@ -252,7 +252,13 @@ Extensions referenced by a local `Path` are recorded, but not locked, because th
 
 #### Updating locked versions
 
-In `Write` mode, an extension that is already installed is used as it is, so the lock file records the versions that you have installed. To update to the newest versions (e.g. the latest commit of `main`), delete the extension's folder in `.zf/extensions`, run again, and commit the updated lock file.
+In `Write` mode, an extension that is already installed is used as it is, so the lock file records the versions that you have installed. To update to the newest versions (e.g. the latest commit of `main`):
+
+1. Delete the extension's folder in `.zf/extensions`, or delete `.zf/extensions` to update every extension.
+2. Run the build in `Write` mode.
+3. Commit the updated lock file.
+
+A CI/CD pipeline that runs in `Frozen` mode uses the versions in the committed lock file until you commit an updated one.
 
 When you change the extensions in the configuration, run once in `Write` mode to update the lock file. Otherwise a `Frozen` run fails because the configuration differs from the lock file.
 

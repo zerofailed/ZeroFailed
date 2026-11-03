@@ -38,7 +38,7 @@ jobs:
       id: prepareEnvVarsAndSecrets
       with:
         environmentVariablesYaml: |
-          {}
+          ZF_EXTENSIONS_LOCK_MODE: Frozen
         secretsYaml: |
           ZF_BUILD_PS_REPOSITORY_APIKEY: ${{ secrets.PSGALLERY_APIKEY }}
           ZF_BUILD_GITHUB_PACKAGES_TOKEN: ${{ secrets.GITHUB_TOKEN }}
