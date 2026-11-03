@@ -110,14 +110,10 @@ function _getExtensionFromPSRepository {
         $existingExtensionPath,$existingExtensionVersion = Get-InstalledExtensionDetails @psResourceArgs @installedArgs -TargetPath $TargetPath
     }
 
-    # Handle getting the module from the repository
-    if (!$existingExtensionPath -or ($Version -and $existingExtensionVersion -ne $Version)) {
-        if (!$existingExtensionPath) {
-            Write-Verbose "Extension '$Name' not found locally, checking repository"
-        }
-        elseif ($Version -and $existingExtensionVersion -ne $Version) {
-            Write-Verbose "Extension '$Name' found locally but version mismatch detected. Found: v$existingExtensionVersion; Required: v$Version"
-        }
+    # Handle getting the module from the repository. An installed copy always matches the requested version, including
+    # a pre-release (e.g. '1.0.0-beta1') of a requested version when pre-release versions are allowed (e.g. '1.0.0').
+    if (!$existingExtensionPath) {
+        Write-Verbose "Extension '$Name' not found locally, checking repository"
 
         # Only search the configured repository, as the lock file records it as the extension's source
         if ($MinimumVersion) {
