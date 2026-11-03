@@ -108,6 +108,20 @@ Describe 'Resolve-ExtensionMetadata' {
             It 'Should return minimum version metadata' {
                 $result.MinimumVersion | Should -Be $config.MinimumVersion
             }
+
+            It 'Should not include pre-release versions' {
+                $result.ContainsKey('PreRelease') | Should -Be $false
+            }
+        }
+        Context 'Valid specification by name & pre-release minimum version (<MinimumVersion>)' -ForEach @(
+            @{ MinimumVersion = '1.4.0-beta1' }
+            @{ MinimumVersion = '1.4-beta1' }
+        ) {
+            It 'Should include pre-release versions' {
+                $result = Resolve-ExtensionMetadata @{ Name = "MyExtension"; MinimumVersion = $MinimumVersion }
+
+                $result.PreRelease | Should -Be $true
+            }
         }
     }
 

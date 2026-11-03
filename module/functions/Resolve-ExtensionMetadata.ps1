@@ -13,6 +13,8 @@ function Resolve-ExtensionMetadata {
         An error is thrown if 'MinimumVersion' is combined with 'Version', 'GitRef' or 'Path', because a minimum version selects
         from a range of released versions.
 
+        When 'MinimumVersion' is a pre-release (for example, '1.4.0-beta1'), 'PreRelease' is set to include pre-release versions.
+
         .PARAMETER Value
         The extension configuration to resolve.
 
@@ -95,6 +97,13 @@ function Resolve-ExtensionMetadata {
             if ($extension.ContainsKey($key)) {
                 throw "Invalid extension configuration for '$($extension.Name)': 'MinimumVersion' cannot be used with '$key'."
             }
+        }
+
+        # Only pre-release versions can match a minimum version that is a pre-release (e.g. '1.4.0-beta1'), until a later
+        # version is released
+        if ("$($extension.MinimumVersion)" -match '^\d+(\.\d+){0,2}-' -and !$extension['PreRelease']) {
+            Write-Verbose "Including pre-release versions of extension '$($extension.Name)', as its minimum version '$($extension.MinimumVersion)' is a pre-release"
+            $extension.PreRelease = $true
         }
     }
 

@@ -33,6 +33,8 @@ The function supports both simple and object-based syntax.
 An error is thrown if 'MinimumVersion' is combined with 'Version', 'GitRef' or 'Path', because a minimum version selects
 from a range of released versions.
 
+When 'MinimumVersion' is a pre-release (for example, '1.4.0-beta1'), 'PreRelease' is set to include pre-release versions.
+
 ## EXAMPLES
 
 ### EXAMPLE 1
