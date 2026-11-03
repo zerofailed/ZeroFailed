@@ -16,6 +16,7 @@ BeforeAll {
     . (Join-Path (Split-Path -Parent $PSCommandPath) '_getGitTagVersions.ps1')
     . (Join-Path (Split-Path -Parent $PSCommandPath) '_getGitExtensionFolderName.ps1')
     . (Join-Path (Split-Path -Parent $PSCommandPath) '_getNormalizedGitRepositoryUrl.ps1')
+    . (Join-Path (Split-Path -Parent $PSCommandPath) '_removeFolderWithRetry.ps1')
 
     Set-StrictMode -Version Latest
 
@@ -86,6 +87,11 @@ Describe '_getExtensionFromGit' {
 
         It 'Does not return a release tag' {
             $result.ContainsKey('ResolvedRef') | Should -Be $false
+        }
+
+        It 'Copies the files straight into the install folder' {
+            Should -Invoke _copyFolderFromGitRepo -Times 1 -ParameterFilter { $DestinationPath -eq (Join-Path $targetPath $name $mainFolder) }
+            (Get-ChildItem -Path (Join-Path $targetPath $name) -Force).Name | Should -Be @($mainFolder)
         }
     }
 
@@ -336,7 +342,7 @@ Describe '_getExtensionFromGit' {
                 Should -Throw "Failed to install extension $name (main) from $repo repository: git fetch failed"
         }
 
-        It 'Leaves no install folder or staging folder when the copy stops part way' {
+        It 'Leaves an install folder without a source record when the copy stops part way' {
             Mock _copyFolderFromGitRepo {
                 newInstalledExtension -Path $DestinationPath -Name 'ZeroFailed.Build.Test'
                 throw 'Copy stopped'
@@ -344,15 +350,21 @@ Describe '_getExtensionFromGit' {
 
             { _getExtensionFromGit -Name $name -RepositoryUri $repo -TargetPath $targetPath -GitRef 'main' } | Should -Throw '*Copy stopped*'
 
-            @(Get-ChildItem -Path (Join-Path $targetPath $name) -Force -ErrorAction Ignore) | Should -HaveCount 0
+            Join-Path $targetPath $name $mainFolder '.zf-source.json' | Should -Not -Exist
         }
 
-        It 'Keeps the existing install when the copy fails' {
-            newInstalledExtension -Path (Join-Path $targetPath $name $mainFolder) -Name $name -Commit 'other-commit' -Ref 'main' -Repository $repo
+        It 'Removes the source record of an existing install before deleting it, so a failed delete leaves it incomplete' {
+            $installedPath = Join-Path $targetPath $name $mainFolder
+            newInstalledExtension -Path $installedPath -Name $name -Commit 'other-commit' -Ref 'main' -Repository $repo
+            Mock _removeFolderWithRetry { throw "Unable to delete '$Path'" }
 
-            { _getExtensionFromGit -Name $name -RepositoryUri $repo -TargetPath $targetPath -GitRef 'main' -LockedCommit 'locked-commit' } | Should -Throw
+            { _getExtensionFromGit -Name $name -RepositoryUri $repo -TargetPath $targetPath -GitRef 'main' -LockedCommit 'locked-commit' } |
+                Should -Throw "Failed to install extension $name (main) from $repo repository: Unable to delete '$installedPath'"
 
-            (Get-Content -Raw (Join-Path $targetPath $name $mainFolder '.zf-source.json') | ConvertFrom-Json).commit | Should -Be 'other-commit'
+            Join-Path $installedPath '.zf-source.json' | Should -Not -Exist
+            Should -Invoke _removeFolderWithRetry -Times 1 -ParameterFilter { $Path -eq $installedPath }
+            Should -Invoke _copyFolderFromGitRepo -Times 0
+            Should -Invoke Write-Host -Times 0 -ParameterFilter { "$Object" -like 'INSTALLED MODULE*' }
         }
     }
 }

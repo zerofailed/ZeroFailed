@@ -134,14 +134,14 @@ function _getExtensionFromGit {
     if ($installRequired) {
         Write-Host "Installing extension $Name from $RepositoryUri" -f Cyan
 
-        # Copy the files into a staging folder next to the install folder, then rename it, so that an install that stops
-        # part way (e.g. with Ctrl+C) never leaves a folder that looks complete. Git references cannot start with '.',
-        # so the staging folder's name cannot be the name of an install folder.
+        # The source record is written last, so an install that stops part way (e.g. with Ctrl+C) leaves a folder without
+        # it, which is installed again on the next run. The files are copied straight into the install folder rather than
+        # renaming a staging folder, as editors and antivirus scanners often have newly written files open, which stops
+        # their folder being renamed on Windows.
         $destinationPath = Join-Path $TargetPath $Name $installFolderName
-        $stagingPath = Join-Path $TargetPath $Name ".staging-$(New-Guid)"
         $copyArgs = @{
             RepoUrl = $RepositoryUri
-            DestinationPath = $stagingPath
+            DestinationPath = $destinationPath
             RepoFolderPath = $RepositoryFolderPath
             GitRef = $GitRef
         }
@@ -150,29 +150,26 @@ function _getExtensionFromGit {
         }
 
         try {
-            try {
-                $installedCommit = _copyFolderFromGitRepo @copyArgs
+            # Mark an existing install as incomplete before deleting it, in case it can only be partly deleted
+            if (Test-Path $destinationPath) {
+                $existingSourceInfoPath = Join-Path $destinationPath $sourceInfoFileName
+                if (Test-Path $existingSourceInfoPath) {
+                    Remove-Item -Path $existingSourceInfoPath -Force -ErrorAction Stop
+                }
+                _removeFolderWithRetry -Path $destinationPath
             }
-            catch {
-                throw "Failed to install extension $Name ($GitRef) from $RepositoryUri repository: $($_.Exception.Message)"
-            }
+
+            $installedCommit = _copyFolderFromGitRepo @copyArgs
 
             [ordered]@{
                 repository = $RepositoryUri.OriginalString
                 folderPath = $RepositoryFolderPath
                 ref = $GitRef
                 commit = $installedCommit
-            } | ConvertTo-Json | Set-Content -Path (Join-Path $stagingPath $sourceInfoFileName)
-
-            if (Test-Path $destinationPath) {
-                Remove-Item -Path $destinationPath -Recurse -Force
-            }
-            Move-Item -Path $stagingPath -Destination $destinationPath
+            } | ConvertTo-Json | Set-Content -Path (Join-Path $destinationPath $sourceInfoFileName) -ErrorAction Stop
         }
-        finally {
-            if (Test-Path $stagingPath) {
-                Remove-Item -Path $stagingPath -Recurse -Force -ErrorAction Ignore
-            }
+        catch {
+            throw "Failed to install extension $Name ($GitRef) from $RepositoryUri repository: $($_.Exception.Message)"
         }
 
         $existingExtensionPath,$existingExtensionVersion = Get-InstalledExtensionDetails -Name $Name -TargetPath $TargetPath -GitRefAsFolderName $installFolderName
