@@ -248,7 +248,7 @@ For each extension, the lock file records:
 | `direct` | Whether the extension is in the configuration, rather than only being a dependency of another extension. |
 | `requiredBy` | The extensions that declare it as a dependency. |
 
-Extensions referenced by a local `Path` are recorded, but not locked, because they are working copies.
+Extensions referenced by a local `Path` are recorded, but not locked, because they are working copies. Their path is recorded relative to the folder that holds the lock file, with `/` separators (for example, `../module` for `Path = "$here/module"` and `-ZfPath $here/.zf`). The same lock file then matches wherever the repository is checked out, on Windows or Linux.
 
 #### Updating locked versions
 

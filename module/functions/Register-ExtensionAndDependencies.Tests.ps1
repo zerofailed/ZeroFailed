@@ -15,6 +15,7 @@ BeforeAll {
     . (Join-Path (Split-Path -Parent $PSCommandPath) '_getExtensionFromPSRepository.ps1')
     . (Join-Path (Split-Path -Parent $PSCommandPath) '_getExtensionFromPath.ps1')
     . (Join-Path (Split-Path -Parent $PSCommandPath) '_newExtensionLockEntry.ps1')
+    . (Join-Path (Split-Path -Parent $PSCommandPath) '_getExtensionLockPath.ps1')
     . (Join-Path (Split-Path -Parent $PSCommandPath) '_testExtensionLockEntryMatch.ps1')
     . (Join-Path (Split-Path -Parent $PSCommandPath) '_getExtensionVersionRange.ps1')
     . (Join-Path (Split-Path -Parent $PSCommandPath) '_testExtensionVersionInRange.ps1')
@@ -788,11 +789,11 @@ Describe 'Register-ExtensionAndDependencies' {
                 Should -Invoke Write-Host -Exactly 1
             }
 
-            It 'Records the path as the source, with no resolved version' {
+            It 'Records the path relative to the lock file folder as the source, with no resolved version' {
                 [array]$result = Register-ExtensionAndDependencies -ExtensionConfig @{ Name = $mockExtensionName; Path = $mockExtensionPath } -TargetPath $targetPath
 
                 $result[0].LockEntry.source.type | Should -Be 'path'
-                $result[0].LockEntry.source.path | Should -Be $mockExtensionPath
+                $result[0].LockEntry.source.path | Should -Be "../$mockExtensionName" -Because 'the lock file is in the parent folder of the extensions folder'
                 $result[0].LockEntry.requested | Should -BeNullOrEmpty
                 $result[0].LockEntry.resolved | Should -BeNullOrEmpty
             }

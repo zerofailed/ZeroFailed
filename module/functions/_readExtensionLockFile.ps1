@@ -37,6 +37,19 @@ function _readExtensionLockFile {
         }
     }
 
+    # ZeroFailed 2.0.0 recorded the full path of a local extension. Make it relative to the lock file's folder, as it is
+    # now recorded, so that a lock file written by that version still matches on the machine that wrote it.
+    foreach ($entry in $lockedExtensions.Values) {
+        if ($entry -is [System.Collections.IDictionary] -and
+            $entry['source'] -is [System.Collections.IDictionary] -and
+            $entry['source']['type'] -eq 'path' -and
+            $entry['source']['path'] -and
+            [IO.Path]::IsPathRooted($entry['source']['path'])
+        ) {
+            $entry['source']['path'] = _getExtensionLockPath -Path $entry['source']['path'] -BasePath (Split-Path -Parent $Path)
+        }
+    }
+
     # The content of an installed extension is checked against its content hash, so an extension from a git or
     # PowerShell repository must have one. Without it, the extension's content would not be checked at all.
     $namesWithoutHash = @($lockedExtensions.Keys | Where-Object {

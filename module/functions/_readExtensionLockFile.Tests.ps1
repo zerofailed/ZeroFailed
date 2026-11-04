@@ -6,6 +6,9 @@ BeforeAll {
     # sut
     . $PSCommandPath.Replace('.Tests.ps1','.ps1')
 
+    # in-module dependencies
+    . (Join-Path (Split-Path -Parent $PSCommandPath) '_getExtensionLockPath.ps1')
+
     Set-StrictMode -Version Latest
 
     Mock Write-Verbose {}
@@ -102,6 +105,23 @@ Describe '_readExtensionLockFile' {
         $result = _readExtensionLockFile -Path $lockFilePath
 
         $result['MyExtension'].source.type | Should -Be 'path'
+        $result['MyExtension'].source.path | Should -Be '../MyExtension/module'
+    }
+
+    It 'Makes the full path of a local extension relative to the lock file folder, as recorded by ZeroFailed 2.0.0' {
+        $extensionPath = (Join-Path $TestDrive 'MyExtension' 'module') | ConvertTo-Json
+        Set-Content -Path $lockFilePath -Value @"
+{
+  "lockVersion": 1,
+  "extensions": {
+    "MyExtension": { "source": { "type": "path", "path": $extensionPath }, "requested": null, "resolved": null, "direct": true, "requiredBy": [] }
+  }
+}
+"@
+
+        $result = _readExtensionLockFile -Path $lockFilePath
+
+        $result['MyExtension'].source.path | Should -Be 'MyExtension/module'
     }
 
     It 'Throws when the lock file is not valid JSON' {
