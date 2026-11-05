@@ -10,6 +10,7 @@ function _getExtensionLockPath {
         [string] $Path,
 
         [Parameter(Mandatory)]
+        [AllowEmptyString()]
         [string] $BasePath
     )
 
@@ -17,7 +18,7 @@ function _getExtensionLockPath {
     # So a local extension's path is recorded relative to the folder that holds the lock file, with '/' separators
     # whichever platform wrote it. A relative path is resolved from the current location, as when the extension is used.
     $fullPath = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($Path)
-    $fullBasePath = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($BasePath)
+    $fullBasePath = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath(($BasePath ? $BasePath : '.'))
     $relativePath = [IO.Path]::GetRelativePath($fullBasePath, $fullPath)
 
     return $relativePath.Replace('\', '/').TrimEnd('/')
