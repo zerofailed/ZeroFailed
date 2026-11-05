@@ -124,6 +124,36 @@ Describe '_readExtensionLockFile' {
         $result['MyExtension'].source.path | Should -Be 'MyExtension/module'
     }
 
+    It 'Makes a PowerShell drive path of a local extension relative to the lock file folder, as recorded by ZeroFailed 2.0.0' {
+        Set-Content -Path $lockFilePath -Value @'
+{
+  "lockVersion": 1,
+  "extensions": {
+    "MyExtension": { "source": { "type": "path", "path": "TestDrive:/MyExtension/module" }, "requested": null, "resolved": null, "direct": true, "requiredBy": [] }
+  }
+}
+'@
+
+        $result = _readExtensionLockFile -Path $lockFilePath
+
+        $result['MyExtension'].source.path | Should -Be 'MyExtension/module'
+    }
+
+    It 'Keeps the full path of a local extension on a drive that does not exist, so that it is reported as a difference' {
+        Set-Content -Path $lockFilePath -Value @'
+{
+  "lockVersion": 1,
+  "extensions": {
+    "MyExtension": { "source": { "type": "path", "path": "NoSuchDrive:/MyExtension/module" }, "requested": null, "resolved": null, "direct": true, "requiredBy": [] }
+  }
+}
+'@
+
+        $result = _readExtensionLockFile -Path $lockFilePath
+
+        $result['MyExtension'].source.path | Should -Be 'NoSuchDrive:/MyExtension/module'
+    }
+
     It 'Throws when the lock file is not valid JSON' {
         Set-Content -Path $lockFilePath -Value '{ not json'
 

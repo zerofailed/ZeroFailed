@@ -43,10 +43,22 @@ function _readExtensionLockFile {
         if ($entry -is [System.Collections.IDictionary] -and
             $entry['source'] -is [System.Collections.IDictionary] -and
             $entry['source']['type'] -eq 'path' -and
-            $entry['source']['path'] -and
-            [IO.Path]::IsPathRooted($entry['source']['path'])
+            $entry['source']['path']
         ) {
-            $entry['source']['path'] = _getExtensionLockPath -Path $entry['source']['path'] -BasePath (Split-Path -Parent $Path)
+            # A full path is a native one (e.g. 'C:\repo/module' or '/repo/module'), or one on a PowerShell drive
+            # (e.g. 'Repos:/module')
+            $lockedPath = $entry['source']['path']
+            $psDriveInfo = $null
+            if ([IO.Path]::IsPathRooted($lockedPath) -or $ExecutionContext.SessionState.Path.IsPSAbsolute($lockedPath, [ref]$psDriveInfo)) {
+                try {
+                    $entry['source']['path'] = _getExtensionLockPath -Path $lockedPath -BasePath (Split-Path -Parent $Path)
+                }
+                catch {
+                    # A path on a drive that does not exist here (e.g. one written on another machine) cannot match, so it
+                    # is left as it is, to be reported as a difference from the lock file
+                    Write-Verbose "Not making the path of local extension '$lockedPath' relative: $($_.Exception.Message)"
+                }
+            }
         }
     }
 
