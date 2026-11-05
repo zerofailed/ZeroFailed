@@ -159,9 +159,12 @@ function Register-ExtensionAndDependencies {
             # Local file-system-based extension, which is used in place. Its path is recorded relative to the folder that
             # holds the lock file (the parent of the extensions folder), so that the lock file matches wherever the
             # repository is.
+            $result = _getExtensionFromPath -Name $extension.Name -Path $extension.Path
+            if (!$result.Enabled) {
+                return
+            }
             $lockPath = _getExtensionLockPath -Path $extension.Path -BasePath (Split-Path -Parent $TargetPath)
             $lockEntry = _newExtensionLockEntry -SourceType 'path' -Source @{ path = $lockPath } -RequiredBy $RequiredBy
-            $result = _getExtensionFromPath -Name $extension.Name -Path $extension.Path
         }
 
         # When the lock file is used, an extension that does not match it is not installed, as the run fails once every
