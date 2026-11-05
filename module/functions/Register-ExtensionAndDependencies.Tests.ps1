@@ -828,6 +828,18 @@ Describe 'Register-ExtensionAndDependencies' {
                 Should -Not -Invoke Get-ExtensionAvailableTasks
             }
 
+            It 'Should not register the extension, and write a warning, when its drive does not exist' {
+                # A path on a missing drive cannot be resolved, so it is not recorded in the lock file
+                $missingPath = 'ZfMissingDrive:/missingZfExtension'
+
+                [array]$result = Register-ExtensionAndDependencies -ExtensionConfig @{ Name = 'missingZfExtension'; Path = $missingPath } -TargetPath $targetPath
+
+                $result.Count | Should -Be 0
+                Should -Invoke Write-Warning -Exactly 1 -ParameterFilter {
+                    $Message -eq "Extension 'missingZfExtension' not found at $missingPath - it has been disabled."
+                }
+            }
+
             It 'Should return to the caller, rather than ending a loop that the caller is running' {
                 $missingPath = Join-Path $TestDrive 'missingZfExtension'
 

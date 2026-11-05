@@ -43,6 +43,18 @@ Describe '_getExtensionLockPath' {
         }
     }
 
+    It 'Resolves an empty base path as the current location' {
+        # 'Split-Path -Parent' returns an empty string for a relative extensions folder with no parent folder
+        New-Item -ItemType Directory $repoPath -Force | Out-Null
+        Push-Location $repoPath
+        try {
+            _getExtensionLockPath -Path (Join-Path $repoPath 'module') -BasePath '' | Should -Be 'module'
+        }
+        finally {
+            Pop-Location
+        }
+    }
+
     It 'Returns . when the path is the base path' {
         _getExtensionLockPath -Path $zfPath -BasePath $zfPath | Should -Be '.'
     }
