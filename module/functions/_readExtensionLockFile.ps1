@@ -37,6 +37,31 @@ function _readExtensionLockFile {
         }
     }
 
+    # ZeroFailed 2.0.0 recorded the full path of a local extension. Make it relative to the lock file's folder, as it is
+    # now recorded, so that a lock file written by that version still matches on the machine that wrote it.
+    foreach ($entry in $lockedExtensions.Values) {
+        if ($entry -is [System.Collections.IDictionary] -and
+            $entry['source'] -is [System.Collections.IDictionary] -and
+            $entry['source']['type'] -eq 'path' -and
+            $entry['source']['path']
+        ) {
+            # A full path is a native one (e.g. 'C:\repo/module' or '/repo/module'), or one on a PowerShell drive
+            # (e.g. 'Repos:/module')
+            $lockedPath = $entry['source']['path']
+            $psDriveInfo = $null
+            if ([IO.Path]::IsPathRooted($lockedPath) -or $ExecutionContext.SessionState.Path.IsPSAbsolute($lockedPath, [ref]$psDriveInfo)) {
+                try {
+                    $entry['source']['path'] = _getExtensionLockPath -Path $lockedPath -BasePath (Split-Path -Parent $Path)
+                }
+                catch {
+                    # A path on a drive that does not exist here (e.g. one written on another machine) cannot match, so it
+                    # is left as it is, to be reported as a difference from the lock file
+                    Write-Verbose "Not making the path of local extension '$lockedPath' relative: $($_.Exception.Message)"
+                }
+            }
+        }
+    }
+
     # The content of an installed extension is checked against its content hash, so an extension from a git or
     # PowerShell repository must have one. Without it, the extension's content would not be checked at all.
     $namesWithoutHash = @($lockedExtensions.Keys | Where-Object {

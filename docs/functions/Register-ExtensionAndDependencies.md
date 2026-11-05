@@ -33,6 +33,7 @@ A recursive function responsible for registering the specified extension and its
 A local extension whose path does not exist is not registered: a warning is written, and nothing is returned for it.
 
 Each extension's metadata includes a 'LockEntry' that records how it was requested and resolved: its source, the requested git reference or version, the commit or version that was installed, and which extension required it.
+A local extension's path is recorded relative to the parent folder of 'TargetPath', which holds the lock file, with '/' separators.
 
 An extension can request a 'MinimumVersion' instead of a 'Version' or 'GitRef'.
 It is installed at the newest release from that version up to, but not including, the next major version: a module version from a PowerShell repository, or a git tag named after a semantic version (for example, '1.4.2' or 'v1.4.2').

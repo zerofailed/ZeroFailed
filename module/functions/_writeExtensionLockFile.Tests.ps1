@@ -10,6 +10,7 @@ BeforeAll {
     . (Join-Path (Split-Path -Parent $PSCommandPath) '_getExtensionLockEntries.ps1')
     . (Join-Path (Split-Path -Parent $PSCommandPath) '_getExtensionContentHash.ps1')
     . (Join-Path (Split-Path -Parent $PSCommandPath) '_readExtensionLockFile.ps1')
+    . (Join-Path (Split-Path -Parent $PSCommandPath) '_getExtensionLockPath.ps1')
 
     Set-StrictMode -Version Latest
 
