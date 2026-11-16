@@ -5,6 +5,7 @@
 BeforeAll {
     # sut
     . $PSCommandPath.Replace('.Tests.ps1','.ps1')
+    . $PSScriptRoot/_mergeExtensionProcess.ps1
 }
 
 Describe 'Resolve-ExtensionDuplicates' {
@@ -110,6 +111,74 @@ Describe 'Resolve-ExtensionDuplicates' {
             Should -Invoke Write-Warning -Times 1 -Exactly
             Should -Invoke Write-Warning -Times 1 -Exactly -ParameterFilter {
                 $Message -like '*ZeroFailed.DevOps.Common*'
+            }
+        }
+    }
+
+    Context 'When the extensions are not in alphabetical order' {
+        It 'Returns them in the order that they were given' {
+            $extensions = @(
+                @{ Name = 'ZeroFailed.Deploy.Azure'; Path = '/zf/ZeroFailed.Deploy.Azure/main' }
+                @{ Name = 'ZeroFailed.Deploy.Common'; Path = '/zf/ZeroFailed.Deploy.Common/main'; Process = 'tasks/deploy.process.ps1' }
+                @{ Name = 'ZeroFailed.DevOps.Common'; Path = '/zf/ZeroFailed.DevOps.Common/main' }
+                @{ Name = 'ZeroFailed.Build.Python'; Path = '/zf/ZeroFailed.Build.Python/main' }
+                @{ Name = 'ZeroFailed.Build.Common'; Path = '/zf/ZeroFailed.Build.Common/main'; Process = 'tasks/build.process.ps1' }
+                @{ Name = 'ZeroFailed.DevOps.Common'; Path = '/zf/ZeroFailed.DevOps.Common/main' }
+            )
+
+            [array]$result = Resolve-ExtensionDuplicates -Extensions $extensions
+
+            $result.Name | Should -Be @(
+                'ZeroFailed.Deploy.Azure'
+                'ZeroFailed.Deploy.Common'
+                'ZeroFailed.DevOps.Common'
+                'ZeroFailed.Build.Python'
+                'ZeroFailed.Build.Common'
+            )
+        }
+
+        It 'Keeps the first extension that declares a process ahead of the others' {
+            $extensions = @(
+                @{ Name = 'ZeroFailed.Deploy.Common'; Path = '/zf/ZeroFailed.Deploy.Common/main'; Process = 'tasks/deploy.process.ps1' }
+                @{ Name = 'ZeroFailed.Build.Common'; Path = '/zf/ZeroFailed.Build.Common/main'; Process = 'tasks/build.process.ps1' }
+            )
+
+            [array]$result = Resolve-ExtensionDuplicates -Extensions $extensions
+
+            ($result | Where-Object { $_.ContainsKey('Process') } | Select-Object -First 1).Name | Should -Be 'ZeroFailed.Deploy.Common'
+        }
+    }
+
+    Context 'When only a later reference to an extension declares a process' {
+        It 'Uses that process for the reference that is kept' {
+            # e.g. the configuration overrides a dependency with a local copy, without repeating its 'Process'
+            $extensions = @(
+                @{ Name = 'ZeroFailed.Build.Common'; Path = '/src/ZeroFailed.Build.Common/module' }
+                @{ Name = 'ZeroFailed.Build.PowerShell'; Path = '/zf/ZeroFailed.Build.PowerShell/main' }
+                @{ Name = 'ZeroFailed.Build.Common'; Path = '/zf/ZeroFailed.Build.Common/main'; Process = 'tasks/build.process.ps1' }
+            )
+
+            [array]$result = Resolve-ExtensionDuplicates -Extensions $extensions
+
+            $common = @($result | Where-Object { $_.Name -eq 'ZeroFailed.Build.Common' })
+            $common.Count | Should -Be 1
+            $common[0].Path | Should -Be '/src/ZeroFailed.Build.Common/module'
+            $common[0].Process | Should -Be 'tasks/build.process.ps1'
+        }
+    }
+
+    Context 'When the references to an extension declare different processes' {
+        It 'Keeps the process of the first one found, and warns' {
+            $extensions = @(
+                @{ Name = 'ZeroFailed.Build.Common'; Path = '/zf/ZeroFailed.Build.Common/main'; Process = 'tasks/build.process.ps1' }
+                @{ Name = 'ZeroFailed.Build.Common'; Path = '/zf/ZeroFailed.Build.Common/main'; Process = 'tasks/other.process.ps1' }
+            )
+
+            [array]$result = Resolve-ExtensionDuplicates -Extensions $extensions
+
+            $result[0].Process | Should -Be 'tasks/build.process.ps1'
+            Should -Invoke Write-Warning -Times 1 -Exactly -ParameterFilter {
+                $Message -like '*different process definitions*'
             }
         }
     }

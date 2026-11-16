@@ -123,6 +123,8 @@ ZeroFailed installs one version of each extension, so that version must be in ev
 
 These rules apply only when at least one extension uses `MinimumVersion`. Otherwise, ZeroFailed uses the first one that it registers. It registers each extension in your configuration, in order, followed by that extension's dependencies. To choose a version in that case, list the extension in your configuration before the extensions that require it.
 
+The same order decides which process ZeroFailed uses when more than one extension declares a `Process`: it uses the first one that it registers, and shows a warning that names the others. ZeroFailed imports the tasks and functions of the extensions in the reverse of this order, so that an extension's settings take precedence over those of its dependencies.
+
 When ZeroFailed chooses a version, it does not use the other versions, or the dependencies that only those versions declare.
 
 ### Using Extensions
@@ -210,6 +212,8 @@ $zerofailedExtensions = @(
     }
 )
 ```
+
+A local extension is used in place of any dependency with the same name, wherever it is listed in your configuration. ZeroFailed does not install that dependency, or the dependencies that only it declares. If the dependency declares a `Process`, the local extension uses it, so you do not need to repeat `Process` in your configuration.
 
 ### Locking extension versions
 

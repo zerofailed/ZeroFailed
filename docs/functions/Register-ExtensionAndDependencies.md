@@ -4,7 +4,7 @@ external help file: ZeroFailed-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: ZeroFailed
-ms.date: 10/29/2026
+ms.date: 11/16/2026
 PlatyPS schema version: 2024-05-01
 title: Register-ExtensionAndDependencies
 ---
@@ -21,7 +21,8 @@ Registers an extension and its dependencies.
 
 ```
 Register-ExtensionAndDependencies [-ExtensionConfig] <Object> [-TargetPath] <string>
- [[-RequiredBy] <string>] [[-LockedExtensions] <IDictionary>] [<CommonParameters>]
+ [[-RequiredBy] <string>] [[-LockedExtensions] <IDictionary>] [[-LocalExtensions] <IDictionary>]
+ [<CommonParameters>]
 ```
 
 ## ALIASES
@@ -73,6 +74,30 @@ ParameterSets:
 - Name: (All)
   Position: 0
   IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+### -LocalExtensions
+
+The local extensions in the configuration that are used in place of a dependency with the same name, keyed by name.
+Each value is a list, to which a dependency that is not registered because of it is added, with the name of the extension that requires it.
+Such a dependency is not installed, and its own dependencies are not registered.
+When omitted, every dependency is registered.
+
+```yaml
+Type: System.Collections.IDictionary
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: 4
+  IsRequired: false
   ValueFromPipeline: false
   ValueFromPipelineByPropertyName: false
   ValueFromRemainingArguments: false

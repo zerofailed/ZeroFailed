@@ -42,6 +42,8 @@ $zerofailedExtensionsLockMode = $env:ZF_EXTENSIONS_LOCK_MODE ? $env:ZF_EXTENSION
 
 # Process the extensions configuration, obtaining them where necessary and
 # filling-out the addtional metadata required by subsequent steps to load them.
+# This script is dot-sourced, so the extensions registered by an earlier call in the same scope are cleared first.
+[array]$registeredExtensions = @()
 if ($zerofailedExtensions.Count -gt 0) {
     Write-Host "*** Registering Extensions..." -f Green
     if ($zerofailedExtensionsLockMode -ne 'Write') {
@@ -72,12 +74,14 @@ if ($registeredExtensions.Count -gt 0) {
 
 # First we decide where the core process is being defined:
 # 1) Check whether an extension has been declared as providing it via the 'Process' property
-#    NOTE: For the moment, the first one found wins
+#    NOTE: For the moment, the first one found wins, in the order that the extensions are registered (i.e. the order
+#    of the configuration, with each extension followed by its dependencies)
 # 2) If not, assume the calling process is defining their own process
 [array]$processesFromExtension = $registeredExtensions |
                             Where-Object { $_.ContainsKey("Process") }
 if ($processesFromExtension.Count -gt 1) {
-    Write-Warning "Multiple extensions have declared a process definition, will use the first one found: $($processesFromExtension[0] | Select-Object Name,Version,Path,Process | ConvertTo-Json)"
+    Write-Warning ("Multiple extensions have declared a process definition, will use the first one found: $($processesFromExtension[0] | Select-Object Name,Version,Path,Process | ConvertTo-Json)`n" +
+                   "Ignored: $(($processesFromExtension | Select-Object -Skip 1 | ForEach-Object { "$($_.Name) ($($_.Process))" }) -join ', ')")
 }
 
 $processFromExtension = $processesFromExtension | Select-Object -First 1
@@ -93,7 +97,8 @@ if ($processFromExtension) {
     . $processPath
 }
 else {
-    $localProcessDefinition = Get-ChildItem $ZfPath\*.process.ps1 | Select-Object -First 1
+    # The ZfPath folder only exists once an extension has been registered, or when it has a local process definition
+    $localProcessDefinition = Get-ChildItem (Join-Path $ZfPath '*.process.ps1') -ErrorAction Ignore | Select-Object -First 1
     if ($localProcessDefinition) {
         Write-Host "Found local process definition '$($localProcessDefinition.Name)'" -f Green
         . $localProcessDefinition.FullName

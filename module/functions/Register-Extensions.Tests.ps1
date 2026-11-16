@@ -8,11 +8,16 @@ BeforeAll {
 
     . "$here/$sut"
 
+    # in-module dependencies
+    . "$here/Resolve-ExtensionMetadata.ps1"
+    . "$here/_resolveModuleNameFromPath.ps1"
+    . "$here/_mergeExtensionProcess.ps1"
+
     # Mock Write-Host to keep output clean
     function Write-Host {}
 
     # Define the dependent functions so they can be mocked
-    function Register-ExtensionAndDependencies { param($ExtensionConfig, $TargetPath, $RequiredBy, $LockedExtensions) }
+    function Register-ExtensionAndDependencies { param($ExtensionConfig, $TargetPath, $RequiredBy, $LockedExtensions, $LocalExtensions) }
     function _readExtensionLockFile { param($Path) }
     function _writeExtensionLockFile { param($Path, $Extensions) }
     function _assertExtensionLockSatisfied { param($Extensions, $LockedExtensions, $LockFilePath) }

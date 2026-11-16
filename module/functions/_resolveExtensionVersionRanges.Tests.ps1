@@ -12,6 +12,7 @@ BeforeAll {
     . (Join-Path (Split-Path -Parent $PSCommandPath) '_testExtensionVersionInRange.ps1')
     . (Join-Path (Split-Path -Parent $PSCommandPath) '_getVersionFromGitTag.ps1')
     . (Join-Path (Split-Path -Parent $PSCommandPath) '_getNormalizedGitRepositoryUrl.ps1')
+    . (Join-Path (Split-Path -Parent $PSCommandPath) '_mergeExtensionProcess.ps1')
 
     # Defined so that it can be mocked
     function Register-ExtensionAndDependencies { param($ExtensionConfig, $TargetPath, $RequiredBy, $LockedExtensions) }
@@ -128,6 +129,35 @@ Describe '_resolveExtensionVersionRanges' {
         [object]::ReferenceEquals($result[0], $extensions[0]) | Should -Be $true
         $result[0].LockEntry.requiredBy | Should -Be @('DotNet', 'PowerShell')
         Should -Invoke Write-Warning -Times 0
+    }
+
+    It 'Uses the process of a discarded occurrence when the chosen occurrence does not declare one' {
+        $extensions = @(
+            newRegisteredExtension -RequiredBy 'DotNet' -MinimumVersion '1.2' -Resolved '1.6.0'
+            newRegisteredExtension -RequiredBy 'PowerShell' -MinimumVersion '1.5' -Resolved '1.6.0'
+        )
+        $extensions[1].Process = 'tasks/build.process.ps1'
+
+        $result = @(_resolveExtensionVersionRanges -Extensions $extensions -TargetPath $targetPath)
+
+        $result.Count | Should -Be 1
+        [object]::ReferenceEquals($result[0], $extensions[0]) | Should -Be $true
+        $result[0].Process | Should -Be 'tasks/build.process.ps1'
+    }
+
+    It 'Uses the process of a discarded occurrence when the occurrence from the configuration is used in its place' {
+        $extensions = @(
+            newRegisteredExtension -Name 'PowerShell' -Requested '1.0.0' -Resolved '1.0.0'
+            newRegisteredExtension -RequiredBy 'PowerShell' -MinimumVersion '1.5' -Resolved '1.6.0'
+            newRegisteredExtension -Requested '1.6.0' -Resolved '1.6.0'
+        )
+        $extensions[1].Process = 'tasks/build.process.ps1'
+
+        $result = @(_resolveExtensionVersionRanges -Extensions $extensions -TargetPath $targetPath)
+
+        @($result | ForEach-Object { $_.Path }) | Should -Be @('PowerShell-1.0.0', 'Common-1.6.0')
+        $result[1].LockEntry.direct | Should -Be $true
+        $result[1].Process | Should -Be 'tasks/build.process.ps1'
     }
 
     It 'Discards the dependencies that only a discarded occurrence requires' {

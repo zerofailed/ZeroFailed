@@ -36,6 +36,10 @@ function Register-Extensions {
 
         Without a 'MinimumVersion', the first one registered is used.
 
+        A local extension (one with a 'Path') in the configuration is used in place of a dependency with the same name, wherever it is listed.
+        The dependency is not installed, and neither are its own dependencies.
+        When the dependency declares a 'Process' and the local extension does not, the local extension uses that 'Process'.
+
         .PARAMETER ExtensionsConfig
         An array of extension configuration objects.
 
@@ -222,16 +226,44 @@ function Register-Extensions {
         }
         $env:PSModulePath = $moduleSearchPaths -join [IO.Path]::PathSeparator
 
+        # A local extension in the configuration is used in place of a dependency with the same name, wherever it is
+        # listed, so the dependency is not installed. Each one collects the dependencies that it is used in place of.
+        $localExtensions = [ordered]@{}
+        foreach ($extensionConfig in $ExtensionsConfig) {
+            $extension = Resolve-ExtensionMetadata -Value $extensionConfig
+            if ($extension.ContainsKey('Path') -and
+                    (!$extension.ContainsKey('Enabled') -or $extension.Enabled) -and
+                    (Test-Path $extension.Path)) {
+                $localExtensions[$extension.Name] = [System.Collections.Generic.List[hashtable]]::new()
+            }
+        }
+
         # Process each configured extension
         for ($i=0; $i -lt $ExtensionsConfig.Length; $i++) {
 
             # An extension that is not registered (a missing local extension) returns nothing
             $registeredExtensions = @(Register-ExtensionAndDependencies -ExtensionConfig $ExtensionsConfig[$i] `
                                                                        -TargetPath $zfExtensionsPath `
-                                                                       -LockedExtensions $lockedExtensions)
+                                                                       -LockedExtensions $lockedExtensions `
+                                                                       -LocalExtensions $localExtensions)
 
             # Persist the fully-populated extension metadata
             $processedExtensionConfig += $registeredExtensions
+        }
+
+        # A local extension that is used in place of a dependency records the extensions that require it, so that the
+        # lock file lists them, and uses the process that the dependency declares when it does not declare one
+        foreach ($name in $localExtensions.Keys) {
+            $localExtension = $processedExtensionConfig |
+                                Where-Object { $_.Name -eq $name -and $_.ContainsKey('LockEntry') -and $_.LockEntry.source.type -eq 'path' } |
+                                Select-Object -First 1
+            if (!$localExtension) {
+                continue
+            }
+            foreach ($replaced in $localExtensions[$name]) {
+                _mergeExtensionProcess -Extension $localExtension -Duplicate $replaced.Dependency
+                $localExtension.LockEntry.requiredBy = [string[]]@(@($localExtension.LockEntry.requiredBy) + $replaced.RequiredBy | Select-Object -Unique)
+            }
         }
 
         # When several extensions require the same extension with a minimum version, use a version that satisfies all of them

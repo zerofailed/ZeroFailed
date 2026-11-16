@@ -41,6 +41,12 @@ function Register-ExtensionAndDependencies {
         The extensions recorded in the extensions lock file, keyed by name.
         When omitted, extensions are resolved without using a lock file.
 
+        .PARAMETER LocalExtensions
+        The local extensions in the configuration that are used in place of a dependency with the same name, keyed by name.
+        Each value is a list, to which a dependency that is not registered because of it is added, with the name of the extension that requires it.
+        Such a dependency is not installed, and its own dependencies are not registered.
+        When omitted, every dependency is registered.
+
         .EXAMPLE
         PS:> $extensionConfig = @{
             Name = "MyExtension"
@@ -64,7 +70,11 @@ function Register-ExtensionAndDependencies {
 
         [Parameter()]
         [AllowNull()]
-        [System.Collections.IDictionary] $LockedExtensions
+        [System.Collections.IDictionary] $LockedExtensions,
+
+        [Parameter()]
+        [AllowNull()]
+        [System.Collections.IDictionary] $LocalExtensions
     )
 
     [hashtable[]]$processedExtensionConfig = @()
@@ -159,10 +169,10 @@ function Register-ExtensionAndDependencies {
             # Local file-system-based extension, which is used in place. Its path is recorded relative to the folder that
             # holds the lock file (the parent of the extensions folder), so that the lock file matches wherever the
             # repository is.
-            $result = _getExtensionFromPath -Name $extension.Name -Path $extension.Path
-            if (!$result.Enabled) {
-                return
-            }
+            $result = _getExtensionFromPath -Name $extension.Name -Path $extension.Path
+            if (!$result.Enabled) {
+                return
+            }
             $lockPath = _getExtensionLockPath -Path $extension.Path -BasePath (Split-Path -Parent $TargetPath)
             $lockEntry = _newExtensionLockEntry -SourceType 'path' -Source @{ path = $lockPath } -RequiredBy $RequiredBy
         }
@@ -220,12 +230,20 @@ function Register-ExtensionAndDependencies {
     # If enabled, resolve any dependencies for this extension
     if ($extension.Enabled) {
         foreach ($dependency in $extension.dependencies) {
+            # A local extension in the configuration is used in place of the dependency, so it is not installed
+            if ($LocalExtensions -and $LocalExtensions.Contains($dependency.Name)) {
+                Write-Host "Using local extension for dependency: $($dependency.Name)"
+                $LocalExtensions[$dependency.Name].Add(@{ Dependency = $dependency; RequiredBy = $extension.Name })
+                continue
+            }
+
             Write-Host "Processing dependency: $($dependency.Name)"
             # A dependency that is not registered returns nothing
             $processedExtensionConfig += @(Register-ExtensionAndDependencies -ExtensionConfig $dependency `
                                                                              -TargetPath $TargetPath `
                                                                              -RequiredBy $extension.Name `
-                                                                             -LockedExtensions $LockedExtensions)
+                                                                             -LockedExtensions $LockedExtensions `
+                                                                             -LocalExtensions $LocalExtensions)
         }
     }
     

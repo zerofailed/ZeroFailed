@@ -131,7 +131,8 @@ function _resolveExtensionVersionRanges {
     $chosen = [System.Collections.Generic.HashSet[object]]::new([System.Collections.Generic.ReferenceEqualityComparer]::Instance)
 
     # Discards every occurrence of an extension other than the first one, which is the chosen version. The chosen
-    # occurrence records every extension that required the extension, so that the lock file still lists them.
+    # occurrence records every extension that required the extension, so that the lock file still lists them, and
+    # uses the process that a discarded occurrence declares when it does not declare one.
     $discardOtherOccurrences = {
         param ($indices)
         $winner = $resolved[$indices[0]]
@@ -142,6 +143,7 @@ function _resolveExtensionVersionRanges {
                 continue
             }
             $discarded.Add($other) | Out-Null
+            _mergeExtensionProcess -Extension $winner -Duplicate $other
             if ($other.ContainsKey('LockEntry')) {
                 $winner.LockEntry.requiredBy = [string[]]@(@($winner.LockEntry.requiredBy) + @($other.LockEntry.requiredBy) | Select-Object -Unique)
                 $winner.LockEntry.direct = $winner.LockEntry.direct -or $other.LockEntry.direct
