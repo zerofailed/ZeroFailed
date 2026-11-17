@@ -88,6 +88,21 @@ Describe 'Resolve-ExtensionDuplicates' {
                 $Message -like '*ZeroFailed.Build.Common/1.0.0*' -and $Message -like '*ZeroFailed.Build.Common/2.0.0*'
             }
         }
+
+        It 'Warns under strict mode when the references have no version' {
+            $extensions = @(
+                @{ Name = 'ZeroFailed.Build.Common'; Path = '/local/ZeroFailed.Build.Common' }
+                @{ Name = 'ZeroFailed.Build.Common'; MinimumVersion = '1.0'; Path = '/zf/ZeroFailed.Build.Common/1.2.0' }
+            )
+
+            & {
+                Set-StrictMode -Version Latest
+                [array]$result = Resolve-ExtensionDuplicates -Extensions $extensions
+                $result.Count | Should -Be 1
+            }
+
+            Should -Invoke Write-Warning -Times 1 -Exactly
+        }
     }
 
     Context 'When there is a mix of conflicting and non-conflicting duplicates' {
