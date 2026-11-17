@@ -14,8 +14,9 @@ function Resolve-ExtensionDuplicates {
 
         The extensions are returned in the order that they were given, so that the depth-first
         resolution order is preserved.
-        This order decides which extension's process definition is used, and the order in which
-        the tasks and functions of the extensions are imported.
+        This order decides which extension's process definition is used.
+        Get-ExtensionImportOrder uses it to decide the order in which the tasks and functions of
+        the extensions are imported.
 
         When the reference that is kept does not declare a 'Process', but a removed reference to
         the same extension does, the kept reference uses that 'Process'.

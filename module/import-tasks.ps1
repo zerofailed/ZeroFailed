@@ -113,11 +113,10 @@ else {
 #
 if ($registeredExtensions.Count -gt 0) {
     Write-Host "Loading functions & tasks from extensions..." -f Green
-    # We do this processing in reverse order (i.e. starting from the bottom of the dependency tree),
-    # so that any overriding values that are set in the dependent extension(s) can take precedence.
-    for ($i=$registeredExtensions.Count-1; $i -ge 0; $i--) {
-        
-        $extension = $registeredExtensions[$i]
+    # Every extension is imported after the extensions that it requires (i.e. starting from the bottom of the dependency
+    # tree), so that any overriding values that are set in the dependent extension(s) can take precedence.
+    foreach ($extension in (Get-ExtensionImportOrder -Extensions $registeredExtensions)) {
+
         Write-Host $extension.Name -f Cyan
         $extensionName = $extension.Name
         if (!$extension.Enabled) {

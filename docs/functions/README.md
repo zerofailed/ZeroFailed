@@ -11,6 +11,7 @@ source of truth for the prose.
 | [Get-ExtensionDependencies](./Get-ExtensionDependencies.md)                         | Resolves an extension's declared dependencies from its module manifest.                        |
 | [Get-ExtensionFromGitRepository](./Get-ExtensionFromGitRepository.md)               | Installs a git-hosted extension if it is not already present locally.                          |
 | [Get-ExtensionFromPowerShellRepository](./Get-ExtensionFromPowerShellRepository.md) | Installs a PowerShell-repository-hosted extension if it is not already present locally.        |
+| [Get-ExtensionImportOrder](./Get-ExtensionImportOrder.md)                           | Orders extensions for import, so each one comes after the extensions that it requires.         |
 | [Get-FunctionsFileListFromExtension](./Get-FunctionsFileListFromExtension.md)       | Lists the function files provided by an extension.                                             |
 | [Get-InstalledExtensionDetails](./Get-InstalledExtensionDetails.md)                 | Determines whether an extension is already installed locally and returns its path and version. |
 | [Get-TasksFileListFromExtension](./Get-TasksFileListFromExtension.md)               | Lists the task definition files provided by an extension.                                      |
