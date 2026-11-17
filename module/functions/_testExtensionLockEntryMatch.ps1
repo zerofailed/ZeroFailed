@@ -17,7 +17,11 @@ function _testExtensionLockEntryMatch {
         [string] $MinimumVersion,
 
         [Parameter()]
-        [switch] $PreRelease
+        [switch] $PreRelease,
+
+        # Whether the extension is required by another extension, rather than by the configuration
+        [Parameter()]
+        [switch] $Transitive
     )
 
     # A locked extension only applies when it was resolved from the same request, i.e. the
@@ -30,10 +34,19 @@ function _testExtensionLockEntryMatch {
 
     $lockedSource = $LockEntry['source']
     $source = $Entry['source']
+
+    # When several extensions require the same extension, the lock file records the request that was chosen for all of
+    # them (e.g. a minimum version that another extension requires). Choosing a version does not take into account
+    # an extension that requires a git branch or commit, as any version satisfies it, so any locked version from the
+    # same git repository and folder does too. A git reference in the configuration is still compared, so that changing
+    # it is reported.
+    $isTransitiveGitRef = $Transitive -and !$MinimumVersion -and $source['type'] -eq 'git' -and $lockedSource['type'] -eq 'git'
+
     $keys = @($lockedSource.Keys) + @($source.Keys) | Sort-Object -Unique
     foreach ($key in $keys) {
-        # Whether a minimum version includes pre-release versions is checked against the locked version instead
-        if ($MinimumVersion -and $key -eq 'preRelease') {
+        # Whether a minimum version includes pre-release versions is checked against the locked version instead. It is
+        # only recorded for a minimum version, so it does not apply to a git reference.
+        if (($MinimumVersion -or $isTransitiveGitRef) -and $key -eq 'preRelease') {
             continue
         }
         # Ignore the case of source details (e.g. repository URLs), as well as any trailing '/', and the trailing '.git'
@@ -68,6 +81,20 @@ function _testExtensionLockEntryMatch {
         if (!$lockedVersion -or !(_testExtensionVersionInRange -Version $lockedVersion -Range $range -PreRelease:$PreRelease)) {
             Write-Verbose "Lock entry does not match: the locked version '$lockedVersion' is not in $($range.Text)"
             return $false
+        }
+        return $true
+    }
+
+    if ($isTransitiveGitRef) {
+        # A release tag is an exact version, which the locked version must be, as it is when the version is chosen
+        $requestedVersion = _getVersionFromGitTag -Ref "$($Entry['requested'])"
+        if ($requestedVersion) {
+            $lockedRef = $LockEntry['resolvedRef'] ? $LockEntry['resolvedRef'] : $LockEntry['requested']
+            $lockedVersion = _getVersionFromGitTag -Ref "$lockedRef"
+            if ($lockedVersion -ne $requestedVersion) {
+                Write-Verbose "Lock entry does not match: '$lockedRef' is in the lock file, but '$($Entry['requested'])' was requested"
+                return $false
+            }
         }
         return $true
     }
