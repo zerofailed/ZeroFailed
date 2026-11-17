@@ -21,10 +21,12 @@ Describe 'Register-Extensions with a local extension that a dependency also prov
         Mock Write-Warning {}
         Mock Get-ExtensionAvailableTasks { @() }
         Mock _getExtensionFromPSRepository {
-            $path = Join-Path $TargetPath $Name $Version
+            # A minimum version resolves to 1.3.0
+            $resolvedVersion = $Version ? $Version : '1.3.0'
+            $path = Join-Path $TargetPath $Name $resolvedVersion
             New-Item -ItemType Directory -Path $path -Force | Out-Null
-            Set-Content -Path (Join-Path $path "$Name.psm1") -Value "# $Name $Version"
-            @{ Path = $path; Enabled = $true; ResolvedVersion = $Version }
+            Set-Content -Path (Join-Path $path "$Name.psm1") -Value "# $Name $resolvedVersion"
+            @{ Path = $path; Enabled = $true; ResolvedVersion = $resolvedVersion }
         }
 
         # 'A' requires 'Common' and declares its process. The installed 'Common' requires 'Shared', but the local copy
@@ -114,6 +116,40 @@ Describe 'Register-Extensions with a local extension that a dependency also prov
             $result = Register-Extensions -ExtensionsConfig $config -DefaultPSRepository 'PSGallery' -ZfPath $zfPath -LockMode Off
 
             (& $getCommon $result)[0].Process | Should -Be 'tasks/local.process.ps1'
+        }
+    }
+
+    Context 'When only a version of the extension that requires it that is not used requires the dependency' {
+        BeforeAll {
+            # 'X' requires 'A' 1.3.0 (with a minimum version), which requires 'Common' and declares a process for it. The
+            # configuration chooses 'A' 1.6.0, which does not require 'Common'.
+            Mock Get-ExtensionDependencies {
+                switch ($Extension.Name) {
+                    'X' { @{ Name = 'A'; MinimumVersion = '1.0' } }
+                    'A' {
+                        if ($Extension.Path -like '*1.3.0') {
+                            @{ Name = 'Common'; Version = '1.6.0'; Process = 'tasks/old.process.ps1' }
+                        }
+                    }
+                }
+            }
+        }
+
+        It 'Does not use the process, or record the extension, of the version that is not used' {
+            $config = @(
+                @{ Name = 'X'; Version = '1.0.0' }
+                @{ Name = 'A'; Version = '1.6.0' }
+                @{ Path = $script:localCommonPath }
+            )
+
+            $result = Register-Extensions -ExtensionsConfig $config -DefaultPSRepository 'PSGallery' -ZfPath $zfPath -LockMode Write
+
+            @($result | Where-Object { $_.Name -eq 'A' }).Path | Should -BeLike '*1.6.0'
+            $common = & $getCommon $result
+            $common.Count | Should -Be 1
+            $common[0].ContainsKey('Process') | Should -BeFalse
+            $lock = Get-Content -Raw (Join-Path $zfPath 'extensions.lock.json') | ConvertFrom-Json -AsHashtable
+            $lock.extensions.Common.requiredBy | Should -BeNullOrEmpty
         }
     }
 

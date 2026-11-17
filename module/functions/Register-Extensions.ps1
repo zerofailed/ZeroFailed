@@ -251,8 +251,16 @@ function Register-Extensions {
             $processedExtensionConfig += $registeredExtensions
         }
 
+        # When several extensions require the same extension with a minimum version, use a version that satisfies all of them
+        # (an empty result is kept as an empty array, e.g. when every extension is a missing local extension)
+        $processedExtensionConfig = @(_resolveExtensionVersionRanges -Extensions $processedExtensionConfig `
+                                                                     -TargetPath $zfExtensionsPath `
+                                                                     -LockedExtensions $lockedExtensions)
+
         # A local extension that is used in place of a dependency records the extensions that require it, so that the
-        # lock file lists them, and uses the process that the dependency declares when it does not declare one
+        # lock file lists them, and uses the process that the dependency declares when it does not declare one. This is
+        # done once the versions have been chosen, so that a version of an extension that is not used is ignored.
+        $usedExtensions = [System.Collections.Generic.HashSet[object]]::new([object[]]$processedExtensionConfig, [System.Collections.Generic.ReferenceEqualityComparer]::Instance)
         foreach ($name in $localExtensions.Keys) {
             $localExtension = $processedExtensionConfig |
                                 Where-Object { $_.Name -eq $name -and $_.ContainsKey('LockEntry') -and $_.LockEntry.source.type -eq 'path' } |
@@ -260,17 +268,11 @@ function Register-Extensions {
             if (!$localExtension) {
                 continue
             }
-            foreach ($replaced in $localExtensions[$name]) {
+            foreach ($replaced in ($localExtensions[$name] | Where-Object { $usedExtensions.Contains($_.Parent) })) {
                 _mergeExtensionProcess -Extension $localExtension -Duplicate $replaced.Dependency
                 $localExtension.LockEntry.requiredBy = [string[]]@(@($localExtension.LockEntry.requiredBy) + $replaced.RequiredBy | Select-Object -Unique)
             }
         }
-
-        # When several extensions require the same extension with a minimum version, use a version that satisfies all of them
-        # (an empty result is kept as an empty array, e.g. when every extension is a missing local extension)
-        $processedExtensionConfig = @(_resolveExtensionVersionRanges -Extensions $processedExtensionConfig `
-                                                                     -TargetPath $zfExtensionsPath `
-                                                                     -LockedExtensions $lockedExtensions)
 
         switch ($LockMode) {
             'Write' {

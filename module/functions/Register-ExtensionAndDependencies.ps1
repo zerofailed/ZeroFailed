@@ -43,7 +43,7 @@ function Register-ExtensionAndDependencies {
 
         .PARAMETER LocalExtensions
         The local extensions in the configuration that are used in place of a dependency with the same name, keyed by name.
-        Each value is a list, to which a dependency that is not registered because of it is added, with the name of the extension that requires it.
+        Each value is a list, to which a dependency that is not registered because of it is added, with the extension that requires it and its name.
         Such a dependency is not installed, and its own dependencies are not registered.
         When omitted, every dependency is registered.
 
@@ -233,7 +233,7 @@ function Register-ExtensionAndDependencies {
             # A local extension in the configuration is used in place of the dependency, so it is not installed
             if ($LocalExtensions -and $LocalExtensions.Contains($dependency.Name)) {
                 Write-Host "Using local extension for dependency: $($dependency.Name)"
-                $LocalExtensions[$dependency.Name].Add(@{ Dependency = $dependency; RequiredBy = $extension.Name })
+                $LocalExtensions[$dependency.Name].Add(@{ Dependency = $dependency; RequiredBy = $extension.Name; Parent = $extension })
                 continue
             }
 
