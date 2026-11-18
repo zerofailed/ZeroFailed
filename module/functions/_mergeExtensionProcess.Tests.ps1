@@ -32,6 +32,22 @@ Describe '_mergeExtensionProcess' {
         $extension.Process | Should -Be 'tasks/build.process.ps1'
     }
 
+    It 'Does not copy the process of the duplicate when the extension is disabled' {
+        $extension = @{ Name = 'ZeroFailed.Build.Common'; Enabled = $false }
+
+        _mergeExtensionProcess -Extension $extension -Duplicate @{ Name = 'ZeroFailed.Build.Common'; Enabled = $true; Process = 'tasks/build.process.ps1' }
+
+        $extension.ContainsKey('Process') | Should -BeFalse
+    }
+
+    It 'Does not copy the process of the duplicate when the duplicate is disabled' {
+        $extension = @{ Name = 'ZeroFailed.Build.Common'; Enabled = $true }
+
+        _mergeExtensionProcess -Extension $extension -Duplicate @{ Name = 'ZeroFailed.Build.Common'; Enabled = $false; Process = 'tasks/build.process.ps1' }
+
+        $extension.ContainsKey('Process') | Should -BeFalse
+    }
+
     It 'Keeps the process of the extension when the duplicate has none' {
         $extension = @{ Name = 'ZeroFailed.Build.Common'; Process = 'tasks/build.process.ps1' }
 

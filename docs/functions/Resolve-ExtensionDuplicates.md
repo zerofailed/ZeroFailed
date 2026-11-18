@@ -4,7 +4,7 @@ external help file: ZeroFailed-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: ZeroFailed
-ms.date: 11/17/2026
+ms.date: 11/18/2026
 PlatyPS schema version: 2024-05-01
 title: Resolve-ExtensionDuplicates
 ---
@@ -41,7 +41,7 @@ Get-ExtensionImportOrder uses it to decide the order in which the tasks and func
 the extensions are imported.
 
 When the reference that is kept does not declare a 'Process', but a removed reference to
-the same extension does, the kept reference uses that 'Process'.
+the same extension does, the kept reference uses that 'Process', unless either of them is disabled.
 A warning is logged when the references declare different processes.
 
 A warning is only logged when the duplicate references resolve to genuinely different

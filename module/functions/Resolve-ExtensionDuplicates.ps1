@@ -19,7 +19,7 @@ function Resolve-ExtensionDuplicates {
         the extensions are imported.
 
         When the reference that is kept does not declare a 'Process', but a removed reference to
-        the same extension does, the kept reference uses that 'Process'.
+        the same extension does, the kept reference uses that 'Process', unless either of them is disabled.
         A warning is logged when the references declare different processes.
 
         A warning is only logged when the duplicate references resolve to genuinely different

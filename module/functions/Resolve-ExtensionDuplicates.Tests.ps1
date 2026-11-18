@@ -180,6 +180,22 @@ Describe 'Resolve-ExtensionDuplicates' {
             $common[0].Path | Should -Be '/src/ZeroFailed.Build.Common/module'
             $common[0].Process | Should -Be 'tasks/build.process.ps1'
         }
+
+        It 'Does not use that process when the reference that is kept is disabled' {
+            # The configuration disables a dependency of another extension, which declares its process
+            $extensions = @(
+                @{ Name = 'ZeroFailed.Build.Common'; Enabled = $false }
+                @{ Name = 'ZeroFailed.Build.PowerShell'; Enabled = $true; Path = '/zf/ZeroFailed.Build.PowerShell/main' }
+                @{ Name = 'ZeroFailed.Build.Common'; Enabled = $true; Path = '/zf/ZeroFailed.Build.Common/main'; Process = 'tasks/build.process.ps1' }
+            )
+
+            [array]$result = Resolve-ExtensionDuplicates -Extensions $extensions
+
+            $common = @($result | Where-Object { $_.Name -eq 'ZeroFailed.Build.Common' })
+            $common.Count | Should -Be 1
+            $common[0].Enabled | Should -BeFalse
+            $common[0].ContainsKey('Process') | Should -BeFalse
+        }
     }
 
     Context 'When the references to an extension declare different processes' {

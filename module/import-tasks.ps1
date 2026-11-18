@@ -75,10 +75,11 @@ if ($registeredExtensions.Count -gt 0) {
 # First we decide where the core process is being defined:
 # 1) Check whether an extension has been declared as providing it via the 'Process' property
 #    NOTE: For the moment, the first one found wins, in the order that the extensions are registered (i.e. the order
-#    of the configuration, with each extension followed by its dependencies)
+#    of the configuration, with each extension followed by its dependencies). A disabled extension is not imported, so
+#    its process is not used.
 # 2) If not, assume the calling process is defining their own process
 [array]$processesFromExtension = $registeredExtensions |
-                            Where-Object { $_.ContainsKey("Process") }
+                            Where-Object { $_.ContainsKey("Process") -and $_.Enabled }
 if ($processesFromExtension.Count -gt 1) {
     Write-Warning ("Multiple extensions have declared a process definition, will use the first one found: $($processesFromExtension[0] | Select-Object Name,Version,Path,Process | ConvertTo-Json)`n" +
                    "Ignored: $(($processesFromExtension | Select-Object -Skip 1 | ForEach-Object { "$($_.Name) ($($_.Process))" }) -join ', ')")
