@@ -99,6 +99,31 @@ Describe 'Get-ExtensionImportOrder' {
 
             $result.Name | Should -Be @('B', 'A')
         }
+
+        It 'Returns a later extension that requires one of them after all of them' {
+            $extensions = @(
+                newExtension 'A' 'B'
+                newExtension 'B' 'A'
+                newExtension 'C' 'A'
+            )
+
+            $result = Get-ExtensionImportOrder -Extensions $extensions
+
+            $result.Name | Should -Be @('B', 'A', 'C')
+        }
+
+        It 'Returns the circle after an extension outside it that one of them requires' {
+            $extensions = @(
+                newExtension 'A' 'B', 'Common'
+                newExtension 'B' 'A'
+                newExtension 'C' 'A'
+                newExtension 'Common'
+            )
+
+            $result = Get-ExtensionImportOrder -Extensions $extensions
+
+            $result.Name | Should -Be @('Common', 'B', 'A', 'C')
+        }
     }
 
     Context 'When an extension is given more than once' {
