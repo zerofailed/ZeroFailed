@@ -74,8 +74,22 @@ Describe 'Get-ExtensionImportOrder' {
         }
     }
 
+    Context 'When a later extension requires an earlier one' {
+        It 'Returns the earlier one after the extensions that it does not depend on, so that its definitions take precedence' {
+            $extensions = @(
+                newExtension 'A'
+                newExtension 'B'
+                newExtension 'C' 'A'
+            )
+
+            $result = Get-ExtensionImportOrder -Extensions $extensions
+
+            $result.Name | Should -Be @('B', 'A', 'C')
+        }
+    }
+
     Context 'When the dependencies are circular' {
-        It 'Returns each extension once' {
+        It 'Returns each extension once, the latest first' {
             $extensions = @(
                 newExtension 'A' 'B'
                 newExtension 'B' 'A'
@@ -83,7 +97,23 @@ Describe 'Get-ExtensionImportOrder' {
 
             $result = Get-ExtensionImportOrder -Extensions $extensions
 
-            $result.Name | Should -Be @('A', 'B')
+            $result.Name | Should -Be @('B', 'A')
+        }
+    }
+
+    Context 'When an extension is given more than once' {
+        It 'Returns its first reference once' {
+            $first = newExtension 'A'
+            $extensions = @(
+                $first
+                newExtension 'B'
+                newExtension 'A'
+            )
+
+            $result = Get-ExtensionImportOrder -Extensions $extensions
+
+            $result.Name | Should -Be @('B', 'A')
+            [object]::ReferenceEquals($result[1], $first) | Should -BeTrue
         }
     }
 

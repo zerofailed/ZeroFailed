@@ -10,8 +10,11 @@ function Get-ExtensionImportOrder {
         An extension's tasks, functions and properties can override those of the extensions that it requires.
         So every extension is imported after its dependencies, including a dependency that several extensions share.
 
-        The extensions are taken in reverse order, and each one is returned after its own dependencies.
-        So when 2 extensions define the same task or property, the one that is earlier in the given order is imported later, and its definition is used.
+        Otherwise, an extension that is earlier in the given order is imported later, so when 2 extensions define the same task or property, the earlier one's definition is used.
+        Each time, the latest extension whose dependencies have all been imported is imported next.
+        A dependency can still override an extension that is earlier than it in the given order, when an extension that requires it is earlier still.
+        For example, for 'A', 'B' and 'C', where 'C' requires 'A', the order is 'B', 'A' and 'C', so 'C' overrides 'B'.
+        When extensions require each other in a circle, the latest of them is imported first.
 
         A dependency that is not in the given extensions (for example, one that a local extension is used in place of) is ignored.
 
@@ -30,35 +33,42 @@ function Get-ExtensionImportOrder {
         [hashtable[]] $Extensions
     )
 
-    $extensionsByName = @{}
+    # The first reference to each extension, in the given order, which is its priority: a later extension is imported
+    # earlier, so that the definitions of an earlier one take precedence
+    $remaining = [System.Collections.Generic.List[hashtable]]::new()
+    $names = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
     foreach ($extension in $Extensions) {
-        if (!$extensionsByName.ContainsKey($extension.Name)) {
-            $extensionsByName[$extension.Name] = $extension
+        if ($names.Add($extension.Name)) {
+            $remaining.Add($extension)
         }
+    }
+
+    # The names of the given extensions that each extension requires
+    $dependencyNames = @{}
+    foreach ($extension in $remaining) {
+        $dependencyNames[$extension.Name] = @($extension['dependencies'] |
+                                                Where-Object { $null -ne $_ -and $names.Contains($_.Name) -and $_.Name -ne $extension.Name } |
+                                                ForEach-Object { $_.Name })
     }
 
     $ordered = [System.Collections.Generic.List[hashtable]]::new()
-    $visited = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
-
-    # Adds the dependencies of an extension, then the extension itself. An extension is marked as visited before its
-    # dependencies, so that a circular dependency does not repeat forever.
-    $visit = {
-        param ($extension)
-        if (!$visited.Add($extension.Name)) {
-            return
-        }
-        $dependencies = @($extension['dependencies'] | Where-Object { $null -ne $_ })
-        for ($i = $dependencies.Count - 1; $i -ge 0; $i--) {
-            $dependency = $extensionsByName[$dependencies[$i].Name]
-            if ($dependency) {
-                & $visit $dependency
+    $imported = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    while ($remaining.Count -gt 0) {
+        # An extension is ready once every extension that it requires has been imported. When none is ready, the
+        # remaining extensions require each other, so the latest one is imported to break the circle.
+        $next = $null
+        for ($i = $remaining.Count - 1; $i -ge 0; $i--) {
+            $candidate = $remaining[$i]
+            if (!($dependencyNames[$candidate.Name] | Where-Object { !$imported.Contains($_) })) {
+                $next = $candidate
+                break
             }
         }
-        $ordered.Add($extension)
-    }
+        $next ??= $remaining[$remaining.Count - 1]
 
-    for ($i = $Extensions.Count - 1; $i -ge 0; $i--) {
-        & $visit $Extensions[$i]
+        $ordered.Add($next)
+        $imported.Add($next.Name) | Out-Null
+        $remaining.Remove($next) | Out-Null
     }
 
     return $ordered.ToArray()

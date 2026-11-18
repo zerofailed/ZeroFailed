@@ -4,7 +4,7 @@ external help file: ZeroFailed-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: ZeroFailed
-ms.date: 11/17/2026
+ms.date: 11/18/2026
 PlatyPS schema version: 2024-05-01
 title: Get-ExtensionImportOrder
 ---
@@ -30,8 +30,11 @@ Get-ExtensionImportOrder [-Extensions] <hashtable[]> [<CommonParameters>]
 An extension's tasks, functions and properties can override those of the extensions that it requires.
 So every extension is imported after its dependencies, including a dependency that several extensions share.
 
-The extensions are taken in reverse order, and each one is returned after its own dependencies.
-So when 2 extensions define the same task or property, the one that is earlier in the given order is imported later, and its definition is used.
+Otherwise, an extension that is earlier in the given order is imported later, so when 2 extensions define the same task or property, the earlier one's definition is used.
+Each time, the latest extension whose dependencies have all been imported is imported next.
+A dependency can still override an extension that is earlier than it in the given order, when an extension that requires it is earlier still.
+For example, for 'A', 'B' and 'C', where 'C' requires 'A', the order is 'B', 'A' and 'C', so 'C' overrides 'B'.
+When extensions require each other in a circle, the latest of them is imported first.
 
 A dependency that is not in the given extensions (for example, one that a local extension is used in place of) is ignored.
 
