@@ -14,8 +14,8 @@ function Get-ExtensionImportOrder {
         Each time, the latest extension whose dependencies have all been imported is imported next.
         A dependency can still override an extension that is earlier than it in the given order, when an extension that requires it is earlier still.
         For example, for 'A', 'B' and 'C', where 'C' requires 'A', the order is 'B', 'A' and 'C', so 'C' overrides 'B'.
-        When extensions require each other in a circle, the latest of them is imported first.
-        An extension that requires one of the extensions in a circle is still imported after all of them.
+        Extensions that require each other in a circle, directly or through other extensions, are imported together, the latest of them first.
+        They are imported when the latest of them would be, so an extension that is earlier than all of them still takes precedence, and an extension that requires one of them is imported after all of them.
 
         A dependency that is not in the given extensions (for example, one that a local extension is used in place of) is ignored.
 
@@ -33,79 +33,77 @@ function Get-ExtensionImportOrder {
         [AllowEmptyCollection()]
         [hashtable[]] $Extensions
     )
-
     # The first reference to each extension, in the given order, which is its priority: a later extension is imported
     # earlier, so that the definitions of an earlier one take precedence
-    $remaining = [System.Collections.Generic.List[hashtable]]::new()
+    $unique = [System.Collections.Generic.List[hashtable]]::new()
     $names = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
     foreach ($extension in $Extensions) {
         if ($names.Add($extension.Name)) {
-            $remaining.Add($extension)
+            $unique.Add($extension)
         }
     }
 
     # The names of the given extensions that each extension requires
     $dependencyNames = @{}
-    foreach ($extension in $remaining) {
+    foreach ($extension in $unique) {
         $dependencyNames[$extension.Name] = @($extension['dependencies'] |
                                                 Where-Object { $null -ne $_ -and $names.Contains($_.Name) -and $_.Name -ne $extension.Name } |
                                                 ForEach-Object { $_.Name })
     }
 
-    $ordered = [System.Collections.Generic.List[hashtable]]::new()
-    $imported = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
-
-    # Whether an extension requires another, directly or through extensions that have not been imported
-    $requires = {
-        param ([string] $name, [string] $required)
-        $visited = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    # The names of the extensions that each extension requires, directly or through other extensions
+    $requiredNames = @{}
+    foreach ($extension in $unique) {
+        $required = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
         $pending = [System.Collections.Generic.Stack[string]]::new()
-        $pending.Push($name)
+        $pending.Push($extension.Name)
         while ($pending.Count -gt 0) {
             foreach ($dependencyName in $dependencyNames[$pending.Pop()]) {
-                if ($dependencyName -eq $required) {
-                    return $true
-                }
-                if (!$imported.Contains($dependencyName) -and $visited.Add($dependencyName)) {
+                if ($required.Add($dependencyName)) {
                     $pending.Push($dependencyName)
                 }
             }
         }
-        return $false
+        $requiredNames[$extension.Name] = $required
     }
-    while ($remaining.Count -gt 0) {
-        # An extension is ready once every extension that it requires has been imported
-        $next = $null
-        for ($i = $remaining.Count - 1; $i -ge 0; $i--) {
-            $candidate = $remaining[$i]
-            if (!($dependencyNames[$candidate.Name] | Where-Object { !$imported.Contains($_) })) {
-                $next = $candidate
-                break
+
+    # Extensions that require each other in a circle are imported together, as none of them can be imported after all
+    # of the others. Each group has its extensions latest first, and the extensions outside it that they require.
+    $groups = [System.Collections.Generic.List[hashtable]]::new()
+    $grouped = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    for ($i = $unique.Count - 1; $i -ge 0; $i--) {
+        $extension = $unique[$i]
+        if (!$grouped.Add($extension.Name)) {
+            continue
+        }
+        $members = [System.Collections.Generic.List[hashtable]]::new()
+        $members.Add($extension)
+        for ($j = $i - 1; $j -ge 0; $j--) {
+            $other = $unique[$j]
+            if ($requiredNames[$extension.Name].Contains($other.Name) -and $requiredNames[$other.Name].Contains($extension.Name)) {
+                $grouped.Add($other.Name) | Out-Null
+                $members.Add($other)
             }
         }
+        $memberNames = @($members | ForEach-Object { $_.Name })
+        $groups.Add(@{
+            Members = $members
+            DependencyNames = @($members | ForEach-Object { $dependencyNames[$_.Name] } | Where-Object { $_ -notin $memberNames } | Select-Object -Unique)
+        })
+    }
 
-        # When none is ready, some of the remaining extensions require each other. The latest extension whose remaining
-        # dependencies all require it in turn is imported to break the circle, so that an extension outside the circle
-        # that requires one of them is still imported after them. There is always one, as the extensions in a circle
-        # that does not require any other remaining extension are all such extensions.
-        for ($i = $remaining.Count - 1; !$next -and $i -ge 0; $i--) {
-            $candidate = $remaining[$i]
-            $isInCircle = $true
-            foreach ($dependencyName in ($dependencyNames[$candidate.Name] | Where-Object { !$imported.Contains($_) })) {
-                if (!(& $requires $dependencyName $candidate.Name)) {
-                    $isInCircle = $false
-                    break
-                }
-            }
-            if ($isInCircle) {
-                $next = $candidate
-            }
+    # Each time, the group whose dependencies have all been imported and whose latest extension is the latest is imported
+    # next. The groups are in that order, so it is the first one that is ready.
+    $ordered = [System.Collections.Generic.List[hashtable]]::new()
+    $imported = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    while ($groups.Count -gt 0) {
+        $next = $groups | Where-Object { !($_.DependencyNames | Where-Object { !$imported.Contains($_) }) } | Select-Object -First 1
+        $next ??= $groups[0]
+        foreach ($member in $next.Members) {
+            $ordered.Add($member)
+            $imported.Add($member.Name) | Out-Null
         }
-        $next ??= $remaining[$remaining.Count - 1]
-
-        $ordered.Add($next)
-        $imported.Add($next.Name) | Out-Null
-        $remaining.Remove($next) | Out-Null
+        $groups.Remove($next) | Out-Null
     }
 
     return $ordered.ToArray()

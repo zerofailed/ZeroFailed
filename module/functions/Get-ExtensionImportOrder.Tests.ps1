@@ -124,6 +124,43 @@ Describe 'Get-ExtensionImportOrder' {
 
             $result.Name | Should -Be @('Common', 'B', 'A', 'C')
         }
+
+        It 'Returns a later extension that requires one of them through the other after all of them' {
+            $extensions = @(
+                newExtension 'A' 'B'
+                newExtension 'B' 'A'
+                newExtension 'E' 'B'
+            )
+
+            $result = Get-ExtensionImportOrder -Extensions $extensions
+
+            $result.Name | Should -Be @('B', 'A', 'E')
+        }
+
+        It 'Returns an earlier extension that does not require them after all of them' {
+            $extensions = @(
+                newExtension 'C'
+                newExtension 'A' 'B'
+                newExtension 'B' 'A'
+            )
+
+            $result = Get-ExtensionImportOrder -Extensions $extensions
+
+            $result.Name | Should -Be @('B', 'A', 'C')
+        }
+
+        It 'Returns a circle through several extensions together, the latest first' {
+            $extensions = @(
+                newExtension 'A' 'B'
+                newExtension 'B' 'C'
+                newExtension 'D'
+                newExtension 'C' 'A'
+            )
+
+            $result = Get-ExtensionImportOrder -Extensions $extensions
+
+            $result.Name | Should -Be @('C', 'B', 'A', 'D')
+        }
     }
 
     Context 'When an extension is given more than once' {

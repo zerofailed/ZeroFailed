@@ -34,8 +34,8 @@ Otherwise, an extension that is earlier in the given order is imported later, so
 Each time, the latest extension whose dependencies have all been imported is imported next.
 A dependency can still override an extension that is earlier than it in the given order, when an extension that requires it is earlier still.
 For example, for 'A', 'B' and 'C', where 'C' requires 'A', the order is 'B', 'A' and 'C', so 'C' overrides 'B'.
-When extensions require each other in a circle, the latest of them is imported first.
-An extension that requires one of the extensions in a circle is still imported after all of them.
+Extensions that require each other in a circle, directly or through other extensions, are imported together, the latest of them first.
+They are imported when the latest of them would be, so an extension that is earlier than all of them still takes precedence, and an extension that requires one of them is imported after all of them.
 
 A dependency that is not in the given extensions (for example, one that a local extension is used in place of) is ignored.
 
