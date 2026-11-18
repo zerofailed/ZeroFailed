@@ -4,7 +4,7 @@ external help file: ZeroFailed-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: ZeroFailed
-ms.date: 11/17/2026
+ms.date: 11/18/2026
 PlatyPS schema version: 2024-05-01
 title: Register-ExtensionAndDependencies
 ---
@@ -85,8 +85,7 @@ HelpMessage: ''
 ### -LocalExtensions
 
 The local extensions in the configuration that are used in place of a dependency with the same name, keyed by name.
-Each value is a list, to which a dependency that is not registered because of it is added, with the extension that requires it and its name.
-Such a dependency is not installed, and its own dependencies are not registered.
+A dependency with one of these names is not registered: it is not installed, and its own dependencies are not registered.
 When omitted, every dependency is registered.
 
 ```yaml

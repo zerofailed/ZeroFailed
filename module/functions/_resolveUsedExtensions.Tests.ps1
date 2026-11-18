@@ -1,0 +1,221 @@
+# <copyright file="_resolveUsedExtensions.Tests.ps1" company="Endjin Limited">
+# Copyright (c) Endjin Limited. All rights reserved.
+# </copyright>
+
+BeforeAll {
+    # sut
+    . $PSCommandPath.Replace('.Tests.ps1','.ps1')
+    . (Join-Path (Split-Path -Parent $PSCommandPath) '_mergeExtensionProcess.ps1')
+
+    Set-StrictMode -Version Latest
+
+    # Creates the metadata of a registered extension, as produced by Register-ExtensionAndDependencies. A dependency
+    # is registered as the same object as its declaration, so 'Declarations' are the occurrences of the extension's
+    # dependencies, or the declarations of dependencies that are not registered.
+    function newExtension {
+        param (
+            [string] $Name,
+            [string] $Version = '1.0.0',
+            [string] $RequiredBy,
+            [hashtable[]] $Declarations = @(),
+            [string] $Process
+        )
+        $extension = @{
+            Name = $Name
+            Enabled = $true
+            Path = "$Name-$Version"
+            LockEntry = [ordered]@{
+                source = [ordered]@{ type = 'psrepository' }
+                requested = $Version
+                resolved = $Version
+                direct = !$RequiredBy
+                requiredBy = $RequiredBy ? @($RequiredBy) : @()
+            }
+            dependencies = $Declarations
+        }
+        if ($Process) {
+            $extension.Process = $Process
+        }
+        $extension
+    }
+
+    # The declaration of a dependency that is not registered (for example, one that a local extension is used in place of)
+    function newDeclaration([string] $Name, [string] $Process) {
+        $declaration = @{ Name = $Name }
+        if ($Process) {
+            $declaration.Process = $Process
+        }
+        $declaration
+    }
+}
+
+Describe '_resolveUsedExtensions' {
+
+    BeforeAll {
+        Mock Write-Warning {}
+    }
+
+    Context 'When every extension is used' {
+        It 'Returns every occurrence, in the same order' {
+            $commonForA = newExtension 'Common' -RequiredBy 'A'
+            $commonForB = newExtension 'Common' -RequiredBy 'B'
+            $extensions = @(
+                newExtension 'A' -Declarations $commonForA
+                $commonForA
+                newExtension 'B' -Declarations $commonForB
+                $commonForB
+            )
+
+            $result = @(_resolveUsedExtensions -Extensions $extensions)
+
+            $result.Count | Should -Be 4
+            for ($i = 0; $i -lt 4; $i++) {
+                [object]::ReferenceEquals($result[$i], $extensions[$i]) | Should -BeTrue
+            }
+            $commonForA.LockEntry.requiredBy | Should -Be @('A', 'B')
+        }
+    }
+
+    Context 'When an extension is referenced at 2 exact versions' {
+        BeforeAll {
+            # 'A' 1.0.0 is in the configuration, and 'X' requires 'A' 2.0.0, which requires 'Common' and declares its process
+            $commonForA2 = newExtension 'Common' -RequiredBy 'A' -Process 'tasks/old.process.ps1'
+            $a2 = newExtension 'A' -Version '2.0.0' -RequiredBy 'X' -Declarations $commonForA2
+            $script:extensions = @(
+                newExtension 'A'
+                newExtension 'X' -Declarations $a2
+                $a2
+                $commonForA2
+            )
+            $script:result = @(_resolveUsedExtensions -Extensions $script:extensions)
+        }
+
+        It 'Keeps the version that is not used, so that it can be reported as a duplicate' {
+            @($result | Where-Object { $_.Name -eq 'A' }).Path | Should -Be @('A-1.0.0', 'A-2.0.0')
+        }
+
+        It 'Removes the dependencies that only the version that is not used requires' {
+            @($result | Where-Object { $_.Name -eq 'Common' }).Count | Should -Be 0
+        }
+    }
+
+    Context 'When a local extension is used in place of a dependency' {
+        It 'Uses the process, and records the extension that requires it, only from an extension that is used' {
+            $local = newExtension 'Common' -Process $null
+            $local.LockEntry.source.type = 'path'
+            $a2 = newExtension 'A' -Version '2.0.0' -RequiredBy 'X' -Declarations (newDeclaration 'Common' 'tasks/old.process.ps1')
+            $extensions = @(
+                newExtension 'A'
+                newExtension 'X' -Declarations $a2
+                $a2
+                newExtension 'B' -Declarations (newDeclaration 'Common')
+                $local
+            )
+
+            _resolveUsedExtensions -Extensions $extensions | Out-Null
+
+            $local.ContainsKey('Process') | Should -BeFalse
+            $local.LockEntry.requiredBy | Should -Be @('B')
+        }
+
+        It 'Uses the process that an extension that is used declares' {
+            $local = newExtension 'Common'
+            $local.LockEntry.source.type = 'path'
+            $extensions = @(
+                $local
+                newExtension 'A' -Declarations (newDeclaration 'Common' 'tasks/build.process.ps1')
+            )
+
+            _resolveUsedExtensions -Extensions $extensions | Out-Null
+
+            $local.Process | Should -Be 'tasks/build.process.ps1'
+            $local.LockEntry.requiredBy | Should -Be @('A')
+        }
+    }
+
+    Context 'When an occurrence that was discarded when reconciling minimum versions declares a process' {
+        It 'Uses the process when an extension that is used declares it' {
+            # The discarded occurrence is no longer in the extensions, but is still declared by 'A'
+            $discarded = newExtension 'Common' -Version '1.3.0' -RequiredBy 'A' -Process 'tasks/build.process.ps1'
+            $common = newExtension 'Common' -Version '1.6.0'
+            $extensions = @(
+                newExtension 'A' -Declarations $discarded
+                $common
+            )
+
+            _resolveUsedExtensions -Extensions $extensions | Out-Null
+
+            $common.Process | Should -Be 'tasks/build.process.ps1'
+            $common.LockEntry.requiredBy | Should -Be @('A')
+        }
+
+        It 'Ignores the process when only an extension that is not used declares it' {
+            # 'A' 1.6.0 is in the configuration. 'X' requires 'A' 1.3.0, which was discarded with its dependencies
+            # but is still declared by 'X'.
+            $commonForA13 = newExtension 'Common' -Version '1.3.0' -RequiredBy 'A' -Process 'tasks/old.process.ps1'
+            $a13 = newExtension 'A' -Version '1.3.0' -RequiredBy 'X' -Declarations $commonForA13
+            $common = newExtension 'Common' -Version '1.4.0'
+            $extensions = @(
+                newExtension 'A' -Version '1.6.0'
+                $common
+                newExtension 'X' -Declarations $a13
+            )
+
+            _resolveUsedExtensions -Extensions $extensions | Out-Null
+
+            $common.ContainsKey('Process') | Should -BeFalse
+            $common.LockEntry.requiredBy | Should -BeNullOrEmpty
+        }
+    }
+
+    Context 'When the occurrence that is used was registered by an extension that is not used' {
+        It 'Removes the process that only that extension declares' {
+            # 'A' 2.0.0 is not used, but registered 'Common' first; 'B' also requires 'Common', without a process
+            $commonForA2 = newExtension 'Common' -RequiredBy 'A' -Process 'tasks/old.process.ps1'
+            $a2 = newExtension 'A' -Version '2.0.0' -RequiredBy 'X' -Declarations $commonForA2
+            $commonForB = newExtension 'Common' -RequiredBy 'B'
+            $extensions = @(
+                newExtension 'A'
+                newExtension 'X' -Declarations $a2
+                $a2
+                $commonForA2
+                newExtension 'B' -Declarations $commonForB
+                $commonForB
+            )
+
+            $result = @(_resolveUsedExtensions -Extensions $extensions)
+
+            @($result | Where-Object { $_.Name -eq 'Common' }).Count | Should -Be 2
+            $commonForA2.ContainsKey('Process') | Should -BeFalse
+            $commonForA2.LockEntry.requiredBy | Should -Be @('B')
+        }
+    }
+
+    Context 'When an extension is disabled' {
+        It 'Keeps it, and does not use the extensions that only it requires' {
+            $common = newExtension 'Common' -RequiredBy 'A'
+            $a = newExtension 'A' -Declarations $common
+            $a.Enabled = $false
+            $extensions = @($a, $common)
+
+            $result = @(_resolveUsedExtensions -Extensions $extensions)
+
+            $result.Count | Should -Be 1
+            $result[0].Name | Should -Be 'A'
+        }
+
+        It 'Keeps an explicitly disabled extension, which has no lock entry' {
+            $extensions = @(@{ Name = 'A'; Enabled = $false })
+
+            $result = @(_resolveUsedExtensions -Extensions $extensions)
+
+            $result.Count | Should -Be 1
+        }
+    }
+
+    Context 'When given an empty collection' {
+        It 'Returns nothing' {
+            @(_resolveUsedExtensions -Extensions @()).Count | Should -Be 0
+        }
+    }
+}

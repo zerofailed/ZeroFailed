@@ -4,7 +4,7 @@ external help file: ZeroFailed-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: ZeroFailed
-ms.date: 11/16/2026
+ms.date: 11/18/2026
 PlatyPS schema version: 2024-05-01
 title: Register-Extensions
 ---
@@ -56,6 +56,11 @@ A pre-release version is only in the range of a 'MinimumVersion' that also sets 
 The other versions, and the dependencies that only they declare, are not used.
 
 Without a 'MinimumVersion', the first one registered is used.
+The dependencies that only the other versions declare are not returned, although they have been installed.
+
+When an extension that is used does not declare a 'Process', it uses the 'Process' that another extension that is used declares for it.
+A 'Process' that only an extension that is not used declares is ignored.
+The lock entry of each extension lists the extensions that are used and require it.
 
 A local extension (one with a 'Path') in the configuration is used in place of a dependency with the same name, wherever it is listed.
 The dependency is not installed, and neither are its own dependencies.
