@@ -12,6 +12,7 @@ BeforeAll {
     . (Join-Path (Split-Path -Parent $PSCommandPath) '_testExtensionVersionInRange.ps1')
     . (Join-Path (Split-Path -Parent $PSCommandPath) '_getVersionFromGitTag.ps1')
     . (Join-Path (Split-Path -Parent $PSCommandPath) '_getNormalizedGitRepositoryUrl.ps1')
+    . (Join-Path (Split-Path -Parent $PSCommandPath) '_mergeExtensionProcess.ps1')
 
     # Defined so that it can be mocked
     function Register-ExtensionAndDependencies { param($ExtensionConfig, $TargetPath, $RequiredBy, $LockedExtensions) }
@@ -143,6 +144,20 @@ Describe '_resolveExtensionVersionRanges' {
         $result.Count | Should -Be 1
         [object]::ReferenceEquals($result[0], $extensions[0]) | Should -Be $true
         $result[0].ContainsKey('Process') | Should -Be $false
+    }
+
+    It 'Copies the process of a discarded occurrence from the configuration, which is always used' {
+        $extensions = @(
+            newRegisteredExtension -MinimumVersion '1.0' -Resolved '1.6.0'
+            newRegisteredExtension -MinimumVersion '1.0' -Resolved '1.6.0'
+        )
+        $extensions[1].Process = 'tasks/build.process.ps1'
+
+        $result = @(_resolveExtensionVersionRanges -Extensions $extensions -TargetPath $targetPath)
+
+        $result.Count | Should -Be 1
+        [object]::ReferenceEquals($result[0], $extensions[0]) | Should -Be $true
+        $result[0].Process | Should -Be 'tasks/build.process.ps1'
     }
 
     It 'Discards the dependencies that only a discarded occurrence requires' {

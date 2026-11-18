@@ -102,6 +102,19 @@ Describe 'Register-Extensions with a version of an extension that is not used' {
         }
     }
 
+    Context 'When the configuration lists an extension twice in a range, and only the second declares its process' {
+        BeforeAll {
+            Mock Get-ExtensionDependencies {}
+        }
+
+        It 'Uses the process' {
+            $result = & $register @(@{ Name = 'Common'; MinimumVersion = '1.0' }, @{ Name = 'Common'; MinimumVersion = '1.0'; Process = 'tasks/build.process.ps1' })
+
+            $result.Count | Should -Be 1
+            $result[0].Process | Should -Be 'tasks/build.process.ps1'
+        }
+    }
+
     Context 'When the version that is used declares the process of a dependency whose other occurrence is discarded' {
         BeforeAll {
             # 'A' and 'B' both require 'Common' 1.0 or later. Only 'B' declares its process, and the occurrence that 'B'
