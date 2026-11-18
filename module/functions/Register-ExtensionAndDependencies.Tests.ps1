@@ -379,6 +379,73 @@ Describe 'Register-ExtensionAndDependencies' {
                 }
             }
 
+            Context 'When a dependency was locked for a different request by another extension' {
+                BeforeEach {
+                    # 'ZeroFailed.Build.Common' requires 'ZeroFailed.DevOps.Common' from its 'main' branch, but the lock
+                    # file records the release tag that another extension's minimum version chose for both of them
+                    $lockedExtensions = @{
+                        'ZeroFailed.Build.Common' = @{
+                            source = @{ type = 'git'; repository = 'https://github.com/zerofailed/ZeroFailed.Build.Common'; folderPath = 'module' }
+                            requested = 'main'
+                            resolved = 'locked-commit-1'
+                        }
+                        'ZeroFailed.DevOps.Common' = @{
+                            source = @{ type = 'git'; repository = 'https://github.com/zerofailed/ZeroFailed.DevOps.Common'; folderPath = 'module'; preRelease = $false }
+                            requested = '[2.0.0,3.0.0)'
+                            resolved = 'locked-commit-2'
+                            resolvedRef = 'refs/tags/2.4.3'
+                        }
+                    }
+                }
+
+                It 'Installs the dependency at the locked commit, from the locked release tag' {
+                    [array]$result = Register-ExtensionAndDependencies -ExtensionConfig $extensionConfig -TargetPath $targetPath -LockedExtensions $lockedExtensions
+
+                    $result.Count | Should -Be 2
+                    $result[1].Name | Should -Be 'ZeroFailed.DevOps.Common'
+                    $result[1].Enabled | Should -Be $true
+                    $result[1].ContainsKey('LockMismatch') | Should -Be $false
+                    $result[1].LockEntry.requested | Should -Be 'main'
+                    $result[1].LockEntry.resolved | Should -Be 'locked-commit-2'
+                    Should -Invoke _getExtensionFromGit -Times 1 -ParameterFilter { $Name -eq 'ZeroFailed.DevOps.Common' -and $GitRef -eq 'refs/tags/2.4.3' -and $LockedCommit -eq 'locked-commit-2' }
+                }
+
+                It 'Installs the dependency from the locked git reference, when that is a different branch' {
+                    $lockedExtensions.'ZeroFailed.DevOps.Common' = @{
+                        source = @{ type = 'git'; repository = 'https://github.com/zerofailed/ZeroFailed.DevOps.Common'; folderPath = 'module' }
+                        requested = 'feature/other'
+                        resolved = 'locked-commit-2'
+                    }
+
+                    [array]$result = Register-ExtensionAndDependencies -ExtensionConfig $extensionConfig -TargetPath $targetPath -LockedExtensions $lockedExtensions
+
+                    $result[1].Enabled | Should -Be $true
+                    Should -Invoke _getExtensionFromGit -Times 1 -ParameterFilter { $Name -eq 'ZeroFailed.DevOps.Common' -and $GitRef -eq 'feature/other' -and $LockedCommit -eq 'locked-commit-2' }
+                }
+
+                It 'Does not install the dependency when the lock file records a different repository' {
+                    $lockedExtensions.'ZeroFailed.DevOps.Common'.source.repository = 'https://github.com/myorg/ZeroFailed.DevOps.Common'
+
+                    [array]$result = Register-ExtensionAndDependencies -ExtensionConfig $extensionConfig -TargetPath $targetPath -LockedExtensions $lockedExtensions
+
+                    $result[1].LockMismatch | Should -Be $true
+                    Should -Invoke _getExtensionFromGit -Times 0 -ParameterFilter { $Name -eq 'ZeroFailed.DevOps.Common' }
+                }
+
+                It 'Does not install an extension in the configuration that was requested differently from the lock file' {
+                    $devOpsConfig = @{
+                        Name = 'ZeroFailed.DevOps.Common'
+                        GitRepository = 'https://github.com/zerofailed/ZeroFailed.DevOps.Common'
+                        GitRef = 'main'
+                    }
+
+                    [array]$result = Register-ExtensionAndDependencies -ExtensionConfig $devOpsConfig -TargetPath $targetPath -LockedExtensions $lockedExtensions
+
+                    $result[0].LockMismatch | Should -Be $true
+                    Should -Invoke _getExtensionFromGit -Times 0
+                }
+            }
+
             It 'Does not use a lock entry that has no resolved commit' {
                 $lockedExtensions = @{
                     'ZeroFailed.Build.Common' = @{

@@ -161,6 +161,76 @@ Describe '_testExtensionLockEntryMatch' {
         }
     }
 
+    Context 'Git references that another extension requires' {
+        BeforeAll {
+            $repository = 'https://github.com/zerofailed/ZeroFailed.Build.Common'
+            $rangeLockEntry = @{
+                source = @{ type = 'git'; repository = $repository; folderPath = 'module'; preRelease = $false }
+                requested = '[1.0.0,2.0.0)'
+                resolved = 'abc123'
+                resolvedRef = 'refs/tags/1.2.4'
+            }
+        }
+
+        It 'Matches a lock entry from the same source, whatever it records as requested, for a <Description>' -ForEach @(
+            @{ Description = 'branch'; Requested = 'main' }
+            @{ Description = 'commit'; Requested = '44282e5a9aadb577d1c17a7b5f3533eea25cc9c1' }
+        ) {
+            $gitEntry = @{ source = @{ type = 'git'; repository = $repository; folderPath = 'module' }; requested = $Requested }
+
+            _testExtensionLockEntryMatch -LockEntry $rangeLockEntry -Entry $gitEntry -Transitive | Should -Be $true
+        }
+
+        It 'Matches a lock entry for a different branch' {
+            $gitEntry = @{ source = @{ type = 'git'; repository = $repository; folderPath = 'module' }; requested = 'main' }
+            $lockEntry = @{ source = @{ type = 'git'; repository = $repository; folderPath = 'module' }; requested = 'develop'; resolved = 'abc123' }
+
+            _testExtensionLockEntryMatch -LockEntry $lockEntry -Entry $gitEntry -Transitive | Should -Be $true
+        }
+
+        It 'Does not match a lock entry for a different request when the extension is in the configuration' {
+            $gitEntry = @{ source = @{ type = 'git'; repository = $repository; folderPath = 'module' }; requested = 'main' }
+
+            _testExtensionLockEntryMatch -LockEntry $rangeLockEntry -Entry $gitEntry | Should -Be $false
+        }
+
+        It 'Matches a release tag with the same locked version (<Requested>)' -ForEach @(
+            @{ Requested = 'refs/tags/1.2.4' }
+            @{ Requested = 'refs/tags/v1.2.4' }
+        ) {
+            $gitEntry = @{ source = @{ type = 'git'; repository = $repository; folderPath = 'module' }; requested = $Requested }
+
+            _testExtensionLockEntryMatch -LockEntry $rangeLockEntry -Entry $gitEntry -Transitive | Should -Be $true
+        }
+
+        It 'Does not match a release tag when the <Description>' -ForEach @(
+            @{ Description = 'locked version differs'; LockedRequested = 'refs/tags/1.2.5' }
+            @{ Description = 'lock file records a branch'; LockedRequested = 'main' }
+        ) {
+            $gitEntry = @{ source = @{ type = 'git'; repository = $repository; folderPath = 'module' }; requested = 'refs/tags/1.2.4' }
+            $lockEntry = @{ source = @{ type = 'git'; repository = $repository; folderPath = 'module' }; requested = $LockedRequested; resolved = 'abc123' }
+
+            _testExtensionLockEntryMatch -LockEntry $lockEntry -Entry $gitEntry -Transitive | Should -Be $false
+        }
+
+        It 'Does not match when the <Description>' -ForEach @(
+            @{ Description = 'repository differs'; Source = @{ type = 'git'; repository = 'https://github.com/myorg/ZeroFailed.Build.Common'; folderPath = 'module' } }
+            @{ Description = 'folder path differs'; Source = @{ type = 'git'; repository = 'https://github.com/zerofailed/ZeroFailed.Build.Common'; folderPath = 'src' } }
+            @{ Description = 'source type differs'; Source = @{ type = 'psrepository'; repository = 'PSGallery'; preRelease = $false } }
+        ) {
+            $gitEntry = @{ source = $Source; requested = 'main' }
+
+            _testExtensionLockEntryMatch -LockEntry $rangeLockEntry -Entry $gitEntry -Transitive | Should -Be $false
+        }
+
+        It 'Compares a module version that another extension requires as before' {
+            $psEntry = @{ source = @{ type = 'psrepository'; repository = 'PSGallery'; preRelease = $false }; requested = '1.4.0' }
+            $lockEntry = @{ source = @{ type = 'psrepository'; repository = 'PSGallery'; preRelease = $false }; requested = '1.4.1' }
+
+            _testExtensionLockEntryMatch -LockEntry $lockEntry -Entry $psEntry -Transitive | Should -Be $false
+        }
+    }
+
     It 'Does not match a malformed lock entry' {
         _testExtensionLockEntryMatch -LockEntry @{ source = 'git'; requested = 'main' } -Entry $entry | Should -Be $false
     }

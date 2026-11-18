@@ -44,7 +44,7 @@ function _assertExtensionLockSatisfied {
             if ($null -eq $lockedEntry) {
                 $problems.Add("'$name' is not in the lock file")
             }
-            elseif (!(_testExtensionLockEntryMatch -LockEntry $lockedEntry -Entry $extension.LockEntry -MinimumVersion $extension['MinimumVersion'] -PreRelease:([bool]$extension['PreRelease']))) {
+            elseif (!(_testExtensionLockEntryMatch -LockEntry $lockedEntry -Entry $extension.LockEntry -MinimumVersion $extension['MinimumVersion'] -PreRelease:([bool]$extension['PreRelease']) -Transitive:(!$extension.LockEntry.direct))) {
                 $problems.Add("'$name' is requested as $(& $describeRequest $extension.LockEntry), but the lock file has $(& $describeRequest $lockedEntry)")
             }
             else {
@@ -65,7 +65,7 @@ function _assertExtensionLockSatisfied {
         if ($null -eq $lockedEntry) {
             $problems.Add("'$name' is not in the lock file")
         }
-        elseif (!(_testExtensionLockEntryMatch -LockEntry $lockedEntry -Entry $entry -MinimumVersion $extension['MinimumVersion'] -PreRelease:([bool]$extension['PreRelease']))) {
+        elseif (!(_testExtensionLockEntryMatch -LockEntry $lockedEntry -Entry $entry -MinimumVersion $extension['MinimumVersion'] -PreRelease:([bool]$extension['PreRelease']) -Transitive:(!$entry.direct))) {
             $problems.Add("'$name' is requested as $(& $describeRequest $entry), but the lock file has $(& $describeRequest $lockedEntry)")
         }
         elseif ($entry.source.type -eq 'path') {
