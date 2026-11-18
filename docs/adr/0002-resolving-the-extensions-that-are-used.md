@@ -73,5 +73,6 @@ A warning names any other process. A disabled chosen version is given no process
 ### Negative Consequences
 
 * Within one extension, a `Process` in the configuration takes precedence, but between different extensions, registration order decides which process runs. The README describes both rules.
+* ZeroFailed 2.0.1 imported extensions in reverse alphabetical order. When 2 extensions define the same task, function or property, a configuration can now use a different definition than it did with 2.0.1.
 * An unused version's dependencies are still installed, although they are not imported or locked
 * A configuration that lists the same extension more than once with conflicting settings is resolved by these rules, with a warning, but is not otherwise supported
