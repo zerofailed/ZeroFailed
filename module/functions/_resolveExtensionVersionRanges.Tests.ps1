@@ -130,6 +130,35 @@ Describe '_resolveExtensionVersionRanges' {
         Should -Invoke Write-Warning -Times 0
     }
 
+    It 'Does not copy the process of a discarded occurrence, which is left to _resolveUsedExtensions' {
+        # The extension that requires the discarded occurrence may itself not be used
+        $extensions = @(
+            newRegisteredExtension -RequiredBy 'DotNet' -MinimumVersion '1.2' -Resolved '1.6.0'
+            newRegisteredExtension -RequiredBy 'PowerShell' -MinimumVersion '1.5' -Resolved '1.6.0'
+        )
+        $extensions[1].Process = 'tasks/build.process.ps1'
+
+        $result = @(_resolveExtensionVersionRanges -Extensions $extensions -TargetPath $targetPath)
+
+        $result.Count | Should -Be 1
+        [object]::ReferenceEquals($result[0], $extensions[0]) | Should -Be $true
+        $result[0].ContainsKey('Process') | Should -Be $false
+    }
+
+    It 'Does not copy the process of a discarded occurrence from the configuration, which is left to _resolveUsedExtensions' {
+        $extensions = @(
+            newRegisteredExtension -MinimumVersion '1.0' -Resolved '1.6.0'
+            newRegisteredExtension -MinimumVersion '1.0' -Resolved '1.6.0'
+        )
+        $extensions[1].Process = 'tasks/build.process.ps1'
+
+        $result = @(_resolveExtensionVersionRanges -Extensions $extensions -TargetPath $targetPath)
+
+        $result.Count | Should -Be 1
+        [object]::ReferenceEquals($result[0], $extensions[0]) | Should -Be $true
+        $result[0].ContainsKey('Process') | Should -Be $false
+    }
+
     It 'Discards the dependencies that only a discarded occurrence requires' {
         $usedDependency = newRegisteredExtension -Name 'Shared' -RequiredBy 'Common' -Requested 'main' -Resolved 'commit'
         $discardedDependency = newRegisteredExtension -Name 'Old' -RequiredBy 'Common' -Requested 'main' -Resolved 'commit'

@@ -35,6 +35,18 @@ function Register-Extensions {
         The other versions, and the dependencies that only they declare, are not used.
 
         Without a 'MinimumVersion', the first one registered is used.
+        The dependencies that only the other versions declare are not returned, although they have been installed.
+
+        When an extension that is used does not declare a 'Process', it uses the 'Process' that another extension that is used declares for it.
+        A 'Process' that only an extension that is not used declares is ignored.
+        When the references to an extension declare different processes, it uses the first one in the configuration, or else the first one that an extension that is used declares, in the order that they were registered.
+        A warning names the others.
+        The lock entry of each extension lists the extensions that are used and require it.
+        These rules are described in 'docs/adr/0002-resolving-the-extensions-that-are-used.md'.
+
+        A local extension (one with a 'Path') in the configuration is used in place of a dependency with the same name, wherever it is listed.
+        The dependency is not installed, and neither are its own dependencies.
+        When the dependency declares a 'Process' and the local extension does not, the local extension uses that 'Process'.
 
         .PARAMETER ExtensionsConfig
         An array of extension configuration objects.
@@ -222,13 +234,31 @@ function Register-Extensions {
         }
         $env:PSModulePath = $moduleSearchPaths -join [IO.Path]::PathSeparator
 
-        # Process each configured extension
+        # A local extension in the configuration is used in place of a dependency with the same name, wherever it is
+        # listed, so the dependency is not installed
+        $localExtensions = @{}
+        foreach ($extensionConfig in $ExtensionsConfig) {
+            $extension = Resolve-ExtensionMetadata -Value $extensionConfig
+            if ($extension.ContainsKey('Path') -and
+                    (!$extension.ContainsKey('Enabled') -or $extension.Enabled) -and
+                    (Test-Path $extension.Path)) {
+                $localExtensions[$extension.Name] = $true
+            }
+        }
+
+        # Process each configured extension. The occurrence that each one registers is recorded, as it is always used.
+        $configuredExtensions = [System.Collections.Generic.List[hashtable]]::new()
         for ($i=0; $i -lt $ExtensionsConfig.Length; $i++) {
 
-            # An extension that is not registered (a missing local extension) returns nothing
+            # An extension that is not registered (a missing local extension) returns nothing. Otherwise, the
+            # extension is returned first, followed by its dependencies.
             $registeredExtensions = @(Register-ExtensionAndDependencies -ExtensionConfig $ExtensionsConfig[$i] `
                                                                        -TargetPath $zfExtensionsPath `
-                                                                       -LockedExtensions $lockedExtensions)
+                                                                       -LockedExtensions $lockedExtensions `
+                                                                       -LocalExtensions $localExtensions)
+            if ($registeredExtensions.Count -gt 0) {
+                $configuredExtensions.Add($registeredExtensions[0])
+            }
 
             # Persist the fully-populated extension metadata
             $processedExtensionConfig += $registeredExtensions
@@ -239,6 +269,11 @@ function Register-Extensions {
         $processedExtensionConfig = @(_resolveExtensionVersionRanges -Extensions $processedExtensionConfig `
                                                                      -TargetPath $zfExtensionsPath `
                                                                      -LockedExtensions $lockedExtensions)
+
+        # Now that the versions have been chosen, remove the extensions that only a version that is not used requires. Each
+        # extension that is used takes its process (when it does not declare one) and the extensions that require it
+        # from the used extensions only, including a local extension that is used in place of a dependency.
+        $processedExtensionConfig = @(_resolveUsedExtensions -Extensions $processedExtensionConfig -ConfiguredExtensions $configuredExtensions.ToArray())
 
         switch ($LockMode) {
             'Write' {

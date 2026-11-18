@@ -131,7 +131,9 @@ function _resolveExtensionVersionRanges {
     $chosen = [System.Collections.Generic.HashSet[object]]::new([System.Collections.Generic.ReferenceEqualityComparer]::Instance)
 
     # Discards every occurrence of an extension other than the first one, which is the chosen version. The chosen
-    # occurrence records every extension that required the extension, so that the lock file still lists them.
+    # occurrence records every extension that required the extension, so that the lock file still lists them. The
+    # process that a discarded occurrence declares is chosen later, by '_resolveUsedExtensions': it is used when the
+    # occurrence is in the configuration, or when a used extension declares it.
     $discardOtherOccurrences = {
         param ($indices)
         $winner = $resolved[$indices[0]]

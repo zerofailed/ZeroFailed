@@ -12,6 +12,20 @@ function Resolve-ExtensionDuplicates {
         multiple references to the same extension 'Name', this function removes the duplicates,
         keeping the first one found.
 
+        The extensions are returned in the order that they were given, so that the depth-first
+        resolution order is preserved.
+        This order decides which extension's process definition is used.
+        Get-ExtensionImportOrder uses it to decide the order in which the tasks and functions of
+        the extensions are imported.
+
+        When the reference that is kept does not declare a 'Process', but a removed reference to the same extension does, the kept reference uses that 'Process'.
+        Nothing is copied to a disabled reference, or from an explicitly disabled one.
+        A reference that is disabled only because it does not match the lock file still declares its process.
+        A warning is logged when the references declare different processes.
+
+        For the extensions that Register-Extensions returns, this does not change any process.
+        Register-Extensions has already chosen the process of each extension that is used, and removed it from the other references to that extension.
+
         A warning is only logged when the duplicate references resolve to genuinely different
         versions. The reliable indicator of the resolved version across all extension types
         (Git, PowerShell repository and local path) is the 'Path' property, which encodes the
@@ -34,29 +48,40 @@ function Resolve-ExtensionDuplicates {
         [hashtable[]] $Extensions
     )
 
-    $groupedByName = $Extensions | Group-Object -Property Name
+    # Group the references by name, in the order that each name is first found. 'Group-Object' is not used, as it
+    # sorts the groups by name.
+    $groupedByName = [ordered]@{}
+    foreach ($extension in $Extensions) {
+        if (!$groupedByName.Contains($extension.Name)) {
+            $groupedByName[$extension.Name] = [System.Collections.Generic.List[hashtable]]::new()
+        }
+        $groupedByName[$extension.Name].Add($extension)
+    }
 
-    # Warn only when the same extension has been resolved to more than one distinct
-    # location (i.e. a genuine version conflict), rather than for every shared reference.
-    $groupedByName |
-        Where-Object { $_.Count -gt 1 -and ($_.Group.Path | Select-Object -Unique).Count -gt 1 } |
-        ForEach-Object {
-            $winner = $_.Group | Select-Object -First 1
-            $ignored = $_.Group | Select-Object -Skip 1
-            $conflicts = $_.Group | Select-Object Name, Version, Path
-            Write-Warning ("Multiple versions of extension '$($_.Name)' have been resolved - " +
-                "using the first one found and ignoring the rest:`n" +
-                "Using:   $($winner.Path)`n" +
-                "Ignored: $($ignored.Path -join ', ')`n" +
-                "$($conflicts | ConvertTo-Json)")
+    [hashtable[]] $deduplicated = foreach ($name in $groupedByName.Keys) {
+        $group = $groupedByName[$name]
+        $winner = $group[0]
+
+        if ($group.Count -gt 1) {
+            # Warn only when the same extension has been resolved to more than one distinct
+            # location (i.e. a genuine version conflict), rather than for every shared reference.
+            if (@($group | ForEach-Object { $_['Path'] } | Select-Object -Unique).Count -gt 1) {
+                $ignored = $group | Select-Object -Skip 1
+                $conflicts = $group | ForEach-Object { [pscustomobject]@{ Name = $_.Name; Version = $_['Version']; Path = $_['Path'] } }
+                Write-Warning ("Multiple versions of extension '$name' have been resolved - " +
+                    "using the first one found and ignoring the rest:`n" +
+                    "Using:   $($winner['Path'])`n" +
+                    "Ignored: $(($ignored | ForEach-Object { $_['Path'] }) -join ', ')`n" +
+                    "$($conflicts | ConvertTo-Json)")
+            }
+
+            foreach ($duplicate in ($group | Select-Object -Skip 1)) {
+                _mergeExtensionProcess -Extension $winner -Duplicate $duplicate
+            }
         }
 
-    # De-duplicate by Name, keeping the first one found (preserves the existing
-    # depth-first resolution order, so the top-most consumer wins).
-    [hashtable[]] $deduplicated = $groupedByName |
-        ForEach-Object {
-            $_.Group | Select-Object -First 1
-        }
+        $winner
+    }
 
     return $deduplicated
 }

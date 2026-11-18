@@ -8,15 +8,20 @@ BeforeAll {
 
     . "$here/$sut"
 
+    # in-module dependencies
+    . "$here/Resolve-ExtensionMetadata.ps1"
+    . "$here/_resolveModuleNameFromPath.ps1"
+
     # Mock Write-Host to keep output clean
     function Write-Host {}
 
     # Define the dependent functions so they can be mocked
-    function Register-ExtensionAndDependencies { param($ExtensionConfig, $TargetPath, $RequiredBy, $LockedExtensions) }
+    function Register-ExtensionAndDependencies { param($ExtensionConfig, $TargetPath, $RequiredBy, $LockedExtensions, $LocalExtensions) }
     function _readExtensionLockFile { param($Path) }
     function _writeExtensionLockFile { param($Path, $Extensions) }
     function _assertExtensionLockSatisfied { param($Extensions, $LockedExtensions, $LockFilePath) }
     function _resolveExtensionVersionRanges { param($Extensions, $TargetPath, $LockedExtensions) }
+    function _resolveUsedExtensions { param($Extensions, $ConfiguredExtensions) }
     function _waitForExtensionsLock { param($ZfPath) }
 
     # Records whether the lock that _waitForExtensionsLock returns is released
@@ -45,6 +50,7 @@ Describe 'Register-Extensions' {
         Mock _writeExtensionLockFile {}
         Mock _assertExtensionLockSatisfied {}
         Mock _resolveExtensionVersionRanges { $Extensions }
+        Mock _resolveUsedExtensions { $Extensions }
     }
 
     Context 'Directory and Environment Setup' {
@@ -178,6 +184,42 @@ Describe 'Register-Extensions' {
         }
 
         Context 'When versions are reconciled' {
+            It 'Removes the unused extensions from the reconciled extensions' {
+                Mock _resolveExtensionVersionRanges { @($Extensions[1], $Extensions[0]) }
+
+                Register-Extensions -ExtensionsConfig $extensionsConfig -DefaultPSRepository $defaultRepo -ZfPath $zfPath | Out-Null
+
+                Should -Invoke _resolveUsedExtensions -Times 1 -Scope It -ParameterFilter { $Extensions.Count -eq 2 -and $Extensions[0].Name -eq 'Extension2' }
+            }
+
+            It 'Passes the occurrence that each entry in the configuration registered, in the order of the configuration' {
+                $script:configuredOccurrences = @()
+                Mock 'Register-ExtensionAndDependencies' {
+                    $occurrence = @{ Name = $ExtensionConfig.Name; Enabled = $true }
+                    $script:configuredOccurrences += $occurrence
+                    $occurrence
+                    @{ Name = "$($ExtensionConfig.Name).Dependency"; Enabled = $true }
+                }
+                Mock _resolveExtensionVersionRanges { @($Extensions[1], $Extensions[0], $Extensions[3], $Extensions[2]) }
+
+                Register-Extensions -ExtensionsConfig $extensionsConfig -DefaultPSRepository $defaultRepo -ZfPath $zfPath | Out-Null
+
+                Should -Invoke _resolveUsedExtensions -Times 1 -Scope It -ParameterFilter {
+                    $ConfiguredExtensions.Count -eq 2 -and
+                    [object]::ReferenceEquals($ConfiguredExtensions[0], $script:configuredOccurrences[0]) -and
+                    [object]::ReferenceEquals($ConfiguredExtensions[1], $script:configuredOccurrences[1])
+                }
+            }
+
+            It 'Writes the lock file, and returns, the extensions that are used' {
+                Mock _resolveUsedExtensions { @($Extensions[0]) }
+
+                $result = @(Register-Extensions -ExtensionsConfig $extensionsConfig -DefaultPSRepository $defaultRepo -ZfPath $zfPath)
+
+                $result.Count | Should -Be 1
+                Should -Invoke _writeExtensionLockFile -Times 1 -Scope It -ParameterFilter { $Extensions.Count -eq 1 }
+            }
+
             It 'Writes the lock file, and returns, the reconciled extensions' {
                 Mock _resolveExtensionVersionRanges { @($Extensions[1], $Extensions[0]) }
 

@@ -4,7 +4,7 @@ external help file: ZeroFailed-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: ZeroFailed
-ms.date: 10/29/2026
+ms.date: 11/18/2026
 PlatyPS schema version: 2024-05-01
 title: Resolve-ExtensionDuplicates
 ---
@@ -33,6 +33,20 @@ as a shared dependency).
 When the resolved extension list contains
 multiple references to the same extension 'Name', this function removes the duplicates,
 keeping the first one found.
+
+The extensions are returned in the order that they were given, so that the depth-first
+resolution order is preserved.
+This order decides which extension's process definition is used.
+Get-ExtensionImportOrder uses it to decide the order in which the tasks and functions of
+the extensions are imported.
+
+When the reference that is kept does not declare a 'Process', but a removed reference to the same extension does, the kept reference uses that 'Process'.
+Nothing is copied to a disabled reference, or from an explicitly disabled one.
+A reference that is disabled only because it does not match the lock file still declares its process.
+A warning is logged when the references declare different processes.
+
+For the extensions that Register-Extensions returns, this does not change any process.
+Register-Extensions has already chosen the process of each extension that is used, and removed it from the other references to that extension.
 
 A warning is only logged when the duplicate references resolve to genuinely different
 versions.

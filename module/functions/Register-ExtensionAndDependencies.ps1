@@ -44,6 +44,11 @@ function Register-ExtensionAndDependencies {
         The extensions recorded in the extensions lock file, keyed by name.
         When omitted, extensions are resolved without using a lock file.
 
+        .PARAMETER LocalExtensions
+        The local extensions in the configuration that are used in place of a dependency with the same name, keyed by name.
+        A dependency with one of these names is not registered: it is not installed, and its own dependencies are not registered.
+        When omitted, every dependency is registered.
+
         .EXAMPLE
         PS:> $extensionConfig = @{
             Name = "MyExtension"
@@ -67,7 +72,11 @@ function Register-ExtensionAndDependencies {
 
         [Parameter()]
         [AllowNull()]
-        [System.Collections.IDictionary] $LockedExtensions
+        [System.Collections.IDictionary] $LockedExtensions,
+
+        [Parameter()]
+        [AllowNull()]
+        [System.Collections.IDictionary] $LocalExtensions
     )
 
     [hashtable[]]$processedExtensionConfig = @()
@@ -230,12 +239,19 @@ function Register-ExtensionAndDependencies {
     # If enabled, resolve any dependencies for this extension
     if ($extension.Enabled) {
         foreach ($dependency in $extension.dependencies) {
+            # A local extension in the configuration is used in place of the dependency, so it is not installed
+            if ($LocalExtensions -and $LocalExtensions.Contains($dependency.Name)) {
+                Write-Host "Using local extension for dependency: $($dependency.Name)"
+                continue
+            }
+
             Write-Host "Processing dependency: $($dependency.Name)"
             # A dependency that is not registered returns nothing
             $processedExtensionConfig += @(Register-ExtensionAndDependencies -ExtensionConfig $dependency `
                                                                              -TargetPath $TargetPath `
                                                                              -RequiredBy $extension.Name `
-                                                                             -LockedExtensions $LockedExtensions)
+                                                                             -LockedExtensions $LockedExtensions `
+                                                                             -LocalExtensions $LocalExtensions)
         }
     }
     
