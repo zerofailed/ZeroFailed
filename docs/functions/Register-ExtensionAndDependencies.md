@@ -42,6 +42,9 @@ Its lock entry records the range (for example, '[1.4.0,2.0.0)') as the requested
 
 When locked extensions are provided, an extension whose lock entry matches how it is requested is installed at the commit or version recorded in the lock entry.
 For a 'MinimumVersion', the lock entry matches when it has the same source and its version is in the range, whatever range it records as requested.
+For a git branch or commit that another extension requires, the lock entry matches when it has the same source, whatever it records as requested, as it records the version chosen for every extension that requires it.
+The extension is then installed from the git reference in the lock entry.
+For a git release tag that another extension requires, the lock entry matches when it has the same source and the same version.
 Before any of the extension's code runs, an error is thrown if its content differs from the lock entry.
 An extension that does not match its lock entry is not installed, and its dependencies are not registered.
 It is returned disabled, with 'LockMismatch' set, so that the difference can be reported once every extension has been registered.

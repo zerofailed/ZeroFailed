@@ -166,3 +166,106 @@ Describe 'Register-Extensions with a lock file, when the configuration chooses a
         $script:installed.Common | Should -Be @('1.3.0')
     }
 }
+
+Describe 'Register-Extensions with a lock file, when one extension requires a git branch and another a minimum version of the same extension' {
+
+    BeforeAll {
+        Mock Write-Host {}
+        Mock Write-Warning {}
+        Mock Get-ExtensionAvailableTasks { @() }
+
+        # Installs a git reference, or the newest release tag in the range of a minimum version, from a fake git
+        # repository: a table of references and the commits that they point to
+        function installFromFakeGitRepository {
+            param ([string] $Name, [string] $GitRef, [string] $MinimumVersion, [string] $LockedCommit, [string] $TargetPath)
+
+            $refs = $script:gitRefs[$Name]
+            if ($MinimumVersion -and !$GitRef) {
+                $range = _getExtensionVersionRange -MinimumVersion $MinimumVersion
+                $GitRef = $refs.Keys |
+                              Where-Object { $version = _getVersionFromGitTag -Ref $_; $version -and (_testExtensionVersionInRange -Version $version -Range $range) } |
+                              Sort-Object { _getVersionFromGitTag -Ref $_ } -Descending |
+                              Select-Object -First 1
+            }
+            $commit = $LockedCommit ? $LockedCommit : $refs[$GitRef]
+            $script:gitInstalls += "$Name $GitRef $commit"
+
+            $path = Join-Path $TargetPath $Name ($GitRef -replace '/', '-')
+            New-Item -ItemType Directory -Path $path -Force | Out-Null
+            Set-Content -Path (Join-Path $path "$Name.psm1") -Value "# $Name $commit"
+            $result = @{ Path = $path; Enabled = $true; ResolvedVersion = $commit }
+            if ($MinimumVersion) {
+                $result.ResolvedRef = $GitRef
+            }
+            $result
+        }
+        Mock _getExtensionFromGit { installFromFakeGitRepository -Name $Name -GitRef $GitRef -MinimumVersion $MinimumVersion -LockedCommit $LockedCommit -TargetPath $TargetPath }
+
+        # 'A' requires 'Common' from its 'main' branch, and 'B' requires 'Common' 1.0 or later. The 'Common' release that
+        # 'B' requires is chosen for both of them.
+        Mock Get-ExtensionDependencies {
+            @{
+                A = @{ Name = 'Common'; GitRepository = 'https://example.com/Common'; GitRef = 'main' }
+                B = @{ Name = 'Common'; GitRepository = 'https://example.com/Common'; MinimumVersion = '1.0' }
+            }[$Extension.Name]
+        }
+        $newExtensionsConfig = {
+            @(
+                @{ Name = 'A'; GitRepository = 'https://example.com/A'; GitRef = 'main' }
+                @{ Name = 'B'; GitRepository = 'https://example.com/B'; GitRef = 'main' }
+            )
+        }
+        $getCommon = { param ($extensions) $extensions | Where-Object { $_.Name -eq 'Common' } | Select-Object -First 1 }
+    }
+
+    BeforeEach {
+        $originalPSModulePath = $env:PSModulePath
+        $zfPath = Join-Path $TestDrive ([guid]::NewGuid())
+
+        # 'main' is ahead of the latest release
+        $script:gitRefs = @{
+            A = @{ main = 'a1' }
+            B = @{ main = 'b1' }
+            Common = @{ main = 'common-main'; 'refs/tags/1.2.4' = 'common-1.2.4' }
+        }
+        $script:gitInstalls = @()
+
+        $written = Register-Extensions -ExtensionsConfig (& $newExtensionsConfig) -DefaultPSRepository 'PSGallery' -ZfPath $zfPath -LockMode Write
+    }
+
+    AfterEach {
+        $env:PSModulePath = $originalPSModulePath
+    }
+
+    It 'Writes the release that the minimum version chooses to the lock file' {
+        $lockedCommon = (Get-Content -Raw (Join-Path $zfPath 'extensions.lock.json') | ConvertFrom-Json -AsHashtable).extensions.Common
+
+        $lockedCommon.requested | Should -Be '[1.0.0,2.0.0)'
+        $lockedCommon.resolved | Should -Be 'common-1.2.4'
+        $lockedCommon.requiredBy | Should -Be @('A', 'B')
+    }
+
+    It 'Is satisfied by a later Frozen run on the same machine' {
+        $frozen = Register-Extensions -ExtensionsConfig (& $newExtensionsConfig) -DefaultPSRepository 'PSGallery' -ZfPath $zfPath -LockMode Frozen
+
+        (& $getCommon $frozen).LockEntry.resolved | Should -Be 'common-1.2.4'
+    }
+
+    It 'Is satisfied by a later Frozen run on a clean machine, after a newer commit on the branch, installing only the locked release' {
+        Remove-Item -Recurse -Force (Join-Path $zfPath 'extensions')
+        $script:gitRefs.Common.main = 'common-newer'
+        $script:gitInstalls = @()
+
+        $frozen = Register-Extensions -ExtensionsConfig (& $newExtensionsConfig) -DefaultPSRepository 'PSGallery' -ZfPath $zfPath -LockMode Frozen
+
+        (& $getCommon $frozen).LockEntry.resolved | Should -Be 'common-1.2.4'
+        $script:gitInstalls | Where-Object { $_ -like 'Common *' } | Select-Object -Unique | Should -Be @('Common refs/tags/1.2.4 common-1.2.4')
+    }
+
+    It 'Fails a later Frozen run when the configuration requires the extension from a branch' {
+        $config = @(& $newExtensionsConfig) + @{ Name = 'Common'; GitRepository = 'https://example.com/Common'; GitRef = 'main' }
+
+        { Register-Extensions -ExtensionsConfig $config -DefaultPSRepository 'PSGallery' -ZfPath $zfPath -LockMode Frozen } |
+            Should -Throw "*'Common' is requested as 'main' from git 'https://example.com/Common', but the lock file has '``[1.0.0,2.0.0)' from git 'https://example.com/Common'*"
+    }
+}
