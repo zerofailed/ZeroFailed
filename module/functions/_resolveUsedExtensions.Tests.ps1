@@ -133,6 +133,63 @@ Describe '_resolveUsedExtensions' {
         }
     }
 
+    Context 'When the references to an extension declare different processes' {
+        It 'Uses the process in the configuration before the one that a dependency declares, and warns once' {
+            # The configuration lists the local extension twice, and only the second declares its process
+            $local = newExtension 'Common'
+            $local.LockEntry.source.type = 'path'
+            $localWithProcess = newExtension 'Common' -Process 'tasks/configured.process.ps1'
+            $localWithProcess.LockEntry.source.type = 'path'
+            $extensions = @(
+                $local
+                $localWithProcess
+                newExtension 'A' -Declarations (newDeclaration 'Common' 'tasks/dependency.process.ps1')
+            )
+
+            _resolveUsedExtensions -Extensions $extensions | Out-Null
+
+            $local.Process | Should -Be 'tasks/configured.process.ps1'
+            $localWithProcess.ContainsKey('Process') | Should -BeFalse
+            Should -Invoke Write-Warning -Times 1 -Exactly -ParameterFilter {
+                $Message -like "*'tasks/configured.process.ps1'*'tasks/dependency.process.ps1'*"
+            }
+        }
+
+        It 'Uses the process in the configuration when a dependency that declares another is registered first' {
+            $commonForA = newExtension 'Common' -RequiredBy 'A' -Process 'tasks/dependency.process.ps1'
+            $configured = newExtension 'Common' -Process 'tasks/configured.process.ps1'
+            $extensions = @(
+                newExtension 'A' -Declarations $commonForA
+                $commonForA
+                $configured
+            )
+
+            _resolveUsedExtensions -Extensions $extensions | Out-Null
+
+            $commonForA.Process | Should -Be 'tasks/configured.process.ps1'
+            $configured.ContainsKey('Process') | Should -BeFalse
+        }
+
+        It 'Uses the process that the first extension to be registered declares, when the configuration has none' {
+            $commonForA = newExtension 'Common' -RequiredBy 'A' -Process 'tasks/first.process.ps1'
+            $commonForB = newExtension 'Common' -RequiredBy 'B' -Process 'tasks/second.process.ps1'
+            $extensions = @(
+                newExtension 'A' -Declarations $commonForA
+                $commonForA
+                newExtension 'B' -Declarations $commonForB
+                $commonForB
+            )
+
+            _resolveUsedExtensions -Extensions $extensions | Out-Null
+
+            $commonForA.Process | Should -Be 'tasks/first.process.ps1'
+            $commonForB.ContainsKey('Process') | Should -BeFalse
+            Should -Invoke Write-Warning -Times 1 -Exactly -ParameterFilter {
+                $Message -like "*'tasks/first.process.ps1'*'tasks/second.process.ps1'*"
+            }
+        }
+    }
+
     Context 'When an occurrence that was discarded when reconciling minimum versions declares a process' {
         It 'Uses the process when an extension that is used declares it' {
             # The discarded occurrence is no longer in the extensions, but is still declared by 'A'

@@ -60,6 +60,8 @@ The dependencies that only the other versions declare are not returned, although
 
 When an extension that is used does not declare a 'Process', it uses the 'Process' that another extension that is used declares for it.
 A 'Process' that only an extension that is not used declares is ignored.
+When the references to an extension declare different processes, it uses the first one in the configuration, or else the first one that an extension that is used declares, in the order that they were registered.
+A warning names the others.
 The lock entry of each extension lists the extensions that are used and require it.
 
 A local extension (one with a 'Path') in the configuration is used in place of a dependency with the same name, wherever it is listed.

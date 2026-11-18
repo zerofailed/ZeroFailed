@@ -13,10 +13,13 @@ function _resolveUsedExtensions {
         So an extension that only a version that is not used requires (for example, the losing version of an extension
         that is referenced at 2 exact versions) is removed, along with every other occurrence that such a version requires.
 
-        For each extension that is used, the declarations of it by used extensions decide its metadata:
-         - its 'Process', when the occurrence that is used does not declare one, from a declaration that is not otherwise
-           kept (for example, an occurrence discarded when reconciling minimum versions, or a dependency that a local
-           extension is used in place of). A 'Process' that only an unused extension declared is removed.
+        For each extension that is used, its references decide its metadata:
+         - its 'Process': the first one in the configuration, in the order that it is listed, or else the first one that
+           a used extension declares for it, in the order that they were registered. This includes a declaration that is
+           not otherwise kept (for example, an occurrence discarded when reconciling minimum versions, or a dependency that
+           a local extension is used in place of). A warning names any other process. A 'Process' that only an unused
+           extension declared is removed, and so is the 'Process' of every other occurrence that is kept, so that
+           'Resolve-ExtensionDuplicates' does not use it.
          - its lock entry's 'requiredBy', which lists the used extensions that require it.
     #>
     [CmdletBinding()]
@@ -98,6 +101,34 @@ function _resolveUsedExtensions {
         }
     })
 
+    # The processes that each extension is given, in order of precedence: those in the configuration, in the order that
+    # they are listed, then those that the used extensions declare, in the order that they were registered. A disabled
+    # reference is not imported, so its process is not used. They are read before any process is changed, as an
+    # occurrence can also be a declaration.
+    $processes = @{}
+    $addProcess = {
+        param ($name, $reference)
+        if ($reference.ContainsKey('Process') -and ![string]::IsNullOrEmpty($reference.Process) -and
+                (!$reference.ContainsKey('Enabled') -or $reference.Enabled)) {
+            if (!$processes.ContainsKey($name)) {
+                $processes[$name] = [System.Collections.Generic.List[string]]::new()
+            }
+            if (!$processes[$name].Contains($reference.Process)) {
+                $processes[$name].Add($reference.Process)
+            }
+        }
+    }
+    foreach ($extension in $used) {
+        if (& $isConfigured $extension) {
+            & $addProcess $extension.Name $extension
+        }
+    }
+    foreach ($name in $declarations.Keys) {
+        foreach ($item in $declarations[$name]) {
+            & $addProcess $name $item.Declaration
+        }
+    }
+
     foreach ($name in $winners.Keys) {
         if (!$usedNames.Contains($name)) {
             continue
@@ -105,15 +136,20 @@ function _resolveUsedExtensions {
         $winner = $winners[$name]
         $nameDeclarations = $declarations.ContainsKey($name) ? $declarations[$name] : @()
 
-        if (!(& $isConfigured $winner) -and !$declared.Contains($winner) -and $winner.ContainsKey('Process')) {
-            Write-Verbose "Not using process '$($winner.Process)' for extension '$name', as only an extension that is not used declares it"
+        # The occurrence that is used takes the first of its processes, and a warning names any other. The other
+        # occurrences that are kept no longer declare one, so that 'Resolve-ExtensionDuplicates' does not use it.
+        if ($winner['Enabled']) {
+            if ($winner.ContainsKey('Process') -and !($processes.ContainsKey($name) -and $processes[$name].Contains($winner.Process))) {
+                Write-Verbose "Not using process '$($winner.Process)' for extension '$name', as only an extension that is not used declares it"
+            }
             $winner.Remove('Process')
-        }
-
-        # A kept occurrence's 'Process' is used by 'Resolve-ExtensionDuplicates'
-        foreach ($item in $nameDeclarations) {
-            if (!$kept.Contains($item.Declaration)) {
-                _mergeExtensionProcess -Extension $winner -Duplicate $item.Declaration
+            foreach ($process in ($processes.ContainsKey($name) ? $processes[$name] : @())) {
+                _mergeExtensionProcess -Extension $winner -Duplicate @{ Name = $name; Process = $process }
+            }
+            foreach ($extension in $used) {
+                if ($extension.Name -eq $name -and ![object]::ReferenceEquals($extension, $winner)) {
+                    $extension.Remove('Process')
+                }
             }
         }
 
