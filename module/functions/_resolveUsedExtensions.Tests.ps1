@@ -133,6 +133,37 @@ Describe '_resolveUsedExtensions' {
         }
     }
 
+    Context 'When a declaration does not match the lock file' {
+        It 'Uses its process, which the extension that requires it declares' {
+            # In a Frozen run, the version that 'A' requires is not installed, as the lock file has the configured one
+            $commonForA = newExtension 'Common' -Version '2.0.0' -RequiredBy 'A' -Process 'tasks/build.process.ps1'
+            $commonForA.Enabled = $false
+            $commonForA.LockMismatch = $true
+            $configured = newExtension 'Common'
+            $extensions = @(
+                $configured
+                newExtension 'A' -Declarations $commonForA
+                $commonForA
+            )
+
+            _resolveUsedExtensions -Extensions $extensions | Out-Null
+
+            $configured.Process | Should -Be 'tasks/build.process.ps1'
+        }
+
+        It 'Does not use the process of an explicitly disabled declaration' {
+            $configured = newExtension 'Common'
+            $extensions = @(
+                $configured
+                newExtension 'A' -Declarations @{ Name = 'Common'; Enabled = $false; Process = 'tasks/build.process.ps1' }
+            )
+
+            _resolveUsedExtensions -Extensions $extensions | Out-Null
+
+            $configured.ContainsKey('Process') | Should -BeFalse
+        }
+    }
+
     Context 'When the references to an extension declare different processes' {
         It 'Uses the process in the configuration before the one that a dependency declares, and warns once' {
             # The configuration lists the local extension twice, and only the second declares its process

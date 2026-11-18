@@ -48,6 +48,22 @@ Describe '_mergeExtensionProcess' {
         $extension.ContainsKey('Process') | Should -BeFalse
     }
 
+    It 'Copies the process of a duplicate that is disabled only because it does not match the lock file' {
+        $extension = @{ Name = 'ZeroFailed.Build.Common'; Enabled = $true }
+
+        _mergeExtensionProcess -Extension $extension -Duplicate @{ Name = 'ZeroFailed.Build.Common'; Enabled = $false; LockMismatch = $true; Process = 'tasks/build.process.ps1' }
+
+        $extension.Process | Should -Be 'tasks/build.process.ps1'
+    }
+
+    It 'Does not copy the process of the duplicate when the extension does not match the lock file' {
+        $extension = @{ Name = 'ZeroFailed.Build.Common'; Enabled = $false; LockMismatch = $true }
+
+        _mergeExtensionProcess -Extension $extension -Duplicate @{ Name = 'ZeroFailed.Build.Common'; Enabled = $true; Process = 'tasks/build.process.ps1' }
+
+        $extension.ContainsKey('Process') | Should -BeFalse
+    }
+
     It 'Keeps the process of the extension when the duplicate has none' {
         $extension = @{ Name = 'ZeroFailed.Build.Common'; Process = 'tasks/build.process.ps1' }
 

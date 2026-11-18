@@ -102,14 +102,15 @@ function _resolveUsedExtensions {
     })
 
     # The processes that each extension is given, in order of precedence: those in the configuration, in the order that
-    # they are listed, then those that the used extensions declare, in the order that they were registered. A disabled
-    # reference is not imported, so its process is not used. They are read before any process is changed, as an
-    # occurrence can also be a declaration.
+    # they are listed, then those that the used extensions declare, in the order that they were registered. The process
+    # of an explicitly disabled reference is not used. A reference that is disabled only because it does not match the
+    # lock file still declares its process. They are read before any process is changed, as an occurrence can also be a
+    # declaration.
     $processes = @{}
     $addProcess = {
         param ($name, $reference)
         if ($reference.ContainsKey('Process') -and ![string]::IsNullOrEmpty($reference.Process) -and
-                (!$reference.ContainsKey('Enabled') -or $reference.Enabled)) {
+                (!$reference.ContainsKey('Enabled') -or $reference.Enabled -or $reference['LockMismatch'])) {
             if (!$processes.ContainsKey($name)) {
                 $processes[$name] = [System.Collections.Generic.List[string]]::new()
             }

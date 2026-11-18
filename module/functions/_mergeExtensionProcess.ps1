@@ -13,8 +13,10 @@ function _mergeExtensionProcess {
         The 'Process' that a discarded reference declares is still needed, so it is copied to the reference that is used
         when that reference does not declare one.
         A warning is written when both references declare a different 'Process', and the one that is used keeps its own.
-        Nothing is copied when either reference is disabled, as a disabled extension is not imported, so its process
-        cannot be used.
+        Nothing is copied to a reference that is disabled, as a disabled extension is not imported, so its process cannot
+        be used.
+        Nothing is copied from a reference that is explicitly disabled either. A reference that is disabled only because it
+        does not match the lock file still declares its process, which the extension that requires it needs.
     #>
     [CmdletBinding()]
     [OutputType([void])]
@@ -32,11 +34,10 @@ function _mergeExtensionProcess {
         return
     }
 
-    foreach ($reference in $Extension, $Duplicate) {
-        if ($reference.ContainsKey('Enabled') -and !$reference.Enabled) {
-            Write-Verbose "Not using process '$($Duplicate.Process)' for extension '$($Extension.Name)', as a reference to it is disabled"
-            return
-        }
+    $isDisabled = { param ($reference) $reference.ContainsKey('Enabled') -and !$reference.Enabled }
+    if ((& $isDisabled $Extension) -or ((& $isDisabled $Duplicate) -and !$Duplicate['LockMismatch'])) {
+        Write-Verbose "Not using process '$($Duplicate.Process)' for extension '$($Extension.Name)', as a reference to it is disabled"
+        return
     }
 
     if (!$Extension.ContainsKey('Process') -or [string]::IsNullOrEmpty($Extension.Process)) {

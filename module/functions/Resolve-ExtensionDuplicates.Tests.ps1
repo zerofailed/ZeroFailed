@@ -103,6 +103,22 @@ Describe 'Resolve-ExtensionDuplicates' {
 
             Should -Invoke Write-Warning -Times 1 -Exactly
         }
+
+        It 'Does not fail under strict mode, or warn, when a reference was not installed, so has no path' {
+            # e.g. a reference that does not match the lock file in a Frozen run
+            $extensions = @(
+                @{ Name = 'ZeroFailed.Build.Common'; Enabled = $true; Path = '/zf/ZeroFailed.Build.Common/1.0.0' }
+                @{ Name = 'ZeroFailed.Build.Common'; Enabled = $false; LockMismatch = $true }
+            )
+
+            & {
+                Set-StrictMode -Version Latest
+                [array]$result = Resolve-ExtensionDuplicates -Extensions $extensions
+                $result.Count | Should -Be 1
+            }
+
+            Should -Invoke Write-Warning -Times 0 -Exactly
+        }
     }
 
     Context 'When there is a mix of conflicting and non-conflicting duplicates' {

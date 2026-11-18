@@ -61,13 +61,13 @@ function Resolve-ExtensionDuplicates {
         if ($group.Count -gt 1) {
             # Warn only when the same extension has been resolved to more than one distinct
             # location (i.e. a genuine version conflict), rather than for every shared reference.
-            if (@($group.Path | Select-Object -Unique).Count -gt 1) {
+            if (@($group | ForEach-Object { $_['Path'] } | Select-Object -Unique).Count -gt 1) {
                 $ignored = $group | Select-Object -Skip 1
-                $conflicts = $group | ForEach-Object { [pscustomobject]@{ Name = $_.Name; Version = $_['Version']; Path = $_.Path } }
+                $conflicts = $group | ForEach-Object { [pscustomobject]@{ Name = $_.Name; Version = $_['Version']; Path = $_['Path'] } }
                 Write-Warning ("Multiple versions of extension '$name' have been resolved - " +
                     "using the first one found and ignoring the rest:`n" +
-                    "Using:   $($winner.Path)`n" +
-                    "Ignored: $($ignored.Path -join ', ')`n" +
+                    "Using:   $($winner['Path'])`n" +
+                    "Ignored: $(($ignored | ForEach-Object { $_['Path'] }) -join ', ')`n" +
                     "$($conflicts | ConvertTo-Json)")
             }
 

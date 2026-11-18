@@ -102,6 +102,32 @@ Describe 'Register-Extensions with a version of an extension that is not used' {
         }
     }
 
+    Context 'When an extension that is used declares the process of another version of an extension in the configuration' {
+        BeforeAll {
+            # The configuration has 'Common' 1.0.0, and 'X' requires 'Common' 2.0.0 and declares its process. The lock
+            # file records 'Common' 1.0.0, so a Frozen run does not install 2.0.0.
+            Mock Get-ExtensionDependencies {
+                switch ($Extension.Name) {
+                    'X' { @{ Name = 'Common'; Version = '2.0.0'; Process = 'tasks/build.process.ps1' } }
+                }
+            }
+        }
+
+        It 'Uses the process in <LockMode> mode' -ForEach @(@{ LockMode = 'Write' }, @{ LockMode = 'Frozen' }) {
+            # Registration adds to the configuration, so each run has its own
+            $newConfig = { @(@{ Name = 'Common'; Version = '1.0.0' }, @{ Name = 'X'; Version = '1.0.0' }) }
+            if ($LockMode -eq 'Frozen') {
+                & $register (& $newConfig) 'Write' | Out-Null
+            }
+
+            $result = & $register (& $newConfig) $LockMode
+
+            $result.Name | Should -Be @('Common', 'X')
+            $result[0].Path | Should -BeLike '*1.0.0'
+            $result[0].Process | Should -Be 'tasks/build.process.ps1'
+        }
+    }
+
     Context 'When the configuration lists an extension twice in a range, and only the second declares its process' {
         BeforeAll {
             Mock Get-ExtensionDependencies {}
