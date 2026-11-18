@@ -102,6 +102,33 @@ Describe 'Register-Extensions with a version of an extension that is not used' {
         }
     }
 
+    Context 'When a version that is not used declares a dependency as disabled' {
+        BeforeAll {
+            # The configuration has 'A' 1.0.0, and 'X' requires 'A' 2.0.0. 'A' 2.0.0 requires 'E', which requires 'D', and
+            # also declares 'D' as disabled.
+            Mock Get-ExtensionDependencies {
+                switch ($Extension.Name) {
+                    'X' { @{ Name = 'A'; Version = '2.0.0' } }
+                    'A' {
+                        if ($Extension.Path -like '*2.0.0') {
+                            @{ Name = 'E'; Version = '1.0.0' }
+                            @{ Name = 'D'; Version = '1.0.0'; Enabled = $false }
+                        }
+                    }
+                    'E' { @{ Name = 'D'; Version = '1.0.0' } }
+                }
+            }
+        }
+
+        It 'Does not use the dependencies of that version, or record them in the lock file' {
+            $result = & $register @(@{ Name = 'A'; Version = '1.0.0' }, @{ Name = 'X'; Version = '1.0.0' })
+
+            $result.Name | Should -Be @('A', 'X')
+            (& $readLockFile).extensions.Keys | Should -Not -Contain 'D'
+            (& $readLockFile).extensions.Keys | Should -Not -Contain 'E'
+        }
+    }
+
     Context 'When an extension that is used declares the process of another version of an extension in the configuration' {
         BeforeAll {
             # The configuration has 'Common' 1.0.0, and 'X' requires 'Common' 2.0.0 and declares its process. The lock

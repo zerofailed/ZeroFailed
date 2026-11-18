@@ -18,9 +18,13 @@ function Resolve-ExtensionDuplicates {
         Get-ExtensionImportOrder uses it to decide the order in which the tasks and functions of
         the extensions are imported.
 
-        When the reference that is kept does not declare a 'Process', but a removed reference to
-        the same extension does, the kept reference uses that 'Process', unless either of them is disabled.
+        When the reference that is kept does not declare a 'Process', but a removed reference to the same extension does, the kept reference uses that 'Process'.
+        Nothing is copied to a disabled reference, or from an explicitly disabled one.
+        A reference that is disabled only because it does not match the lock file still declares its process.
         A warning is logged when the references declare different processes.
+
+        For the extensions that Register-Extensions returns, this does not change any process.
+        Register-Extensions has already chosen the process of each extension that is used, and removed it from the other references to that extension.
 
         A warning is only logged when the duplicate references resolve to genuinely different
         versions. The reliable indicator of the resolved version across all extension types

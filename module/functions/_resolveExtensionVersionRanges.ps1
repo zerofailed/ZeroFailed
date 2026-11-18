@@ -132,9 +132,8 @@ function _resolveExtensionVersionRanges {
 
     # Discards every occurrence of an extension other than the first one, which is the chosen version. The chosen
     # occurrence records every extension that required the extension, so that the lock file still lists them. The
-    # chosen occurrence uses the process of a discarded occurrence from the configuration, which is always used. The
-    # process that a discarded dependency declares is used later, by '_resolveUsedExtensions', when a used extension
-    # declares it.
+    # process that a discarded occurrence declares is chosen later, by '_resolveUsedExtensions': it is used when the
+    # occurrence is in the configuration, or when a used extension declares it.
     $discardOtherOccurrences = {
         param ($indices)
         $winner = $resolved[$indices[0]]
@@ -148,9 +147,6 @@ function _resolveExtensionVersionRanges {
             if ($other.ContainsKey('LockEntry')) {
                 $winner.LockEntry.requiredBy = [string[]]@(@($winner.LockEntry.requiredBy) + @($other.LockEntry.requiredBy) | Select-Object -Unique)
                 $winner.LockEntry.direct = $winner.LockEntry.direct -or $other.LockEntry.direct
-                if ($other.LockEntry.direct) {
-                    _mergeExtensionProcess -Extension $winner -Duplicate $other
-                }
             }
         }
     }

@@ -63,6 +63,7 @@ A 'Process' that only an extension that is not used declares is ignored.
 When the references to an extension declare different processes, it uses the first one in the configuration, or else the first one that an extension that is used declares, in the order that they were registered.
 A warning names the others.
 The lock entry of each extension lists the extensions that are used and require it.
+These rules are described in 'docs/adr/0002-resolving-the-extensions-that-are-used.md'.
 
 A local extension (one with a 'Path') in the configuration is used in place of a dependency with the same name, wherever it is listed.
 The dependency is not installed, and neither are its own dependencies.

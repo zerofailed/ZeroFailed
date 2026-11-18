@@ -47,6 +47,15 @@ BeforeAll {
         }
         $declaration
     }
+
+    # Calls the sut. Unless they are given, the configured occurrences are those that no extension requires: those
+    # created without 'RequiredBy', and explicitly disabled ones, which have no lock entry.
+    function resolveUsed([hashtable[]] $Extensions, [hashtable[]] $Configured) {
+        if (!$PSBoundParameters.ContainsKey('Configured')) {
+            $Configured = @($Extensions | Where-Object { !$_.ContainsKey('LockEntry') -or $_.LockEntry.direct })
+        }
+        _resolveUsedExtensions -Extensions $Extensions -ConfiguredExtensions $Configured
+    }
 }
 
 Describe '_resolveUsedExtensions' {
@@ -66,7 +75,7 @@ Describe '_resolveUsedExtensions' {
                 $commonForB
             )
 
-            $result = @(_resolveUsedExtensions -Extensions $extensions)
+            $result = @(resolveUsed -Extensions $extensions)
 
             $result.Count | Should -Be 4
             for ($i = 0; $i -lt 4; $i++) {
@@ -87,7 +96,7 @@ Describe '_resolveUsedExtensions' {
                 $a2
                 $commonForA2
             )
-            $script:result = @(_resolveUsedExtensions -Extensions $script:extensions)
+            $script:result = @(resolveUsed -Extensions $script:extensions)
         }
 
         It 'Keeps the version that is not used, so that it can be reported as a duplicate' {
@@ -112,7 +121,7 @@ Describe '_resolveUsedExtensions' {
                 $local
             )
 
-            _resolveUsedExtensions -Extensions $extensions | Out-Null
+            resolveUsed -Extensions $extensions | Out-Null
 
             $local.ContainsKey('Process') | Should -BeFalse
             $local.LockEntry.requiredBy | Should -Be @('B')
@@ -126,7 +135,7 @@ Describe '_resolveUsedExtensions' {
                 newExtension 'A' -Declarations (newDeclaration 'Common' 'tasks/build.process.ps1')
             )
 
-            _resolveUsedExtensions -Extensions $extensions | Out-Null
+            resolveUsed -Extensions $extensions | Out-Null
 
             $local.Process | Should -Be 'tasks/build.process.ps1'
             $local.LockEntry.requiredBy | Should -Be @('A')
@@ -146,7 +155,7 @@ Describe '_resolveUsedExtensions' {
                 $commonForA
             )
 
-            _resolveUsedExtensions -Extensions $extensions | Out-Null
+            resolveUsed -Extensions $extensions | Out-Null
 
             $configured.Process | Should -Be 'tasks/build.process.ps1'
         }
@@ -158,7 +167,7 @@ Describe '_resolveUsedExtensions' {
                 newExtension 'A' -Declarations @{ Name = 'Common'; Enabled = $false; Process = 'tasks/build.process.ps1' }
             )
 
-            _resolveUsedExtensions -Extensions $extensions | Out-Null
+            resolveUsed -Extensions $extensions | Out-Null
 
             $configured.ContainsKey('Process') | Should -BeFalse
         }
@@ -177,7 +186,7 @@ Describe '_resolveUsedExtensions' {
                 newExtension 'A' -Declarations (newDeclaration 'Common' 'tasks/dependency.process.ps1')
             )
 
-            _resolveUsedExtensions -Extensions $extensions | Out-Null
+            resolveUsed -Extensions $extensions | Out-Null
 
             $local.Process | Should -Be 'tasks/configured.process.ps1'
             $localWithProcess.ContainsKey('Process') | Should -BeFalse
@@ -195,7 +204,7 @@ Describe '_resolveUsedExtensions' {
                 $configured
             )
 
-            _resolveUsedExtensions -Extensions $extensions | Out-Null
+            resolveUsed -Extensions $extensions | Out-Null
 
             $commonForA.Process | Should -Be 'tasks/configured.process.ps1'
             $configured.ContainsKey('Process') | Should -BeFalse
@@ -211,7 +220,7 @@ Describe '_resolveUsedExtensions' {
                 $commonForB
             )
 
-            _resolveUsedExtensions -Extensions $extensions | Out-Null
+            resolveUsed -Extensions $extensions | Out-Null
 
             $commonForA.Process | Should -Be 'tasks/first.process.ps1'
             $commonForB.ContainsKey('Process') | Should -BeFalse
@@ -231,7 +240,7 @@ Describe '_resolveUsedExtensions' {
                 $common
             )
 
-            _resolveUsedExtensions -Extensions $extensions | Out-Null
+            resolveUsed -Extensions $extensions | Out-Null
 
             $common.Process | Should -Be 'tasks/build.process.ps1'
             $common.LockEntry.requiredBy | Should -Be @('A')
@@ -249,7 +258,7 @@ Describe '_resolveUsedExtensions' {
                 newExtension 'X' -Declarations $a13
             )
 
-            _resolveUsedExtensions -Extensions $extensions | Out-Null
+            resolveUsed -Extensions $extensions | Out-Null
 
             $common.ContainsKey('Process') | Should -BeFalse
             $common.LockEntry.requiredBy | Should -BeNullOrEmpty
@@ -271,7 +280,7 @@ Describe '_resolveUsedExtensions' {
                 $commonForB
             )
 
-            $result = @(_resolveUsedExtensions -Extensions $extensions)
+            $result = @(resolveUsed -Extensions $extensions)
 
             @($result | Where-Object { $_.Name -eq 'Common' }).Count | Should -Be 2
             $commonForA2.ContainsKey('Process') | Should -BeFalse
@@ -286,7 +295,7 @@ Describe '_resolveUsedExtensions' {
             $a.Enabled = $false
             $extensions = @($a, $common)
 
-            $result = @(_resolveUsedExtensions -Extensions $extensions)
+            $result = @(resolveUsed -Extensions $extensions)
 
             $result.Count | Should -Be 1
             $result[0].Name | Should -Be 'A'
@@ -295,15 +304,42 @@ Describe '_resolveUsedExtensions' {
         It 'Keeps an explicitly disabled extension, which has no lock entry' {
             $extensions = @(@{ Name = 'A'; Enabled = $false })
 
-            $result = @(_resolveUsedExtensions -Extensions $extensions)
+            $result = @(resolveUsed -Extensions $extensions)
 
             $result.Count | Should -Be 1
+        }
+
+        It 'Does not treat an explicitly disabled dependency of an unused version, which has no lock entry, as configured' {
+            # The configuration has 'A' 1.0.0 and 'X'. 'X' requires 'A' 2.0.0, which is not used. 'A' 2.0.0 requires 'E',
+            # which requires 'D', and also declares 'D' as disabled.
+            $dForE = newExtension 'D' -RequiredBy 'E'
+            $e = newExtension 'E' -RequiredBy 'A' -Declarations $dForE
+            $dDisabled = @{ Name = 'D'; Enabled = $false }
+            $a2 = newExtension 'A' -Version '2.0.0' -RequiredBy 'X' -Declarations $e, $dDisabled
+            $a1 = newExtension 'A'
+            $x = newExtension 'X' -Declarations $a2
+            $extensions = @($a1, $x, $a2, $e, $dForE, $dDisabled)
+
+            $result = @(resolveUsed -Extensions $extensions -Configured $a1, $x)
+
+            $result.Name | Should -Be @('A', 'X', 'A')
+        }
+    }
+
+    Context 'When an occurrence in the configuration was discarded when reconciling minimum versions' {
+        It 'Uses its process' {
+            $configured = newExtension 'Common'
+            $discarded = newExtension 'Common' -Process 'tasks/build.process.ps1'
+
+            resolveUsed -Extensions $configured -Configured $configured, $discarded | Out-Null
+
+            $configured.Process | Should -Be 'tasks/build.process.ps1'
         }
     }
 
     Context 'When given an empty collection' {
         It 'Returns nothing' {
-            @(_resolveUsedExtensions -Extensions @()).Count | Should -Be 0
+            @(resolveUsed -Extensions @()).Count | Should -Be 0
         }
     }
 }

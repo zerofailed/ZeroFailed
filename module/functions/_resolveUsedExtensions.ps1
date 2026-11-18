@@ -15,12 +15,14 @@ function _resolveUsedExtensions {
 
         For each extension that is used, its references decide its metadata:
          - its 'Process': the first one in the configuration, in the order that it is listed, or else the first one that
-           a used extension declares for it, in the order that they were registered. This includes a declaration that is
+           a used extension declares for it, in the order that they were registered. This includes a reference that is
            not otherwise kept (for example, an occurrence discarded when reconciling minimum versions, or a dependency that
            a local extension is used in place of). A warning names any other process. A 'Process' that only an unused
            extension declared is removed, and so is the 'Process' of every other occurrence that is kept, so that
            'Resolve-ExtensionDuplicates' does not use it.
          - its lock entry's 'requiredBy', which lists the used extensions that require it.
+
+        These rules are described in 'docs/adr/0002-resolving-the-extensions-that-are-used.md'.
     #>
     [CmdletBinding()]
     [OutputType([hashtable[]])]
@@ -28,15 +30,27 @@ function _resolveUsedExtensions {
         # The registered extensions, in the order that they were registered, with the version to use first
         [Parameter(Mandatory)]
         [AllowEmptyCollection()]
-        [hashtable[]] $Extensions
+        [hashtable[]] $Extensions,
+
+        # The occurrence that each entry in the configuration registered, in the order of the configuration, including
+        # one that was discarded when reconciling minimum versions. They are compared by reference.
+        [Parameter(Mandatory)]
+        [AllowEmptyCollection()]
+        [hashtable[]] $ConfiguredExtensions
     )
 
     $newReferenceSet = { , [System.Collections.Generic.HashSet[object]]::new([System.Collections.Generic.ReferenceEqualityComparer]::Instance) }
 
-    # An occurrence from the configuration (an explicitly disabled extension does not have a lock entry)
+    # An occurrence from the configuration. Whether an occurrence has a lock entry, or whether that entry is marked
+    # 'direct', does not decide this: an explicitly disabled dependency has no lock entry, and reconciling minimum
+    # versions marks the occurrence that it keeps as 'direct' when it discards one from the configuration.
+    $configured = & $newReferenceSet
+    foreach ($extension in $ConfiguredExtensions) {
+        $configured.Add($extension) | Out-Null
+    }
     $isConfigured = {
         param ($extension)
-        !$extension.ContainsKey('LockEntry') -or $extension.LockEntry.direct
+        $configured.Contains($extension)
     }
 
     # The occurrence of each extension that is used
@@ -50,8 +64,8 @@ function _resolveUsedExtensions {
     # The extensions that are used: those in the configuration, then those that a used extension requires
     $usedNames = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
     $pending = [System.Collections.Generic.Queue[string]]::new()
-    foreach ($extension in $Extensions) {
-        if ((& $isConfigured $extension) -and $usedNames.Add($extension.Name)) {
+    foreach ($extension in $ConfiguredExtensions) {
+        if ($usedNames.Add($extension.Name)) {
             $pending.Enqueue($extension.Name)
         }
     }
@@ -119,10 +133,8 @@ function _resolveUsedExtensions {
             }
         }
     }
-    foreach ($extension in $used) {
-        if (& $isConfigured $extension) {
-            & $addProcess $extension.Name $extension
-        }
+    foreach ($extension in $ConfiguredExtensions) {
+        & $addProcess $extension.Name $extension
     }
     foreach ($name in $declarations.Keys) {
         foreach ($item in $declarations[$name]) {
